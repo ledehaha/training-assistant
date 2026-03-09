@@ -170,6 +170,7 @@ interface ColumnConfig {
 export default function DataManagementPage() {
   const [selectedTable, setSelectedTable] = useState<TableConfig>(TABLES_CONFIG[0]);
   const [data, setData] = useState<Record<string, unknown>[]>([]);
+  const [tableCounts, setTableCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -185,7 +186,24 @@ export default function DataManagementPage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [fileImportLoading, setFileImportLoading] = useState(false);
 
-  // 加载数据
+  // 加载所有表的数据计数
+  const loadTableCounts = useCallback(async () => {
+    try {
+      const counts: Record<string, number> = {};
+      await Promise.all(
+        TABLES_CONFIG.map(async (table) => {
+          const res = await fetch(`/api/admin/data?table=${table.name}`);
+          const result = await res.json();
+          counts[table.name] = result.data?.length || 0;
+        })
+      );
+      setTableCounts(counts);
+    } catch (error) {
+      console.error('Load table counts error:', error);
+    }
+  }, []);
+
+  // 加载当前表数据
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -193,8 +211,11 @@ export default function DataManagementPage() {
       const result = await res.json();
       if (result.data) {
         setData(result.data);
+        // 更新当前表的计数
+        setTableCounts(prev => ({ ...prev, [selectedTable.name]: result.data.length }));
       } else {
         setData([]);
+        setTableCounts(prev => ({ ...prev, [selectedTable.name]: 0 }));
       }
     } catch (error) {
       console.error('Load data error:', error);
@@ -204,6 +225,12 @@ export default function DataManagementPage() {
     }
   }, [selectedTable.name]);
 
+  // 初始化加载所有表计数
+  useEffect(() => {
+    loadTableCounts();
+  }, [loadTableCounts]);
+
+  // 切换表时加载数据
   useEffect(() => {
     loadData();
   }, [loadData]);
@@ -606,7 +633,7 @@ export default function DataManagementPage() {
                     <span className="text-lg">{table.icon}</span>
                     <span>{table.label}</span>
                     <Badge variant="outline" className="ml-auto text-xs">
-                      {data.length}
+                      {tableCounts[table.name] || 0}
                     </Badge>
                   </button>
                 ))}
