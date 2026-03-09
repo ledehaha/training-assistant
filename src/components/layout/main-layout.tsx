@@ -13,6 +13,7 @@ import {
   Menu,
   X,
   GraduationCap,
+  Database,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -27,6 +28,7 @@ const navigation = [
   { name: '项目申报', href: '/declaration', icon: FileText },
   { name: '项目总结', href: '/summary', icon: ClipboardCheck },
   { name: '项目查询', href: '/query', icon: Search },
+  { name: '数据管理', href: '/admin/data', icon: Database },
 ];
 
 export default function MainLayout({ children }: MainLayoutProps) {
