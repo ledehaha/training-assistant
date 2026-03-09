@@ -1,0 +1,101 @@
+name: Deploy to Aliyun ECS (with notification)
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to ECS
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get commit info
+        id: commit
+        run: |
+          echo "message=$(git log -1 --pretty=%s)" >> $GITHUB_OUTPUT
+          echo "author=$(git log -1 --pretty=%an)" >> $GITHUB_OUTPUT
+          echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Deploy to ECS via SSH
+        id: deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.ECS_HOST }}
+          username: ${{ secrets.ECS_USERNAME }}
+          key: ${{ secrets.ECS_SSH_KEY }}
+          port: ${{ secrets.ECS_SSH_PORT || 22 }}
+          command_timeout: 10m
+          script: |
+            set -e
+            
+            PROJECT_PATH="${{ secrets.ECS_PROJECT_PATH || '/var/www/training-assistant' }}"
+            
+            echo "=========================================="
+            echo "🚀 开始部署 - $(date '+%Y-%m-%d %H:%M:%S')"
+            echo "=========================================="
+            
+            # 检查项目目录是否存在
+            if [ ! -d "$PROJECT_PATH" ]; then
+              echo "❌ 项目目录不存在: $PROJECT_PATH"
+              exit 1
+            fi
+            
+            cd "$PROJECT_PATH"
+            
+            # 拉取最新代码
+            echo "📦 拉取最新代码..."
+            git fetch origin
+            git reset --hard origin/${{ github.ref_name }}
+            
+            # 安装依赖
+            echo "📥 安装依赖..."
+            pnpm install --frozen-lockfile
+            
+            # 构建项目
+            echo "🔨 构建项目..."
+            pnpm run build
+            
+            # 重启服务
+            echo "🔄 重启服务..."
+            if pm2 list | grep -q "training-assistant"; then
+              pm2 restart training-assistant
+            else
+              pm2 start pnpm --name "training-assistant" -- start
+            fi
+            
+            # 等待服务启动
+            sleep 5
+            
+            # 检查服务状态
+            if pm2 list | grep -q "training-assistant.*online"; then
+              echo "✅ 服务启动成功！"
+            else
+              echo "❌ 服务启动失败，请检查日志"
+              pm2 logs training-assistant --lines 20
+              exit 1
+            fi
+            
+            echo "=========================================="
+            echo "✅ 部署完成 - $(date '+%Y-%m-%d %H:%M:%S')"
+            echo "=========================================="
+
+      - name: Deployment Summary
+        run: |
+          echo "## 🚀 部署完成" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 项目 | 值 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| 提交信息 | ${{ steps.commit.outputs.message }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 提交者 | ${{ steps.commit.outputs.author }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit SHA | ${{ steps.commit.outputs.sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 分支 | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 服务器 | ${{ secrets.ECS_HOST }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🌐 访问地址: http://${{ secrets.ECS_HOST }}:5000" >> $GITHUB_STEP_SUMMARY
