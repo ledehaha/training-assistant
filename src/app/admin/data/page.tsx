@@ -35,6 +35,9 @@ import {
   AlertCircle,
   CheckCircle,
   FileSpreadsheet,
+  Sparkles,
+  FileDown,
+  Loader2,
 } from 'lucide-react';
 
 // 数据表配置
@@ -169,10 +172,13 @@ export default function DataManagementPage() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [aiImportDialogOpen, setAiImportDialogOpen] = useState(false);
   const [currentItem, setCurrentItem] = useState<Record<string, unknown> | null>(null);
   const [formData, setFormData] = useState<Record<string, unknown>>({});
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [importData, setImportData] = useState<string>('');
+  const [aiImportText, setAiImportText] = useState<string>('');
+  const [aiImportLoading, setAiImportLoading] = useState(false);
 
   // 加载数据
   const loadData = useCallback(async () => {
@@ -369,6 +375,62 @@ export default function DataManagementPage() {
     URL.revokeObjectURL(url);
   };
 
+  // 下载 Excel 模板
+  const handleDownloadTemplate = async () => {
+    try {
+      const res = await fetch(`/api/admin/data/template?table=${selectedTable.name}`);
+      if (!res.ok) {
+        throw new Error('下载模板失败');
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${selectedTable.name}_template.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setMessage({ type: 'success', text: '模板下载成功' });
+    } catch (error) {
+      console.error('Download template error:', error);
+      setMessage({ type: 'error', text: '下载模板失败' });
+    }
+  };
+
+  // AI 智能导入
+  const handleAiImport = async () => {
+    if (!aiImportText.trim()) {
+      setMessage({ type: 'error', text: '请输入要导入的内容' });
+      return;
+    }
+
+    setAiImportLoading(true);
+    try {
+      const res = await fetch('/api/admin/data/ai-import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          table: selectedTable.name,
+          text: aiImportText,
+        }),
+      });
+
+      const result = await res.json();
+      if (result.success) {
+        setMessage({ type: 'success', text: result.summary || `成功导入 ${result.count} 条数据` });
+        setAiImportDialogOpen(false);
+        setAiImportText('');
+        loadData();
+      } else {
+        setMessage({ type: 'error', text: result.error || 'AI 解析失败' });
+      }
+    } catch (error) {
+      console.error('AI import error:', error);
+      setMessage({ type: 'error', text: 'AI 智能导入失败' });
+    } finally {
+      setAiImportLoading(false);
+    }
+  };
+
   // 渲染表单字段
   const renderFormField = (col: ColumnConfig) => {
     if (!col.editable) return null;
@@ -513,14 +575,22 @@ export default function DataManagementPage() {
                   </CardTitle>
                   <CardDescription>共 {filteredData.length} 条记录</CardDescription>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Button variant="outline" size="sm" onClick={() => loadData()}>
                     <RefreshCw className="w-4 h-4 mr-1" />
                     刷新
                   </Button>
+                  <Button variant="outline" size="sm" onClick={handleDownloadTemplate}>
+                    <FileDown className="w-4 h-4 mr-1" />
+                    下载模板
+                  </Button>
                   <Button variant="outline" size="sm" onClick={handleExport}>
                     <Download className="w-4 h-4 mr-1" />
                     导出
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setAiImportDialogOpen(true)}>
+                    <Sparkles className="w-4 h-4 mr-1" />
+                    AI导入
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => setImportDialogOpen(true)}>
                     <Upload className="w-4 h-4 mr-1" />
@@ -697,6 +767,59 @@ export default function DataManagementPage() {
             </Button>
             <Button onClick={handleImport} disabled={!importData.trim()}>
               导入
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* AI 智能导入对话框 */}
+      <Dialog open={aiImportDialogOpen} onOpenChange={setAiImportDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-purple-500" />
+              AI 智能导入
+            </DialogTitle>
+            <DialogDescription>
+              输入文字描述，AI 将自动解析并导入到「{selectedTable.label}」表
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="bg-purple-50 p-4 rounded-lg text-sm text-purple-700">
+              <p className="font-medium mb-2">示例输入：</p>
+              <ul className="list-disc list-inside space-y-1 text-xs">
+                <li>张明，正高职称，擅长管理培训和领导力，来自某大学商学院，课时费2000元</li>
+                <li>阳光培训中心位于上海浦东，可容纳100人，日租金5000元，有投影仪和音响设备</li>
+                <li>班组长管理技能提升课程，属于管理技能类，8课时，适合班组长，中级难度</li>
+              </ul>
+            </div>
+            <textarea
+              className="w-full h-48 p-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              placeholder="请输入要导入的数据描述，支持多行多条记录..."
+              value={aiImportText}
+              onChange={(e) => setAiImportText(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAiImportDialogOpen(false)}>
+              取消
+            </Button>
+            <Button 
+              onClick={handleAiImport} 
+              disabled={!aiImportText.trim() || aiImportLoading}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              {aiImportLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  AI 解析中...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  AI 解析并导入
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
