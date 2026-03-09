@@ -44,8 +44,6 @@ interface Project {
 const statusMap: Record<string, { label: string; color: string }> = {
   draft: { label: '草稿', color: 'bg-gray-100 text-gray-700' },
   designing: { label: '设计中', color: 'bg-blue-100 text-blue-700' },
-  pending_approval: { label: '待审批', color: 'bg-yellow-100 text-yellow-700' },
-  approved: { label: '已批准', color: 'bg-green-100 text-green-700' },
   executing: { label: '执行中', color: 'bg-indigo-100 text-indigo-700' },
   completed: { label: '已完成', color: 'bg-emerald-100 text-emerald-700' },
   archived: { label: '已归档', color: 'bg-gray-100 text-gray-500' },

@@ -21,8 +21,6 @@ interface Project {
 const statusMap: Record<string, { label: string; color: string }> = {
   draft: { label: '草稿', color: 'bg-gray-100 text-gray-700' },
   designing: { label: '设计中', color: 'bg-blue-100 text-blue-700' },
-  pending_approval: { label: '待审批', color: 'bg-yellow-100 text-yellow-700' },
-  approved: { label: '已批准', color: 'bg-green-100 text-green-700' },
   executing: { label: '执行中', color: 'bg-indigo-100 text-indigo-700' },
   completed: { label: '已完成', color: 'bg-emerald-100 text-emerald-700' },
   archived: { label: '已归档', color: 'bg-gray-100 text-gray-500' },
@@ -39,7 +37,7 @@ export default function DeclarationPage() {
 
   const loadProjects = async () => {
     try {
-      const res = await fetch('/api/projects?status=designing,approved');
+      const res = await fetch('/api/projects?status=designing');
       const data = await res.json();
       if (data.data) {
         setProjects(data.data);
@@ -51,16 +49,16 @@ export default function DeclarationPage() {
     }
   };
 
-  const handleSubmitForApproval = async (projectId: string) => {
+  const handleSubmitForExecution = async (projectId: string) => {
     try {
       await fetch(`/api/projects/${projectId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'pending_approval' }),
+        body: JSON.stringify({ status: 'executing' }),
       });
       loadProjects();
     } catch (error) {
-      console.error('Submit for approval error:', error);
+      console.error('Submit for execution error:', error);
     }
   };
 
@@ -260,31 +258,31 @@ export default function DeclarationPage() {
           </Card>
         </div>
 
-        {/* 审批流程 */}
+        {/* 项目流程 */}
         <Card>
           <CardHeader>
-            <CardTitle>审批流程</CardTitle>
-            <CardDescription>项目申报审批进度</CardDescription>
+            <CardTitle>项目流程</CardTitle>
+            <CardDescription>项目当前进度</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
               {[
-                { step: 1, label: '提交申报', icon: Send, status: 'completed' },
-                { step: 2, label: '部门审核', icon: CheckCircle, status: 'pending' },
-                { step: 3, label: '领导审批', icon: CheckCircle, status: 'pending' },
-                { step: 4, label: '审批通过', icon: CheckCircle, status: 'pending' },
+                { step: 1, label: '项目设计', icon: FileText, status: 'completed' },
+                { step: 2, label: '项目申报', icon: Send, status: 'current' },
+                { step: 3, label: '项目执行', icon: CheckCircle, status: 'pending' },
+                { step: 4, label: '项目完成', icon: CheckCircle, status: 'pending' },
               ].map((step, index) => (
                 <div key={step.step} className="flex items-center">
                   <div className={`flex flex-col items-center ${
-                    step.status === 'completed' ? 'text-green-600' : 'text-gray-400'
+                    step.status === 'completed' ? 'text-green-600' : 
+                    step.status === 'current' ? 'text-blue-600' : 'text-gray-400'
                   }`}>
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      step.status === 'completed' ? 'bg-green-100' : 'bg-gray-100'
+                      step.status === 'completed' ? 'bg-green-100' : 
+                      step.status === 'current' ? 'bg-blue-100' : 'bg-gray-100'
                     }`}>
                       {step.status === 'completed' ? (
                         <CheckCircle className="w-5 h-5" />
-                      ) : step.status === 'pending' ? (
-                        <Clock className="w-5 h-5" />
                       ) : (
                         <step.icon className="w-5 h-5" />
                       )}

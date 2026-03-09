@@ -54,7 +54,7 @@ const TABLE_SCHEMA: Record<string, string> = {
 
   projects: `培训项目表：
 - name (必填): 项目名称
-- status: 状态，可选值：draft、designing、pending_approval、approved、executing、completed、archived
+- status: 状态，可选值：draft、designing、executing、completed、archived
 - training_target: 培训目标
 - target_audience: 目标人群
 - participant_count: 参训人数

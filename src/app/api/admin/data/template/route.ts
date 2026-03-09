@@ -56,7 +56,7 @@ const TABLES_CONFIG: Record<string, { label: string; columns: { key: string; lab
     label: '培训项目',
     columns: [
       { key: 'name', label: '项目名称', type: 'text', required: true },
-      { key: 'status', label: '状态', type: 'select', options: ['draft', 'designing', 'pending_approval', 'approved', 'executing', 'completed', 'archived'] },
+      { key: 'status', label: '状态', type: 'select', options: ['draft', 'designing', 'executing', 'completed', 'archived'] },
       { key: 'training_target', label: '培训目标', type: 'text' },
       { key: 'target_audience', label: '目标人群', type: 'text' },
       { key: 'participant_count', label: '参训人数', type: 'number' },

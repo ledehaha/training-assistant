@@ -13,15 +13,13 @@ const stats = [
 const recentProjects = [
   { id: 1, name: '班组长能力提升培训', status: 'executing', participants: 50, progress: 75 },
   { id: 2, name: '新员工入职培训', status: 'designing', participants: 30, progress: 30 },
-  { id: 3, name: '中层管理干部培训', status: 'pending_approval', participants: 40, progress: 60 },
+  { id: 3, name: '中层管理干部培训', status: 'designing', participants: 40, progress: 60 },
   { id: 4, name: '安全生产专题培训', status: 'completed', participants: 100, progress: 100 },
 ];
 
 const statusMap: Record<string, { label: string; color: string }> = {
   draft: { label: '草稿', color: 'bg-gray-100 text-gray-700' },
   designing: { label: '设计中', color: 'bg-blue-100 text-blue-700' },
-  pending_approval: { label: '待审批', color: 'bg-yellow-100 text-yellow-700' },
-  approved: { label: '已批准', color: 'bg-green-100 text-green-700' },
   executing: { label: '执行中', color: 'bg-indigo-100 text-indigo-700' },
   completed: { label: '已完成', color: 'bg-emerald-100 text-emerald-700' },
   archived: { label: '已归档', color: 'bg-gray-100 text-gray-500' },

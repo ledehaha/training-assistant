@@ -113,7 +113,7 @@ const TABLES_CONFIG = [
     columns: [
       { key: 'id', label: 'ID', type: 'uuid', editable: false },
       { key: 'name', label: '项目名称', type: 'text', editable: true, required: true },
-      { key: 'status', label: '状态', type: 'select', options: ['draft', 'designing', 'pending_approval', 'approved', 'executing', 'completed', 'archived'], editable: true },
+      { key: 'status', label: '状态', type: 'select', options: ['draft', 'designing', 'executing', 'completed', 'archived'], editable: true },
       { key: 'training_target', label: '培训目标', type: 'text', editable: true },
       { key: 'target_audience', label: '目标人群', type: 'text', editable: true },
       { key: 'participant_count', label: '参训人数', type: 'number', editable: true },
