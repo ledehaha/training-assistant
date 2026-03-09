@@ -3,13 +3,48 @@ import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import * as XLSX from 'xlsx';
 
-// 动态导入 pdf-parse 和 mammoth（避免构建问题）
+// 解析 PDF 文件
 async function parsePDF(buffer: Buffer): Promise<string> {
   try {
-    // @ts-expect-error - pdf-parse dynamic import
-    const pdfParse = (await import('pdf-parse')).default || (await import('pdf-parse'));
-    const data = await pdfParse(buffer);
-    return data.text || '';
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const PDFParser = require('pdf2json');
+    
+    return new Promise((resolve) => {
+      const pdfParser = new PDFParser(null, 1);
+      
+      pdfParser.on('pdfParser_dataError', () => {
+        resolve('');
+      });
+      
+      pdfParser.on('pdfParser_dataReady', (pdfData: Record<string, unknown>) => {
+        try {
+          const pages = pdfData.Pages as Array<Record<string, unknown>> | undefined;
+          if (!pages) {
+            resolve('');
+            return;
+          }
+          
+          const text = pages
+            .map(page => {
+              const texts = page.Texts as Array<Record<string, unknown>> | undefined;
+              if (!texts) return '';
+              return texts
+                .map(text => {
+                  const runs = text.R as Array<Record<string, unknown>> | undefined;
+                  if (!runs) return '';
+                  return runs.map(r => decodeURIComponent((r.T as string) || '')).join('');
+                })
+                .join(' ');
+            })
+            .join('\n');
+          resolve(text);
+        } catch {
+          resolve('');
+        }
+      });
+      
+      pdfParser.parseBuffer(buffer);
+    });
   } catch (error) {
     console.error('PDF parse error:', error);
     return '';
