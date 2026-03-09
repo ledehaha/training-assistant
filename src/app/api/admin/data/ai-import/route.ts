@@ -21,7 +21,7 @@ const TABLE_SCHEMA: Record<string, string> = {
 - expertise: 专业领域，多个用逗号分隔
 - organization: 所属单位
 - bio: 个人简介
-- hourly_rate: 课时费（元）
+- hourly_rate: 课时费（元），【重要】根据规范性文件中的费用标准自动设置
 - rating: 评分（1-5）
 - teaching_count: 授课次数
 - is_active: 是否启用（默认true）`,
@@ -60,6 +60,22 @@ const TABLE_SCHEMA: Record<string, string> = {
 - participant_count: 参训人数
 - training_days: 培训天数
 - total_budget: 总预算`,
+
+  project_courses: `项目课程表：
+- project_id (必填): 项目ID
+- course_name: 课程名称
+- teacher_id: 讲师ID
+- venue_id: 场地ID
+- duration: 课时
+- sequence: 顺序`,
+
+  satisfaction_surveys: `满意度调查表：
+- project_id: 项目ID
+- overall_score: 总体评分
+- content_score: 内容评分
+- teacher_score: 讲师评分
+- venue_score: 场地评分
+- suggestions: 建议`,
 };
 
 // POST /api/admin/data/ai-import - AI 智能导入
@@ -77,16 +93,53 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '请输入要导入的文字内容' }, { status: 400 });
     }
 
-    // 初始化 LLM 客户端
+    // 初始化客户端
     const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
     const config = new Config();
     const client = new LLMClient(config, customHeaders);
+    const supabase = getSupabaseClient();
+
+    // 获取规范性文件作为参考
+    const { data: normativeDocs } = await supabase
+      .from('normative_documents')
+      .select('*')
+      .eq('is_effective', true);
+
+    // 构建规范性文件参考内容
+    let normativeContext = '';
+    if (normativeDocs && normativeDocs.length > 0) {
+      const feeStandards = normativeDocs.filter(d => d.type === '费用标准');
+      const complianceRules = normativeDocs.filter(d => d.type === '合规条款');
+      const policyDocs = normativeDocs.filter(d => d.type === '政策文件');
+
+      if (feeStandards.length > 0) {
+        normativeContext += `\n### 费用标准（必须严格遵守）\n`;
+        feeStandards.forEach(doc => {
+          normativeContext += `- **${doc.name}**: ${doc.content}\n`;
+        });
+      }
+
+      if (complianceRules.length > 0) {
+        normativeContext += `\n### 合规条款（必须满足）\n`;
+        complianceRules.forEach(doc => {
+          normativeContext += `- **${doc.name}**: ${doc.content}\n`;
+        });
+      }
+
+      if (policyDocs.length > 0) {
+        normativeContext += `\n### 政策文件（参考依据）\n`;
+        policyDocs.forEach(doc => {
+          normativeContext += `- **${doc.name}**: ${doc.content}\n`;
+        });
+      }
+    }
 
     // 构建提示词
-    const prompt = `你是一个数据解析专家，负责从非结构化文本中提取结构化数据。
+    const prompt = `你是一个数据解析专家，负责从非结构化文本中提取结构化数据，并根据规范标准进行验证和补全。
 
 ## 目标数据表
 ${TABLE_SCHEMA[table] || table}
+${normativeContext ? `\n## 规范性文件参考\n${normativeContext}\n**重要**: 提取数据时必须参考上述规范性文件，自动填充符合标准的字段值。例如：根据讲师职称自动设置课时费。` : ''}
 
 ## 输入文本
 ${text}
@@ -94,9 +147,13 @@ ${text}
 ## 任务要求
 1. 从输入文本中提取所有相关的数据记录
 2. 根据表结构字段，将信息映射到对应字段
-3. 对于缺失的可选字段，不要生成该字段（让其保持默认值）
-4. 对于必填字段，如果缺失请根据上下文合理推断
-5. 对于枚举类型字段，确保值在可选范围内
+3. **重要**: 根据规范性文件自动补全字段：
+   - 导入讲师时，根据职称自动设置课时费（hourly_rate）
+   - 导入场地时，验证租金是否符合标准
+   - 导入项目时，确保符合合规条款
+4. 对于缺失的可选字段，不要生成该字段（让其保持默认值）
+5. 对于必填字段，如果缺失请根据上下文合理推断
+6. 对于枚举类型字段，确保值在可选范围内
 
 ## 输出格式
 请以JSON格式返回提取的数据，格式如下：
@@ -107,7 +164,8 @@ ${text}
       "field2": "value2"
     }
   ],
-  "summary": "提取结果摘要说明"
+  "summary": "提取结果摘要说明，包括应用了哪些规范性标准",
+  "appliedStandards": ["应用的标准名称列表"]
 }
 
 请只返回JSON，不要包含其他解释文字。`;
@@ -115,7 +173,7 @@ ${text}
     // 调用 LLM
     const response = await client.invoke([
       { role: 'user', content: prompt }
-    ]);
+    ], { temperature: 0.3 }); // 使用较低温度确保准确解析
 
     const content = response.content || '';
     
@@ -160,7 +218,6 @@ ${text}
     });
 
     // 批量插入数据
-    const supabase = getSupabaseClient();
     const { data, error } = await supabase
       .from(table)
       .insert(cleanedRecords)
@@ -171,10 +228,17 @@ ${text}
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // 构建摘要信息
+    let summary = parsedResult.summary || `成功导入 ${data?.length || 0} 条数据`;
+    if (parsedResult.appliedStandards && parsedResult.appliedStandards.length > 0) {
+      summary += `\n已应用规范标准: ${parsedResult.appliedStandards.join(', ')}`;
+    }
+
     return NextResponse.json({
       success: true,
       count: data?.length || 0,
-      summary: parsedResult.summary || `成功导入 ${data?.length || 0} 条数据`,
+      summary,
+      appliedStandards: parsedResult.appliedStandards || [],
       preview: data,
     });
 

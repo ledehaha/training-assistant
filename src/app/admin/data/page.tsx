@@ -38,6 +38,7 @@ import {
   Sparkles,
   FileDown,
   Loader2,
+  FileText,
 } from 'lucide-react';
 
 // 数据表配置
@@ -781,21 +782,33 @@ export default function DataManagementPage() {
               AI 智能导入
             </DialogTitle>
             <DialogDescription>
-              输入文字描述，AI 将自动解析并导入到「{selectedTable.label}」表
+              输入文字描述，AI 将自动解析并导入到「{selectedTable.label}」表，同时参考规范性文件自动补全字段
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-4 rounded-lg text-sm">
+              <div className="flex items-start gap-2">
+                <FileText className="w-4 h-4 text-purple-500 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-medium text-purple-700 mb-1">智能参考规范性文件</p>
+                  <p className="text-xs text-gray-600">
+                    AI 将根据系统中的费用标准、合规条款等规范性文件自动补全数据。
+                    例如：根据讲师职称自动设置课时费（正高2000元、副高1500元、中级800元）。
+                  </p>
+                </div>
+              </div>
+            </div>
             <div className="bg-purple-50 p-4 rounded-lg text-sm text-purple-700">
               <p className="font-medium mb-2">示例输入：</p>
               <ul className="list-disc list-inside space-y-1 text-xs">
-                <li>张明，正高职称，擅长管理培训和领导力，来自某大学商学院，课时费2000元</li>
-                <li>阳光培训中心位于上海浦东，可容纳100人，日租金5000元，有投影仪和音响设备</li>
+                <li>张明，正高职称，擅长管理培训和领导力，来自某大学商学院（课时费将自动设置为2000元）</li>
+                <li>阳光培训中心位于上海浦东，可容纳100人，有投影仪和音响设备</li>
                 <li>班组长管理技能提升课程，属于管理技能类，8课时，适合班组长，中级难度</li>
               </ul>
             </div>
             <textarea
               className="w-full h-48 p-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-              placeholder="请输入要导入的数据描述，支持多行多条记录..."
+              placeholder="请输入要导入的数据描述，支持多行多条记录...&#10;&#10;提示：可以省略课时费等字段，AI 会根据规范性文件自动填充"
               value={aiImportText}
               onChange={(e) => setAiImportText(e.target.value)}
             />
