@@ -39,6 +39,8 @@ import {
   FileDown,
   Loader2,
   FileText,
+  FileUp,
+  X,
 } from 'lucide-react';
 
 // 数据表配置
@@ -180,6 +182,8 @@ export default function DataManagementPage() {
   const [importData, setImportData] = useState<string>('');
   const [aiImportText, setAiImportText] = useState<string>('');
   const [aiImportLoading, setAiImportLoading] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [fileImportLoading, setFileImportLoading] = useState(false);
 
   // 加载数据
   const loadData = useCallback(async () => {
@@ -432,6 +436,41 @@ export default function DataManagementPage() {
     }
   };
 
+  // 文件导入
+  const handleFileImport = async () => {
+    if (!uploadFile) {
+      setMessage({ type: 'error', text: '请选择要上传的文件' });
+      return;
+    }
+
+    setFileImportLoading(true);
+    try {
+      const formDataObj = new FormData();
+      formDataObj.append('file', uploadFile);
+      formDataObj.append('table', selectedTable.name);
+
+      const res = await fetch('/api/admin/data/ai-import-file', {
+        method: 'POST',
+        body: formDataObj,
+      });
+
+      const result = await res.json();
+      if (result.success) {
+        setMessage({ type: 'success', text: result.summary || `成功导入 ${result.count} 条数据` });
+        setAiImportDialogOpen(false);
+        setUploadFile(null);
+        loadData();
+      } else {
+        setMessage({ type: 'error', text: result.error || '文件解析失败' });
+      }
+    } catch (error) {
+      console.error('File import error:', error);
+      setMessage({ type: 'error', text: '文件导入失败' });
+    } finally {
+      setFileImportLoading(false);
+    }
+  };
+
   // 渲染表单字段
   const renderFormField = (col: ColumnConfig) => {
     if (!col.editable) return null;
@@ -629,6 +668,7 @@ export default function DataManagementPage() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
+                  <p className="text-xs text-gray-500 mb-3">💡 提示：双击行可快速编辑</p>
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -640,7 +680,11 @@ export default function DataManagementPage() {
                     </TableHeader>
                     <TableBody>
                       {filteredData.map((item, idx) => (
-                        <TableRow key={item.id as string || idx}>
+                        <TableRow 
+                          key={item.id as string || idx}
+                          className="cursor-pointer hover:bg-blue-50"
+                          onDoubleClick={() => handleEdit(item)}
+                        >
                           {selectedTable.columns.map(col => (
                             <TableCell key={col.key}>
                               {renderCellValue(col, item[col.key])}
@@ -651,14 +695,18 @@ export default function DataManagementPage() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleEdit(item)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEdit(item);
+                                }}
                               >
                                 <Pencil className="w-4 h-4" />
                               </Button>
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   setCurrentItem(item);
                                   setDeleteDialogOpen(true);
                                 }}
@@ -782,10 +830,59 @@ export default function DataManagementPage() {
               AI 智能导入
             </DialogTitle>
             <DialogDescription>
-              输入文字描述，AI 将自动解析并导入到「{selectedTable.label}」表，同时参考规范性文件自动补全字段
+              支持文字描述或上传文件，AI 将自动解析并导入到「{selectedTable.label}」表
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {/* 文件上传区域 */}
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+              <div className="flex items-center justify-center gap-4">
+                <label className="flex-1 cursor-pointer">
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept=".pdf,.doc,.docx,.xls,.xlsx"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) setUploadFile(file);
+                    }}
+                  />
+                  <div className="flex items-center justify-center gap-2 py-4 text-gray-600 hover:text-purple-600 transition-colors">
+                    <FileUp className="w-6 h-6" />
+                    <span className="font-medium">上传文件导入</span>
+                  </div>
+                </label>
+              </div>
+              {uploadFile ? (
+                <div className="flex items-center justify-between mt-2 p-2 bg-purple-50 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-purple-500" />
+                    <span className="text-sm text-purple-700">{uploadFile.name}</span>
+                  </div>
+                  <button
+                    onClick={() => setUploadFile(null)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <p className="text-center text-xs text-gray-500 mt-2">
+                  支持 PDF、Word (.doc/.docx)、Excel (.xls/.xlsx) 文件
+                </p>
+              )}
+            </div>
+
+            {/* 文字输入区域 */}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-200"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">或输入文字描述</span>
+              </div>
+            </div>
+
             <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-4 rounded-lg text-sm">
               <div className="flex items-start gap-2">
                 <FileText className="w-4 h-4 text-purple-500 mt-0.5 flex-shrink-0" />
@@ -798,25 +895,40 @@ export default function DataManagementPage() {
                 </div>
               </div>
             </div>
-            <div className="bg-purple-50 p-4 rounded-lg text-sm text-purple-700">
-              <p className="font-medium mb-2">示例输入：</p>
-              <ul className="list-disc list-inside space-y-1 text-xs">
-                <li>张明，正高职称，擅长管理培训和领导力，来自某大学商学院（课时费将自动设置为2000元）</li>
-                <li>阳光培训中心位于上海浦东，可容纳100人，有投影仪和音响设备</li>
-                <li>班组长管理技能提升课程，属于管理技能类，8课时，适合班组长，中级难度</li>
-              </ul>
-            </div>
             <textarea
-              className="w-full h-48 p-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              className="w-full h-32 p-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
               placeholder="请输入要导入的数据描述，支持多行多条记录...&#10;&#10;提示：可以省略课时费等字段，AI 会根据规范性文件自动填充"
               value={aiImportText}
               onChange={(e) => setAiImportText(e.target.value)}
             />
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAiImportDialogOpen(false)}>
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button variant="outline" onClick={() => {
+              setAiImportDialogOpen(false);
+              setUploadFile(null);
+              setAiImportText('');
+            }}>
               取消
             </Button>
+            {uploadFile && (
+              <Button 
+                onClick={handleFileImport} 
+                disabled={fileImportLoading}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {fileImportLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    解析文件中...
+                  </>
+                ) : (
+                  <>
+                    <FileUp className="w-4 h-4 mr-2" />
+                    导入文件
+                  </>
+                )}
+              </Button>
+            )}
             <Button 
               onClick={handleAiImport} 
               disabled={!aiImportText.trim() || aiImportLoading}
@@ -830,7 +942,7 @@ export default function DataManagementPage() {
               ) : (
                 <>
                   <Sparkles className="w-4 h-4 mr-2" />
-                  AI 解析并导入
+                  AI 解析文字
                 </>
               )}
             </Button>
