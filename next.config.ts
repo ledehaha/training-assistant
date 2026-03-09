@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
   // outputFileTracingRoot: path.resolve(__dirname, '../../'),
   /* config options here */
   allowedDevOrigins: ['*.dev.coze.site'],
+  serverExternalPackages: ['pdf2json'],
   images: {
     remotePatterns: [
       {

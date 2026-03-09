@@ -3,36 +3,41 @@ import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import * as XLSX from 'xlsx';
 
-// 解析 PDF 文件
+// 解析 PDF 文件（使用动态导入避免构建问题）
 async function parsePDF(buffer: Buffer): Promise<string> {
   try {
+    // 动态导入 pdf2json，避免 Next.js 构建时的 CommonJS 问题
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const PDFParser = require('pdf2json');
+    const pdf2json = require('pdf2json');
+    const PDFParser = pdf2json.default || pdf2json;
     
     return new Promise((resolve) => {
-      const pdfParser = new PDFParser(null, 1);
+      const pdfParser = new PDFParser();
       
       pdfParser.on('pdfParser_dataError', () => {
         resolve('');
       });
       
-      pdfParser.on('pdfParser_dataReady', (pdfData: Record<string, unknown>) => {
+      pdfParser.on('pdfParser_dataReady', (pdfData: {
+        Pages?: Array<{
+          Texts?: Array<{
+            R?: Array<{ T?: string }>;
+          }>;
+        }>;
+      }) => {
         try {
-          const pages = pdfData.Pages as Array<Record<string, unknown>> | undefined;
-          if (!pages) {
+          if (!pdfData.Pages) {
             resolve('');
             return;
           }
           
-          const text = pages
+          const text = pdfData.Pages
             .map(page => {
-              const texts = page.Texts as Array<Record<string, unknown>> | undefined;
-              if (!texts) return '';
-              return texts
+              if (!page.Texts) return '';
+              return page.Texts
                 .map(text => {
-                  const runs = text.R as Array<Record<string, unknown>> | undefined;
-                  if (!runs) return '';
-                  return runs.map(r => decodeURIComponent((r.T as string) || '')).join('');
+                  if (!text.R) return '';
+                  return text.R.map(r => decodeURIComponent(r.T || '')).join('');
                 })
                 .join(' ');
             })
