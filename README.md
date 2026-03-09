@@ -1,4 +1,11 @@
-# projects
+# 非学历培训全周期助手
+
+> 从需求分析到项目总结的完整闭环管理系统
+
+## 自动部署测试 ✅
+部署时间: 2026-03-09
+
+---
 
 这是一个基于 [Next.js 16](https://nextjs.org) + [shadcn/ui](https://ui.shadcn.com) 的全栈应用项目，由扣子编程 CLI 创建。
 
