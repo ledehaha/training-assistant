@@ -369,15 +369,25 @@ export default function DataManagementPage() {
   };
 
   // 导出数据
-  const handleExport = () => {
-    const jsonStr = JSON.stringify(data, null, 2);
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${selectedTable.name}_${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+  // 导出数据为 Excel
+  const handleExport = async () => {
+    try {
+      const res = await fetch(`/api/admin/data/export?table=${selectedTable.name}`);
+      if (!res.ok) {
+        throw new Error('导出失败');
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${selectedTable.name}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setMessage({ type: 'success', text: '导出成功' });
+    } catch (error) {
+      console.error('Export error:', error);
+      setMessage({ type: 'error', text: '导出失败' });
+    }
   };
 
   // 下载 Excel 模板
