@@ -201,6 +201,29 @@ ${text}
         if (value === null || value === undefined || value === '') continue;
         // 跳过不应导入的字段
         if (key === 'id' || key === 'created_at' || key === 'updated_at') continue;
+        
+        // 处理日期格式转换
+        if (key === 'issue_date' || key === 'effective_date' || key === 'expiry_date') {
+          const dateStr = String(value);
+          // 转换 "2017年" -> "2017-01-01"
+          const yearMatch = dateStr.match(/(\d{4})年/);
+          if (yearMatch) {
+            const year = yearMatch[1];
+            const monthMatch = dateStr.match(/(\d{1,2})月/);
+            const month = monthMatch ? monthMatch[1].padStart(2, '0') : '01';
+            const dayMatch = dateStr.match(/(\d{1,2})日/);
+            const day = dayMatch ? dayMatch[1].padStart(2, '0') : '01';
+            cleaned[key] = `${year}-${month}-${day}`;
+            continue;
+          }
+          // 尝试解析其他日期格式
+          const dateMatch = dateStr.match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+          if (dateMatch) {
+            cleaned[key] = `${dateMatch[1]}-${dateMatch[2].padStart(2, '0')}-${dateMatch[3].padStart(2, '0')}`;
+            continue;
+          }
+        }
+        
         cleaned[key] = value;
       }
       return cleaned;
