@@ -323,14 +323,35 @@ ${projectData.feedback}
       if (startIndex !== -1) {
         let depth = 0;
         let endIndex = -1;
+        let inString = false;
+        let escapeNext = false;
         
         for (let i = startIndex; i < content.length; i++) {
-          if (content[i] === '{') depth++;
-          else if (content[i] === '}') {
-            depth--;
-            if (depth === 0) {
-              endIndex = i + 1;
-              break;
+          const char = content[i];
+          
+          if (escapeNext) {
+            escapeNext = false;
+            continue;
+          }
+          
+          if (char === '\\') {
+            escapeNext = true;
+            continue;
+          }
+          
+          if (char === '"') {
+            inString = !inString;
+            continue;
+          }
+          
+          if (!inString) {
+            if (char === '{') depth++;
+            else if (char === '}') {
+              depth--;
+              if (depth === 0) {
+                endIndex = i + 1;
+                break;
+              }
             }
           }
         }
@@ -344,7 +365,12 @@ ${projectData.feedback}
             const cleanedJson = jsonStr
               .replace(/,\s*}/g, '}')  // 移除尾部逗号
               .replace(/,\s*]/g, ']'); // 移除数组尾部逗号
-            result = JSON.parse(cleanedJson);
+            try {
+              result = JSON.parse(cleanedJson);
+            } catch (e) {
+              console.error('JSON parse error after cleaning:', e);
+              result = { raw: response.content };
+            }
           }
         }
       }
