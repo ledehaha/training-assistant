@@ -1,15 +1,14 @@
 # ============================================
 # 培训助手系统 - Docker Compose 配置
 # ============================================
-# 适用于群晖 Container Manager
+# 使用预构建镜像，无需在 NAS 上构建
 
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: node:20-alpine
     container_name: training-app
     restart: always
+    working_dir: /app
     environment:
       - DATA_DIR=/data/db
       - FILE_STORAGE_PATH=/data/files
@@ -19,5 +18,8 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      # 使用本地目录存储数据（更方便备份）
+      # 挂载项目文件
+      - ./app:/app:ro
+      # 数据持久化
       - ./data:/data
+    command: ["node", "server.js"]
