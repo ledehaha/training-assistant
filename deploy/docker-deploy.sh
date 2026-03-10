@@ -19,7 +19,6 @@ print_error() { echo -e "${RED}[✗]${NC} $1"; }
 print_info() { echo -e "${BLUE}[i]${NC} $1"; }
 
 # 配置
-GITHUB_REPO="${GITHUB_REPO:-}"  # 例如: https://github.com/user/training-assistant.git
 PROJECT_DIR="${PROJECT_DIR:-/volume1/docker/training-assistant}"
 
 echo "========================================"
@@ -50,34 +49,28 @@ fi
 print_status "Docker 已安装: $(docker --version)"
 
 # ============================================
-# 2. 克隆或更新代码
+# 2. 检查代码目录
 # ============================================
 echo ""
-echo ">>> 获取代码..."
+echo ">>> 检查代码目录..."
 
-if [ -z "$GITHUB_REPO" ]; then
-    print_warning "未设置 GITHUB_REPO 环境变量"
-    read -p "请输入 GitHub 仓库地址 (如 https://github.com/user/repo.git): " GITHUB_REPO
+if [ ! -d "$PROJECT_DIR" ]; then
+    print_error "项目目录不存在: $PROJECT_DIR"
+    echo ""
+    echo "请先上传代码到该目录，或设置环境变量："
+    echo "  export PROJECT_DIR=/你的实际路径"
+    exit 1
 fi
 
-if [ -d "$PROJECT_DIR/.git" ]; then
-    print_info "项目目录已存在，正在更新..."
-    cd "$PROJECT_DIR"
-    git fetch origin
-    git reset --hard origin/main 2>/dev/null || git reset --hard origin/master
-    print_status "代码更新完成"
-else
-    print_info "克隆项目..."
-    mkdir -p "$PROJECT_DIR"
-    git clone "$GITHUB_REPO" "$PROJECT_DIR"
-    cd "$PROJECT_DIR"
-    print_status "代码克隆完成"
+cd "$PROJECT_DIR"
+
+# 检查必要文件
+if [ ! -f "docker-compose.yml" ]; then
+    print_error "未找到 docker-compose.yml 文件"
+    exit 1
 fi
 
-# 显示最新提交
-echo ""
-git log -1 --oneline
-echo ""
+print_status "项目目录: $PROJECT_DIR"
 
 # ============================================
 # 3. 配置环境变量
@@ -195,5 +188,4 @@ echo "常用命令："
 echo "  查看日志: docker compose logs -f"
 echo "  重启服务: docker compose restart"
 echo "  停止服务: docker compose down"
-echo "  更新应用: $0"
 echo ""

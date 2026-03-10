@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ============================================
-# 从 GitHub 更新并重新部署
+# 重新构建并部署
 # ============================================
 
 set -e
@@ -18,22 +18,6 @@ echo "========================================"
 
 cd "$PROJECT_DIR"
 
-# 拉取最新代码
-echo ""
-echo ">>> 拉取最新代码..."
-git fetch origin
-OLD_COMMIT=$(git rev-parse HEAD)
-git reset --hard origin/main 2>/dev/null || git reset --hard origin/master
-NEW_COMMIT=$(git rev-parse HEAD)
-
-if [ "$OLD_COMMIT" = "$NEW_COMMIT" ]; then
-    echo -e "${YELLOW}代码已是最新${NC}"
-else
-    echo -e "${GREEN}代码已更新${NC}"
-    echo ""
-    git log --oneline $OLD_COMMIT..$NEW_COMMIT
-fi
-
 # 重新构建并启动
 echo ""
 echo ">>> 重新构建并启动..."
@@ -45,3 +29,6 @@ echo -e "${GREEN}  更新完成！${NC}"
 echo "========================================"
 echo ""
 docker compose ps
+echo ""
+echo "提示: 如需更新代码，请先手动上传新代码到服务器"
+echo "  然后再次运行此脚本"

@@ -39,15 +39,14 @@ coze dev
    
    群晖套件中心搜索「Container Manager」或「Docker」并安装
 
-2. **克隆项目**
-   ```bash
-   cd /volume1/docker
-   git clone https://github.com/你的用户名/training-assistant.git
-   cd training-assistant
-   ```
+2. **上传代码**
+   
+   - 下载项目 ZIP 包
+   - 通过 SCP 或 File Station 上传到 `/volume1/docker/training-assistant/`
 
 3. **配置环境变量**
    ```bash
+   cd /volume1/docker/training-assistant
    cp .env.example .env
    nano .env  # 填入 API 密钥
    ```
@@ -61,10 +60,11 @@ coze dev
    
    打开 `http://你的NAS_IP:5000`
 
-**从 GitHub 更新：**
+**更新应用：**
 ```bash
+# 上传新代码后执行
 cd /volume1/docker/training-assistant
-./deploy/update.sh
+docker compose up -d --build
 ```
 
 **部署文件说明：**
