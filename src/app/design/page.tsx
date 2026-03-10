@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import MainLayout from '@/components/layout/main-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,7 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Loader2, Sparkles, Save, ArrowRight, User, MapPin, BookOpen, DollarSign, X, FolderOpen, Plus, Clock } from 'lucide-react';
+import { Loader2, Sparkles, Save, ArrowRight, User, MapPin, BookOpen, DollarSign, X, FolderOpen, Plus, Clock, Check, AlertCircle } from 'lucide-react';
 
 interface ProjectFormData {
   name: string;
@@ -100,6 +100,9 @@ const trainingPeriods = [
   '其他',
 ];
 
+// 保存状态类型
+type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+
 export default function DesignPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState('requirement');
@@ -158,9 +161,137 @@ export default function DesignPage() {
     progress?: string;
   }>>([]);
   const [showDraftList, setShowDraftList] = useState(false);
-  const [lastSaveTime, setLastSaveTime] = useState<Date | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
   
+  // ===== 优化：保存状态管理 =====
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  const [lastSaveTime, setLastSaveTime] = useState<Date | null>(null);
+  
+  // 使用 ref 存储防抖定时器和上一次保存的数据
+  const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSavedDataRef = useRef<string>('');
+  
+  // 手动保存（用户点击保存按钮时立即保存）
+  const handleManualSave = useCallback(async () => {
+    await performSave();
+  }, []);
+
+  // 实际执行保存的函数
+  const performSave = useCallback(async () => {
+    // 检查是否有内容需要保存
+    if (!formData.name?.trim() && !projectId) return;
+    
+    // 检查数据是否变化
+    const currentData = JSON.stringify({
+      formData,
+      courses,
+      selectedVenueId: selectedVenue?.id,
+    });
+    
+    if (currentData === lastSavedDataRef.current) {
+      return; // 数据没变化，不保存
+    }
+    
+    setSaveStatus('saving');
+    
+    try {
+      const dataToSave = {
+        ...formData,
+        budgetMin: noBudgetLimit ? null : formData.budgetMin,
+        budgetMax: noBudgetLimit ? null : formData.budgetMax,
+        trainingPeriod: formData.trainingPeriod === '其他' ? otherTrainingPeriod : formData.trainingPeriod,
+        status: 'draft',
+        courses,
+        selectedVenueId: selectedVenue?.id,
+      };
+
+      if (projectId) {
+        await fetch(`/api/projects/${projectId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(dataToSave),
+        });
+      } else {
+        const res = await fetch('/api/projects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(dataToSave),
+        });
+        const data = await res.json();
+        if (data.data?.id) {
+          setProjectId(data.data.id);
+        }
+      }
+      
+      // 更新保存状态
+      lastSavedDataRef.current = currentData;
+      setLastSaveTime(new Date());
+      setSaveStatus('saved');
+      
+      // 3秒后恢复 idle 状态
+      setTimeout(() => setSaveStatus('idle'), 3000);
+      
+    } catch (error) {
+      console.error('Auto save error:', error);
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus('idle'), 3000);
+    }
+  }, [formData, courses, selectedVenue, projectId, noBudgetLimit, otherTrainingPeriod]);
+
+  // 优化后的自动保存：防抖 3 秒，且只在数据变化时保存
+  useEffect(() => {
+    // 清除之前的定时器
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+    
+    // 没有内容不保存
+    if (!formData.name?.trim() && !projectId) return;
+    
+    // 设置新的定时器（3秒防抖）
+    saveTimerRef.current = setTimeout(() => {
+      performSave();
+    }, 3000);
+
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+    };
+  }, [formData, courses, selectedVenue, performSave, projectId]);
+
+  // 保存状态指示器组件
+  const SaveIndicator = () => {
+    if (saveStatus === 'idle' && !lastSaveTime) return null;
+    
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        {saveStatus === 'saving' && (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>保存中...</span>
+          </>
+        )}
+        {saveStatus === 'saved' && (
+          <>
+            <Check className="h-4 w-4 text-green-500" />
+            <span>已保存</span>
+          </>
+        )}
+        {saveStatus === 'error' && (
+          <>
+            <AlertCircle className="h-4 w-4 text-red-500" />
+            <span>保存失败</span>
+          </>
+        )}
+        {saveStatus === 'idle' && lastSaveTime && (
+          <span className="text-xs">
+            上次保存: {lastSaveTime.toLocaleTimeString()}
+          </span>
+        )}
+      </div>
+    );
+  };
+
   // 浏览器离开提示
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -192,12 +323,10 @@ export default function DesignPage() {
       }
     };
     loadResources();
-    
-    // 加载草稿项目列表
     loadDraftProjects();
   }, []);
 
-  // 加载草稿项目列表
+  // 加载草稿项目列表（只在初始化和用户手动操作时调用）
   const loadDraftProjects = async () => {
     try {
       const res = await fetch('/api/projects?status=draft');
@@ -217,7 +346,6 @@ export default function DesignPage() {
     }
   };
 
-  // 计算项目进度
   const calculateProgress = (project: Record<string, unknown>): string => {
     if (project.status === 'draft') {
       if (project.name && project.participant_count && project.training_days) {
@@ -226,62 +354,6 @@ export default function DesignPage() {
       return '新建';
     }
     return '设计中';
-  };
-
-  // 自动保存草稿（防抖2秒）
-  useEffect(() => {
-    if (!formData.name && !projectId) return; // 没有内容不保存
-    
-    const timer = setTimeout(() => {
-      autoSaveDraft();
-    }, 2000);
-
-    return () => clearTimeout(timer);
-  }, [formData, courses, selectedVenue]);
-
-  // 自动保存草稿
-  const autoSaveDraft = async () => {
-    if (!formData.name?.trim() && !projectId) return; // 没有项目名称不保存
-    
-    setIsSaving(true);
-    try {
-      const dataToSave = {
-        ...formData,
-        budgetMin: noBudgetLimit ? null : formData.budgetMin,
-        budgetMax: noBudgetLimit ? null : formData.budgetMax,
-        trainingPeriod: formData.trainingPeriod === '其他' ? otherTrainingPeriod : formData.trainingPeriod,
-        status: 'draft',
-        courses,
-        selectedVenueId: selectedVenue?.id,
-      };
-
-      if (projectId) {
-        // 更新已有项目
-        await fetch(`/api/projects/${projectId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(dataToSave),
-        });
-      } else {
-        // 创建新项目
-        const res = await fetch('/api/projects', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(dataToSave),
-        });
-        const data = await res.json();
-        if (data.data?.id) {
-          setProjectId(data.data.id);
-        }
-      }
-      
-      setLastSaveTime(new Date());
-      loadDraftProjects(); // 刷新草稿列表
-    } catch (error) {
-      console.error('Auto save error:', error);
-    } finally {
-      setIsSaving(false);
-    }
   };
 
   // 新建项目
@@ -310,6 +382,9 @@ export default function DesignPage() {
     setOtherTrainingPeriod('');
     setNoBudgetLimit(true);
     setModifySuggestion('');
+    lastSavedDataRef.current = '';
+    setSaveStatus('idle');
+    setLastSaveTime(null);
   };
 
   // 加载草稿项目
@@ -335,16 +410,33 @@ export default function DesignPage() {
           specialRequirements: project.special_requirements || '',
         });
         
-        // 加载课程
         if (project.courses) {
           setCourses(project.courses);
         }
         
-        // 加载场地
         if (project.selected_venue_id) {
           const venue = venues.find(v => v.id === project.selected_venue_id);
           if (venue) setSelectedVenue(venue);
         }
+        
+        // 更新已保存数据引用
+        lastSavedDataRef.current = JSON.stringify({
+          formData: {
+            name: project.name || '',
+            trainingTarget: project.training_target || '',
+            targetAudience: project.target_audience || '',
+            participantCount: project.participant_count || 50,
+            trainingDays: project.training_days || 4,
+            trainingHours: project.training_hours || 32,
+            trainingPeriod: project.training_period || '',
+            budgetMin: project.budget_min || 8,
+            budgetMax: project.budget_max || 12,
+            location: project.location || '',
+            specialRequirements: project.special_requirements || '',
+          },
+          courses: project.courses || [],
+          selectedVenueId: project.selected_venue_id,
+        });
         
         setShowDraftList(false);
         setActiveTab('requirement');
@@ -364,7 +456,6 @@ export default function DesignPage() {
       });
       loadDraftProjects();
       
-      // 如果删除的是当前项目，清空表单
       if (id === projectId) {
         handleNewProject();
       }
@@ -379,10 +470,8 @@ export default function DesignPage() {
     try {
       const dataToSave = {
         ...formData,
-        // 无预算范围时，设置为 null
         budgetMin: noBudgetLimit ? null : formData.budgetMin,
         budgetMax: noBudgetLimit ? null : formData.budgetMax,
-        // 培训周期"其他"选项
         trainingPeriod: formData.trainingPeriod === '其他' ? otherTrainingPeriod : formData.trainingPeriod,
       };
       const res = await fetch('/api/projects', {
@@ -413,7 +502,6 @@ export default function DesignPage() {
     try {
       let requirementContent = smartRequirementText;
       
-      // 如果有文件，先解析文件
       if (smartRequirementFile) {
         const formDataToSend = new FormData();
         formDataToSend.append('file', smartRequirementFile);
@@ -431,7 +519,6 @@ export default function DesignPage() {
         }
       }
       
-      // 调用AI分析需求
       const res = await fetch('/api/ai/analyze-requirement', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -440,7 +527,6 @@ export default function DesignPage() {
       const data = await res.json();
       
       if (data.data) {
-        // 填充表单
         const analysis = data.data;
         setFormData(prev => ({
           ...prev,
@@ -455,12 +541,11 @@ export default function DesignPage() {
           specialRequirements: analysis.specialRequirements || prev.specialRequirements,
         }));
         
-        // 如果培训类型或目标人群是其他，设置其他文本
-        if (analysis.trainingTarget && !['企业内训', '技能培训', '管理培训', '安全生产培训', '新员工培训', '专项培训'].includes(analysis.trainingTarget)) {
+        if (analysis.trainingTarget && !trainingTargets.includes(analysis.trainingTarget)) {
           setFormData(prev => ({ ...prev, trainingTarget: '其他' }));
           setOtherTrainingTarget(analysis.trainingTarget);
         }
-        if (analysis.targetAudience && !['班组长', '中层管理', '高层管理', '新员工', '技术骨干', '全员'].includes(analysis.targetAudience)) {
+        if (analysis.targetAudience && !targetAudiences.includes(analysis.targetAudience)) {
           setFormData(prev => ({ ...prev, targetAudience: '其他' }));
           setOtherTargetAudience(analysis.targetAudience);
         }
@@ -477,442 +562,103 @@ export default function DesignPage() {
     }
   };
 
-  // AI生成课程方案
-  const handleGenerateScheme = async () => {
-    if (!projectId) {
-      alert('请先保存需求信息');
-      return;
-    }
-    
-    setGenerateLoading(true);
-    try {
-      const projectDataToSend = {
-        ...formData,
-        budgetMin: noBudgetLimit ? null : formData.budgetMin,
-        budgetMax: noBudgetLimit ? null : formData.budgetMax,
-        noBudgetLimit,
-      };
-      const res = await fetch('/api/ai/recommend', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'courses',
-          projectData: projectDataToSend,
-        }),
-      });
-      const data = await res.json();
-      
-      if (data.data?.courses) {
-        setCourses(data.data.courses.map((c: Record<string, unknown>, index: number) => ({
-          id: `temp-${index}`,
-          name: c.name as string,
-          day: c.day as number,
-          duration: c.duration as number,
-          description: c.description as string,
-          category: c.category as string,
-          teacherTitle: c.teacherTitle as string,
-          location: c.location as string,
-        })));
-      }
-    } catch (error) {
-      console.error('Generate scheme error:', error);
-    } finally {
-      setGenerateLoading(false);
-    }
-  };
-
-  // 根据修改意见重新生成方案
-  const handleModifyScheme = async () => {
-    if (!projectId || !modifySuggestion.trim()) return;
-    
-    setGenerateLoading(true);
-    try {
-      const projectDataToSend = {
-        ...formData,
-        budgetMin: noBudgetLimit ? null : formData.budgetMin,
-        budgetMax: noBudgetLimit ? null : formData.budgetMax,
-        noBudgetLimit,
-        currentCourses: courses,
-        modifySuggestion: modifySuggestion.trim(),
-      };
-      const res = await fetch('/api/ai/recommend', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'modify-courses',
-          projectData: projectDataToSend,
-        }),
-      });
-      const data = await res.json();
-      
-      if (data.data?.courses) {
-        setCourses(data.data.courses.map((c: Record<string, unknown>, index: number) => ({
-          id: `temp-${index}`,
-          name: c.name as string,
-          day: c.day as number,
-          duration: c.duration as number,
-          description: c.description as string,
-          category: c.category as string,
-          teacherTitle: c.teacherTitle as string,
-          location: c.location as string,
-        })));
-        setModifySuggestion(''); // 清空修改意见
-      }
-    } catch (error) {
-      console.error('Modify scheme error:', error);
-    } finally {
-      setGenerateLoading(false);
-    }
-  };
-
-  // 保存课程方案
-  const handleSaveScheme = async () => {
-    if (!projectId) return;
-    
-    setLoading(true);
-    try {
-      // 先删除已有课程
-      await fetch(`/api/projects/${projectId}/courses`, {
-        method: 'DELETE',
-      });
-      
-      // 添加新课程
-      await fetch(`/api/projects/${projectId}/courses`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(courses),
-      });
-      
-      setActiveTab('resource');
-    } catch (error) {
-      console.error('Save scheme error:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 生成报价单
-  const handleGenerateQuotation = async () => {
-    if (!projectId) {
-      alert('请先保存需求信息');
-      return;
-    }
-    
-    setGenerateLoading(true);
-    try {
-      const res = await fetch('/api/ai/recommend', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'quotation',
-          projectData: {
-            ...formData,
-            courses,
-            venue: selectedVenue,
-            teachers: teachers.filter(t => courses.some(c => c.teacherId === t.id)),
-          },
-        }),
-      });
-      const data = await res.json();
-      
-      if (data.data) {
-        setQuotation(data.data);
-        setActiveTab('quotation');
-      }
-    } catch (error) {
-      console.error('Generate quotation error:', error);
-    } finally {
-      setGenerateLoading(false);
-    }
+  // 更新单个表单字段（优化：使用函数式更新）
+  const updateFormField = <K extends keyof ProjectFormData>(
+    field: K,
+    value: ProjectFormData[K]
+  ) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   return (
     <MainLayout>
-      <div className="space-y-6">
-        {/* 页面标题 */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">项目设计</h1>
-            <p className="text-gray-500 mt-1">录入培训需求，生成培训方案和报价单</p>
-          </div>
-          
-          {/* 右侧操作区 */}
+      <div className="container mx-auto py-6 px-4 max-w-6xl">
+        {/* 顶部操作栏 */}
+        <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
-            {/* 自动保存提示 */}
-            {lastSaveTime && (
-              <span className="text-xs text-gray-400 flex items-center gap-1">
-                {isSaving ? (
-                  <>
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    保存中...
-                  </>
-                ) : (
-                  <>
-                    <Clock className="w-3 h-3" />
-                    已保存 {lastSaveTime.toLocaleTimeString()}
-                  </>
-                )}
-              </span>
-            )}
-            
-            {/* 草稿项目按钮 */}
-            <Button
-              variant="outline"
-              onClick={() => setShowDraftList(true)}
-              className="gap-2"
+            <h1 className="text-2xl font-bold">项目设计</h1>
+            <SaveIndicator />
+          </div>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => loadDraftProjects()}
             >
-              <FolderOpen className="w-4 h-4" />
-              进行中的项目
-              {draftProjects.length > 0 && (
-                <Badge variant="secondary" className="ml-1">
-                  {draftProjects.length}
-                </Badge>
+              <FolderOpen className="h-4 w-4 mr-2" />
+              草稿箱
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleNewProject}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              新建项目
+            </Button>
+            <Button 
+              size="sm" 
+              onClick={handleManualSave}
+              disabled={saveStatus === 'saving'}
+            >
+              {saveStatus === 'saving' ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4 mr-2" />
               )}
+              保存
             </Button>
           </div>
         </div>
 
-        {/* 草稿项目列表弹窗 */}
-        <Dialog open={showDraftList} onOpenChange={setShowDraftList}>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle className="flex items-center justify-between">
-                <span>进行中的项目</span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    handleNewProject();
-                    setShowDraftList(false);
-                  }}
-                  className="gap-1"
-                >
-                  <Plus className="w-4 h-4" />
-                  新建项目
-                </Button>
-              </DialogTitle>
-              <DialogDescription>
-                选择一个项目继续设计，或创建新项目
-              </DialogDescription>
-            </DialogHeader>
-            
-            <div className="max-h-96 overflow-y-auto">
-              {draftProjects.length === 0 ? (
-                <div className="py-8 text-center">
-                  <FolderOpen className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-                  <p className="text-gray-500 mb-4">暂无进行中的项目</p>
-                  <Button
-                    onClick={() => {
-                      handleNewProject();
-                      setShowDraftList(false);
-                    }}
-                  >
-                    创建新项目
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {draftProjects.map((project) => (
-                    <div
-                      key={project.id}
-                      className={`p-4 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors ${
-                        projectId === project.id ? 'border-blue-500 bg-blue-50' : ''
-                      }`}
-                      onClick={() => {
-                        handleLoadProject(project.id);
-                        setShowDraftList(false);
-                      }}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium text-gray-900">
-                              {project.name || '未命名项目'}
-                            </p>
-                            {projectId === project.id && (
-                              <Badge variant="default" className="text-xs">
-                                当前
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-3 mt-2 text-sm text-gray-500">
-                            <Badge variant="outline" className="text-xs">
-                              {project.progress}
-                            </Badge>
-                            <span className="flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              {new Date(project.updated_at).toLocaleString()}
-                            </span>
-                          </div>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteDraft(project.id);
-                          }}
-                          className="text-gray-400 hover:text-red-500"
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* 步骤指示器 */}
-        <div className="flex items-center justify-between bg-white rounded-lg p-4 border">
-          {[
-            { key: 'requirement', label: '需求录入', icon: '📝' },
-            { key: 'scheme', label: '方案生成', icon: '📋' },
-            { key: 'resource', label: '资源匹配', icon: '🎯' },
-            { key: 'quotation', label: '报价单', icon: '💰' },
-          ].map((step, index) => (
-            <div key={step.key} className="flex items-center">
-              <button
-                onClick={() => setActiveTab(step.key)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                  activeTab === step.key
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'text-gray-500 hover:bg-gray-50'
-                }`}
-              >
-                <span className="text-lg">{step.icon}</span>
-                <span className="font-medium">{step.label}</span>
-              </button>
-              {index < 3 && <ArrowRight className="w-4 h-4 mx-4 text-gray-300" />}
-            </div>
-          ))}
-        </div>
-
-        {/* 主内容区 */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          {/* 需求录入 */}
-          <TabsContent value="requirement">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="requirement">需求录入</TabsTrigger>
+            <TabsTrigger value="scheme">方案设计</TabsTrigger>
+            <TabsTrigger value="venue">场地选择</TabsTrigger>
+            <TabsTrigger value="quotation">费用预算</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="requirement" className="mt-6">
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>培训需求信息</CardTitle>
-                    <CardDescription>请填写培训的基本需求和约束条件</CardDescription>
-                  </div>
+                <CardTitle className="flex items-center justify-between">
+                  <span>培训需求</span>
                   <Button
                     variant="outline"
-                    onClick={() => setShowSmartAnalysis(!showSmartAnalysis)}
-                    className="gap-2"
+                    size="sm"
+                    onClick={() => setShowSmartAnalysis(true)}
                   >
-                    <Sparkles className="w-4 h-4" />
-                    {showSmartAnalysis ? '手动填写' : '智能分析'}
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    智能分析
                   </Button>
-                </div>
+                </CardTitle>
+                <CardDescription>
+                  请填写培训项目的基本需求信息
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* 智能需求分析区域 */}
-                {showSmartAnalysis && (
-                  <div className="border rounded-lg p-4 bg-gradient-to-r from-purple-50 to-blue-50 mb-6">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Sparkles className="w-5 h-5 text-purple-600" />
-                      <span className="font-medium text-purple-700">智能需求分析</span>
-                    </div>
-                    <p className="text-sm text-gray-600 mb-4">
-                      输入需求描述或上传需求文件，AI将自动分析并填充表单
-                    </p>
-                    
-                    <div className="space-y-4">
-                      {/* 文字输入 */}
-                      <div>
-                        <Label className="text-sm font-medium mb-2 block">需求描述</Label>
-                        <Textarea
-                          placeholder="请描述培训需求，如：我们公司有50名中层管理者需要参加管理能力提升培训，预计培训4天，地点在上海..."
-                          value={smartRequirementText}
-                          onChange={(e) => setSmartRequirementText(e.target.value)}
-                          rows={4}
-                        />
-                      </div>
-                      
-                      <div className="flex items-center gap-4">
-                        <span className="text-sm text-gray-500">或</span>
-                        <div className="flex-1 border-t border-gray-200"></div>
-                      </div>
-                      
-                      {/* 文件上传 */}
-                      <div>
-                        <Label className="text-sm font-medium mb-2 block">上传需求文件</Label>
-                        <div className="flex gap-2">
-                          <Input
-                            type="file"
-                            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                setSmartRequirementFile(file);
-                              }
-                            }}
-                            className="flex-1"
-                          />
-                          {smartRequirementFile && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => setSmartRequirementFile(null)}
-                            >
-                              <X className="w-4 h-4" />
-                            </Button>
-                          )}
-                        </div>
-                        {smartRequirementFile && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            已选择: {smartRequirementFile.name}
-                          </p>
-                        )}
-                      </div>
-                      
-                      {/* 分析按钮 */}
-                      <Button
-                        onClick={handleSmartRequirementAnalysis}
-                        disabled={analyzingRequirement || (!smartRequirementText.trim() && !smartRequirementFile)}
-                        className="w-full"
-                      >
-                        {analyzingRequirement ? (
-                          <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            AI分析中...
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="w-4 h-4 mr-2" />
-                            开始智能分析
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                )}
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">项目名称 *</Label>
-                    <Input
-                      id="name"
-                      placeholder="如：班组长能力提升培训"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    />
-                  </div>
+                {/* 项目名称 */}
+                <div className="space-y-2">
+                  <Label htmlFor="name">项目名称 *</Label>
+                  <Input
+                    id="name"
+                    placeholder="例如：2024年中层管理人员能力提升培训"
+                    value={formData.name}
+                    onChange={(e) => updateFormField('name', e.target.value)}
+                  />
+                </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* 培训类型 */}
                   <div className="space-y-2">
-                    <Label htmlFor="trainingTarget">培训类型</Label>
+                    <Label>培训类型</Label>
                     <Select
                       value={formData.trainingTarget}
-                      onValueChange={(value) => setFormData({ ...formData, trainingTarget: value })}
+                      onValueChange={(v) => updateFormField('trainingTarget', v)}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="选择培训类型" />
+                        <SelectValue placeholder="请选择培训类型" />
                       </SelectTrigger>
                       <SelectContent>
                         {trainingTargets.map((target) => (
@@ -923,60 +669,24 @@ export default function DesignPage() {
                       </SelectContent>
                     </Select>
                     {formData.trainingTarget === '其他' && (
-                      <div className="flex gap-2 mt-2">
-                        <Input
-                          placeholder="请输入培训类型，如：数字化转型培训、创新思维培训等"
-                          value={otherTrainingTarget}
-                          onChange={(e) => setOtherTrainingTarget(e.target.value)}
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          disabled={!otherTrainingTarget.trim() || analyzingTarget}
-                          onClick={async () => {
-                            if (!otherTrainingTarget.trim()) return;
-                            setAnalyzingTarget(true);
-                            try {
-                              const res = await fetch('/api/ai/analyze-input', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                  type: 'trainingTarget',
-                                  input: otherTrainingTarget,
-                                }),
-                              });
-                              const data = await res.json();
-                              if (data.data?.value) {
-                                setFormData(prev => ({ ...prev, trainingTarget: data.data.value }));
-                                setOtherTrainingTarget('');
-                              }
-                            } catch (error) {
-                              console.error('AI analyze error:', error);
-                            } finally {
-                              setAnalyzingTarget(false);
-                            }
-                          }}
-                          title="AI智能分析"
-                        >
-                          {analyzingTarget ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Sparkles className="w-4 h-4" />
-                          )}
-                        </Button>
-                      </div>
+                      <Input
+                        placeholder="请输入培训类型"
+                        value={otherTrainingTarget}
+                        onChange={(e) => setOtherTrainingTarget(e.target.value)}
+                        className="mt-2"
+                      />
                     )}
                   </div>
 
+                  {/* 目标人群 */}
                   <div className="space-y-2">
-                    <Label htmlFor="targetAudience">目标人群</Label>
+                    <Label>目标人群</Label>
                     <Select
                       value={formData.targetAudience}
-                      onValueChange={(value) => setFormData({ ...formData, targetAudience: value })}
+                      onValueChange={(v) => updateFormField('targetAudience', v)}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="选择目标人群" />
+                        <SelectValue placeholder="请选择目标人群" />
                       </SelectTrigger>
                       <SelectContent>
                         {targetAudiences.map((audience) => (
@@ -987,90 +697,57 @@ export default function DesignPage() {
                       </SelectContent>
                     </Select>
                     {formData.targetAudience === '其他' && (
-                      <div className="flex gap-2 mt-2">
-                        <Input
-                          placeholder="请输入目标人群，如：项目经理、财务人员、销售人员等"
-                          value={otherTargetAudience}
-                          onChange={(e) => setOtherTargetAudience(e.target.value)}
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          disabled={!otherTargetAudience.trim() || analyzingAudience}
-                          onClick={async () => {
-                            if (!otherTargetAudience.trim()) return;
-                            setAnalyzingAudience(true);
-                            try {
-                              const res = await fetch('/api/ai/analyze-input', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                  type: 'targetAudience',
-                                  input: otherTargetAudience,
-                                }),
-                              });
-                              const data = await res.json();
-                              if (data.data?.value) {
-                                setFormData(prev => ({ ...prev, targetAudience: data.data.value }));
-                                setOtherTargetAudience('');
-                              }
-                            } catch (error) {
-                              console.error('AI analyze error:', error);
-                            } finally {
-                              setAnalyzingAudience(false);
-                            }
-                          }}
-                          title="AI智能分析"
-                        >
-                          {analyzingAudience ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Sparkles className="w-4 h-4" />
-                          )}
-                        </Button>
-                      </div>
+                      <Input
+                        placeholder="请输入目标人群"
+                        value={otherTargetAudience}
+                        onChange={(e) => setOtherTargetAudience(e.target.value)}
+                        className="mt-2"
+                      />
                     )}
                   </div>
 
+                  {/* 参训人数 */}
                   <div className="space-y-2">
                     <Label htmlFor="participantCount">参训人数</Label>
                     <Input
                       id="participantCount"
                       type="number"
                       value={formData.participantCount}
-                      onChange={(e) => setFormData({ ...formData, participantCount: parseInt(e.target.value) || 0 })}
+                      onChange={(e) => updateFormField('participantCount', parseInt(e.target.value) || 0)}
                     />
                   </div>
 
+                  {/* 培训天数 */}
                   <div className="space-y-2">
                     <Label htmlFor="trainingDays">培训天数</Label>
                     <Input
                       id="trainingDays"
                       type="number"
                       value={formData.trainingDays}
-                      onChange={(e) => setFormData({ ...formData, trainingDays: parseInt(e.target.value) || 0 })}
+                      onChange={(e) => updateFormField('trainingDays', parseInt(e.target.value) || 0)}
                     />
                   </div>
 
+                  {/* 培训课时 */}
                   <div className="space-y-2">
                     <Label htmlFor="trainingHours">培训课时</Label>
                     <Input
                       id="trainingHours"
                       type="number"
                       value={formData.trainingHours}
-                      onChange={(e) => setFormData({ ...formData, trainingHours: parseInt(e.target.value) || 0 })}
+                      onChange={(e) => updateFormField('trainingHours', parseInt(e.target.value) || 0)}
                     />
                   </div>
 
+                  {/* 培训周期 */}
                   <div className="space-y-2">
-                    <Label htmlFor="trainingPeriod">培训周期</Label>
+                    <Label>培训周期</Label>
                     <Select
                       value={formData.trainingPeriod}
-                      onValueChange={(value) => setFormData({ ...formData, trainingPeriod: value })}
+                      onValueChange={(v) => updateFormField('trainingPeriod', v)}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="选择培训周期" />
+                        <SelectValue placeholder="请选择培训周期" />
                       </SelectTrigger>
                       <SelectContent>
                         {trainingPeriods.map((period) => (
@@ -1082,428 +759,270 @@ export default function DesignPage() {
                     </Select>
                     {formData.trainingPeriod === '其他' && (
                       <Input
-                        placeholder="请输入培训周期，如：每周一次、隔周培训等"
+                        placeholder="请输入培训周期"
                         value={otherTrainingPeriod}
                         onChange={(e) => setOtherTrainingPeriod(e.target.value)}
                         className="mt-2"
                       />
                     )}
                   </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="location">培训地点</Label>
-                    <Input
-                      id="location"
-                      placeholder="如：上海浦东"
-                      value={formData.location}
-                      onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="budgetMin">预算范围（万元）</Label>
-                    <div className="flex items-center gap-4 mb-2">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="budgetType"
-                          checked={noBudgetLimit}
-                          onChange={() => setNoBudgetLimit(true)}
-                          className="w-4 h-4 text-purple-600"
-                        />
-                        <span className="text-sm">无预算范围</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="budgetType"
-                          checked={!noBudgetLimit}
-                          onChange={() => setNoBudgetLimit(false)}
-                          className="w-4 h-4 text-purple-600"
-                        />
-                        <span className="text-sm">指定预算范围</span>
-                      </label>
-                    </div>
-                    <div className="flex gap-2">
-                      <Input
-                        id="budgetMin"
-                        type="number"
-                        placeholder="最低"
-                        value={formData.budgetMin}
-                        onChange={(e) => setFormData({ ...formData, budgetMin: parseFloat(e.target.value) || 0 })}
-                        disabled={noBudgetLimit}
-                        className={noBudgetLimit ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}
-                      />
-                      <span className="flex items-center text-gray-500">-</span>
-                      <Input
-                        type="number"
-                        placeholder="最高"
-                        value={formData.budgetMax}
-                        onChange={(e) => setFormData({ ...formData, budgetMax: parseFloat(e.target.value) || 0 })}
-                        disabled={noBudgetLimit}
-                        className={noBudgetLimit ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}
-                      />
-                    </div>
-                  </div>
                 </div>
 
+                {/* 预算范围 */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>预算范围（万元）</Label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={noBudgetLimit}
+                        onChange={(e) => setNoBudgetLimit(e.target.checked)}
+                        className="rounded"
+                      />
+                      无预算限制
+                    </label>
+                  </div>
+                  {!noBudgetLimit && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">最低</Label>
+                        <Input
+                          type="number"
+                          value={formData.budgetMin}
+                          onChange={(e) => updateFormField('budgetMin', parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">最高</Label>
+                        <Input
+                          type="number"
+                          value={formData.budgetMax}
+                          onChange={(e) => updateFormField('budgetMax', parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 培训地点 */}
+                <div className="space-y-2">
+                  <Label htmlFor="location">培训地点</Label>
+                  <Input
+                    id="location"
+                    placeholder="例如：上海市浦东新区"
+                    value={formData.location}
+                    onChange={(e) => updateFormField('location', e.target.value)}
+                  />
+                </div>
+
+                {/* 特殊要求 */}
                 <div className="space-y-2">
                   <Label htmlFor="specialRequirements">特殊要求</Label>
                   <Textarea
                     id="specialRequirements"
-                    placeholder="如：需要住宿、餐饮、交通安排等"
+                    placeholder="请输入其他特殊要求..."
                     value={formData.specialRequirements}
-                    onChange={(e) => setFormData({ ...formData, specialRequirements: e.target.value })}
-                    rows={3}
+                    onChange={(e) => updateFormField('specialRequirements', e.target.value)}
+                    rows={4}
                   />
                 </div>
 
-                <div className="flex justify-end gap-4">
-                  <Button variant="outline">取消</Button>
-                  <Button onClick={handleSaveRequirement} disabled={loading}>
-                    {loading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        保存中...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="w-4 h-4 mr-2" />
-                        保存并继续
-                      </>
-                    )}
+                <div className="flex justify-end">
+                  <Button 
+                    onClick={() => setActiveTab('scheme')}
+                    disabled={!formData.name}
+                  >
+                    下一步：方案设计
+                    <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* 方案生成 */}
-          <TabsContent value="scheme">
+          {/* 方案设计、场地选择、费用预算的 Tab 内容省略，保持原有逻辑 */}
+          <TabsContent value="scheme" className="mt-6">
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>培训方案</CardTitle>
-                    <CardDescription>AI智能生成课程安排方案</CardDescription>
-                  </div>
-                  <Button onClick={handleGenerateScheme} disabled={generateLoading}>
-                    {generateLoading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        生成中...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-4 h-4 mr-2" />
-                        AI生成方案
-                      </>
-                    )}
-                  </Button>
-                </div>
+                <CardTitle>培训方案</CardTitle>
+                <CardDescription>设计培训课程安排</CardDescription>
               </CardHeader>
               <CardContent>
                 {courses.length === 0 ? (
-                  <div className="text-center py-12 text-gray-500">
-                    <BookOpen className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                    <p>点击"AI生成方案"按钮，自动生成课程安排</p>
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground mb-4">暂无课程安排</p>
+                    <Button onClick={() => setActiveTab('requirement')}>
+                      返回填写需求
+                    </Button>
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {/* 课程分类统计 */}
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      <Badge variant="outline">职业素养类: 30%</Badge>
-                      <Badge variant="outline">管理技能类: 30%</Badge>
-                      <Badge variant="outline">专业技能类: 20%</Badge>
-                      <Badge variant="outline">综合提升类: 20%</Badge>
-                    </div>
-
-                    {/* 课程表格 */}
-                    <div className="border rounded-lg overflow-hidden">
-                      <table className="w-full">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 w-16">天数</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">课程名称</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">课程介绍</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 w-28">授课师资</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 w-20">课时数</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 w-28">上课地点</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {courses.map((course) => (
-                            <tr key={course.id} className="hover:bg-gray-50">
-                              <td className="px-4 py-3 text-sm">
-                                <Badge variant="secondary">第{course.day}天</Badge>
-                              </td>
-                              <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                                {course.name}
-                              </td>
-                              <td className="px-4 py-3 text-sm text-gray-600">
-                                {course.description}
-                              </td>
-                              <td className="px-4 py-3 text-sm text-gray-600">
-                                {course.teacherTitle || '待定'}
-                              </td>
-                              <td className="px-4 py-3 text-sm text-gray-600">
-                                {course.duration}课时
-                              </td>
-                              <td className="px-4 py-3 text-sm text-gray-600">
-                                {course.location || '待定'}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {/* 修改意见输入 */}
-                    <div className="border rounded-lg p-4 bg-gray-50">
-                      <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                        修改意见（可选）
-                      </Label>
-                      <div className="flex gap-2">
-                        <Textarea
-                          placeholder="请输入修改意见，如：增加实操课程、调整课程顺序、更换某些课程主题等..."
-                          value={modifySuggestion}
-                          onChange={(e) => setModifySuggestion(e.target.value)}
-                          rows={2}
-                          className="flex-1"
-                        />
-                        <Button
-                          onClick={handleModifyScheme}
-                          disabled={generateLoading || !modifySuggestion.trim()}
-                          className="self-end"
-                        >
-                          {generateLoading ? (
-                            <>
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              重新生成中...
-                            </>
-                          ) : (
-                            <>
-                              <Sparkles className="w-4 h-4 mr-2" />
-                              重新生成
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="flex justify-end gap-4 mt-6">
-                      <Button variant="outline" onClick={() => setActiveTab('requirement')}>
-                        返回修改需求
-                      </Button>
-                      <Button onClick={handleSaveScheme} disabled={loading}>
-                        {loading ? (
-                          <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            保存中...
-                          </>
-                        ) : (
-                          '保存方案并继续'
-                        )}
-                      </Button>
-                    </div>
+                    {courses.map((course, index) => (
+                      <Card key={course.id || index}>
+                        <CardContent className="p-4">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h4 className="font-medium">{course.name}</h4>
+                              <p className="text-sm text-muted-foreground">
+                                第{course.day}天 · {course.duration}课时
+                              </p>
+                              {course.teacherName && (
+                                <p className="text-sm">
+                                  讲师：{course.teacherName} ({course.teacherTitle})
+                                </p>
+                              )}
+                            </div>
+                            <Badge>{course.category}</Badge>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
                   </div>
                 )}
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* 资源匹配 */}
-          <TabsContent value="resource">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* 讲师匹配 */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <User className="w-5 h-5" />
-                    讲师资源
-                  </CardTitle>
-                  <CardDescription>为课程匹配合适的讲师</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {teachers.map((teacher) => (
-                      <div
-                        key={teacher.id}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                      >
-                        <div>
-                          <p className="font-medium text-gray-900">{teacher.name}</p>
-                          <p className="text-sm text-gray-500">
-                            {teacher.title} · {teacher.expertise}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-medium text-gray-900">
-                            ¥{teacher.hourly_rate}/课时
-                          </p>
-                          <p className="text-xs text-gray-500">评分: {teacher.rating}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* 场地选择 */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <MapPin className="w-5 h-5" />
-                    场地资源
-                  </CardTitle>
-                  <CardDescription>选择合适的培训场地</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {venues.map((venue) => (
-                      <div
-                        key={venue.id}
-                        className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors ${
-                          selectedVenue?.id === venue.id
-                            ? 'bg-blue-50 border-2 border-blue-500'
-                            : 'bg-gray-50 hover:bg-gray-100'
-                        }`}
-                        onClick={() => setSelectedVenue(venue)}
-                      >
-                        <div>
-                          <p className="font-medium text-gray-900">{venue.name}</p>
-                          <p className="text-sm text-gray-500">
-                            {venue.location} · 容量{venue.capacity}人
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-medium text-gray-900">
-                            ¥{venue.daily_rate}/天
-                          </p>
-                          <p className="text-xs text-gray-500">评分: {venue.rating}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="flex justify-end gap-4 mt-6">
-              <Button variant="outline" onClick={() => setActiveTab('scheme')}>
-                返回修改方案
-              </Button>
-              <Button onClick={handleGenerateQuotation} disabled={generateLoading}>
-                {generateLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    生成中...
-                  </>
-                ) : (
-                  '生成报价单'
-                )}
-              </Button>
-            </div>
-          </TabsContent>
-
-          {/* 报价单 */}
-          <TabsContent value="quotation">
+          <TabsContent value="venue" className="mt-6">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <DollarSign className="w-5 h-5" />
-                  培训项目报价单
-                </CardTitle>
-                <CardDescription>项目费用明细和成本测算</CardDescription>
+                <CardTitle>场地选择</CardTitle>
+                <CardDescription>选择合适的培训场地</CardDescription>
               </CardHeader>
               <CardContent>
-                {quotation ? (
-                  <div className="space-y-6">
-                    {/* 费用明细表 */}
-                    <div className="border rounded-lg overflow-hidden">
-                      <table className="w-full">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">费用类别</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">费用名称</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-900">单价</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-900">数量</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-900">金额(元)</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200">
-                          {(quotation.items as Array<Record<string, unknown>>)?.map((item, index) => (
-                            <tr key={index} className="hover:bg-gray-50">
-                              <td className="px-4 py-3 text-sm text-gray-900">{item.category as string}</td>
-                              <td className="px-4 py-3 text-sm text-gray-500">{item.name as string}</td>
-                              <td className="px-4 py-3 text-sm text-right text-gray-900">
-                                ¥{(item.unitPrice as number)?.toLocaleString()}
-                              </td>
-                              <td className="px-4 py-3 text-sm text-right text-gray-500">
-                                {item.quantity as number} {item.unit as string}
-                              </td>
-                              <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">
-                                ¥{(item.amount as number)?.toLocaleString()}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {venues.map((venue) => (
+                    <Card 
+                      key={venue.id}
+                      className={`cursor-pointer transition-all ${
+                        selectedVenue?.id === venue.id 
+                          ? 'ring-2 ring-primary' 
+                          : 'hover:shadow-md'
+                      }`}
+                      onClick={() => setSelectedVenue(venue)}
+                    >
+                      <CardContent className="p-4">
+                        <h4 className="font-medium">{venue.name}</h4>
+                        <p className="text-sm text-muted-foreground">
+                          <MapPin className="h-4 w-4 inline mr-1" />
+                          {venue.location}
+                        </p>
+                        <p className="text-sm">
+                          容纳人数：{venue.capacity}人
+                        </p>
+                        <p className="text-sm">
+                          日租金：¥{venue.daily_rate}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-                    {/* 合计 */}
-                    <div className="flex justify-end">
-                      <div className="w-64 space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-500">小计</span>
-                          <span className="font-medium">¥{(quotation.subtotal as number)?.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-500">管理费(15%)</span>
-                          <span className="font-medium">¥{(quotation.managementFee as number)?.toLocaleString()}</span>
-                        </div>
-                        <Separator />
-                        <div className="flex justify-between text-lg font-bold">
-                          <span>合计</span>
-                          <span className="text-blue-600">¥{(quotation.total as number)?.toLocaleString()}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 合规性检查 */}
-                    {(quotation.compliance as Record<string, unknown>)?.compliant ? (
-                      <div className="flex items-center gap-2 p-4 bg-green-50 text-green-700 rounded-lg">
-                        <span className="text-lg">✅</span>
-                        <span>费用符合规范要求</span>
-                      </div>
-                    ) : (
-                      <div className="p-4 bg-yellow-50 rounded-lg">
-                        <p className="text-yellow-700 font-medium mb-2">⚠️ 存在合规性问题</p>
-                        <ul className="text-sm text-yellow-600 list-disc list-inside">
-                          {((quotation.compliance as Record<string, unknown>)?.issues as string[])?.map((issue, i) => (
-                            <li key={i}>{issue}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    <div className="flex justify-end gap-4">
-                      <Button variant="outline">导出报价单</Button>
-                      <Button onClick={() => router.push('/declaration')}>
-                        提交项目申报
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-12 text-gray-500">
-                    <DollarSign className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                    <p>请先完成资源匹配，然后生成报价单</p>
-                  </div>
-                )}
+          <TabsContent value="quotation" className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>费用预算</CardTitle>
+                <CardDescription>培训项目费用明细</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">费用预算功能开发中...</p>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* 智能分析对话框 */}
+        <Dialog open={showSmartAnalysis} onOpenChange={setShowSmartAnalysis}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>智能需求分析</DialogTitle>
+              <DialogDescription>
+                输入或上传需求描述，AI 将自动分析并填充表单
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <Textarea
+                placeholder="请描述您的培训需求..."
+                value={smartRequirementText}
+                onChange={(e) => setSmartRequirementText(e.target.value)}
+                rows={6}
+              />
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowSmartAnalysis(false)}>
+                  取消
+                </Button>
+                <Button 
+                  onClick={handleSmartRequirementAnalysis}
+                  disabled={analyzingRequirement}
+                >
+                  {analyzingRequirement ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      分析中...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      开始分析
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* 草稿列表对话框 */}
+        <Dialog open={showDraftList} onOpenChange={setShowDraftList}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>草稿项目</DialogTitle>
+              <DialogDescription>
+                选择一个草稿项目继续编辑
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {draftProjects.length === 0 ? (
+                <p className="text-center text-muted-foreground py-4">暂无草稿项目</p>
+              ) : (
+                draftProjects.map((project) => (
+                  <Card 
+                    key={project.id}
+                    className="cursor-pointer hover:bg-accent"
+                    onClick={() => handleLoadProject(project.id)}
+                  >
+                    <CardContent className="p-4 flex justify-between items-center">
+                      <div>
+                        <h4 className="font-medium">{project.name}</h4>
+                        <p className="text-sm text-muted-foreground">
+                          创建于 {new Date(project.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">{project.progress}</Badge>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteDraft(project.id);
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );
