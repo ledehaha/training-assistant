@@ -109,20 +109,19 @@ export const normativeDocuments = pgTable(
     id: varchar("id", { length: 36 })
       .primaryKey()
       .default(sql`gen_random_uuid()`),
-    name: varchar("name", { length: 300 }).notNull(),
-    type: varchar("type", { length: 50 }), // 类型：费用标准、讲师费标准、合规条款
-    content: text("content"), // 内容
-    fileUrl: text("file_url"), // 文件链接
-    effectiveDate: date("effective_date"), // 生效日期
-    expiryDate: date("expiry_date"), // 失效日期
-    isEffective: boolean("is_effective").default(true),
+    name: varchar("name", { length: 300 }).notNull(), // 文件名称
+    summary: varchar("summary", { length: 200 }), // 内容摘要（50字内）
+    issuer: varchar("issuer", { length: 100 }), // 颁发部门
+    issueDate: date("issue_date"), // 颁发时间
+    fileUrl: text("file_url"), // 文件下载链接
+    isEffective: boolean("is_effective").default(true), // 是否有效
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }),
   },
   (table) => [
-    index("normative_documents_type_idx").on(table.type),
+    index("normative_documents_issuer_idx").on(table.issuer),
     index("normative_documents_is_effective_idx").on(table.isEffective),
   ]
 );

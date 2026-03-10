@@ -47,8 +47,9 @@ const TABLES_CONFIG: Record<string, { label: string; columns: { key: string; lab
     label: '规范性文件',
     columns: [
       { key: 'name', label: '文件名称', type: 'text', required: true },
-      { key: 'type', label: '类型', type: 'select', options: ['费用标准', '合规条款', '政策文件', '其他'] },
-      { key: 'content', label: '内容', type: 'text' },
+      { key: 'summary', label: '内容摘要(50字内)', type: 'text' },
+      { key: 'issuer', label: '颁发部门', type: 'text' },
+      { key: 'issue_date', label: '颁发时间', type: 'date' },
       { key: 'is_effective', label: '是否有效(是/否)', type: 'boolean' },
     ],
   },
@@ -101,7 +102,7 @@ const SAMPLE_DATA: Record<string, Record<string, unknown>[]> = {
     { name: '班组长管理技能提升', category: '管理技能', duration: 8, target_audience: '班组长', difficulty: '中级', description: '提升班组长的管理能力', usage_count: 45, avg_rating: 4.7 },
   ],
   normative_documents: [
-    { name: '培训费用管理办法', type: '费用标准', content: '讲师费标准：正高2000元/课时', is_effective: '是' },
+    { name: '培训费用管理办法', summary: '讲师费标准：院士1500元、正高1000元、其他500元', issuer: '上海市人社局', issue_date: '2024-01-01', is_effective: '是' },
   ],
   projects: [
     { name: '2024年度班组长培训', status: 'draft', training_target: '提升管理能力', target_audience: '班组长', participant_count: 50, training_days: 3, total_budget: 100000 },

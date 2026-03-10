@@ -100,8 +100,9 @@ const TABLES_CONFIG = [
     columns: [
       { key: 'id', label: 'ID', type: 'uuid', editable: false },
       { key: 'name', label: '文件名称', type: 'text', editable: true, required: true },
-      { key: 'type', label: '类型', type: 'select', options: ['费用标准', '合规条款', '政策文件', '职称对照表', '其他'], editable: true },
-      { key: 'content', label: '内容摘要', type: 'textarea', editable: true },
+      { key: 'summary', label: '内容摘要', type: 'textarea', editable: true },
+      { key: 'issuer', label: '颁发部门', type: 'text', editable: true },
+      { key: 'issue_date', label: '颁发时间', type: 'date', editable: true },
       { key: 'file_url', label: '文件链接', type: 'text', editable: true },
       { key: 'is_effective', label: '是否有效', type: 'boolean', editable: true },
     ]
@@ -191,7 +192,7 @@ export default function DataManagementPage() {
       teachers: '请输入讲师信息...\n\n例如：张三，正高职称，专业领域是管理培训，来自某大学商学院\n\n提示：可省略课时费，AI将根据职称自动填充（院士1500元、正高1000元、其他500元）',
       venues: '请输入场地信息...\n\n例如：阳光培训中心，位于上海市浦东新区，可容纳100人，日租金5000元',
       course_templates: '请输入课程模板信息...\n\n例如：班组长管理技能提升，管理技能类，8课时，面向班组长',
-      normative_documents: '请输入规范性文件内容...\n\n例如：讲师费标准：院士1500元/课时，正高1000元/课时，其他500元/课时',
+      normative_documents: '请输入规范性文件信息...\n\n例如：培训费用管理办法，上海市人力资源和社会保障局，2024年1月颁布\n\n提示：上传文件后AI将自动提取摘要',
       projects: '请输入培训项目信息...\n\n例如：2024年班组长能力提升培训，目标人群班组长，参训人数50人，培训4天',
       project_courses: '请输入项目课程信息...\n\n例如：第一天上午，管理基础，张明教授授课，4课时',
       satisfaction_surveys: '请输入满意度调查数据...\n\n例如：总体评分4.8分，内容评分4.7分，讲师评分4.9分'
@@ -505,6 +506,14 @@ export default function DataManagementPage() {
             onChange={(e) => setFormData({ ...formData, [col.key]: Number(e.target.value) })}
           />
         );
+      case 'date':
+        return (
+          <Input
+            type="date"
+            value={value ? String(value).substring(0, 10) : ''}
+            onChange={(e) => setFormData({ ...formData, [col.key]: e.target.value })}
+          />
+        );
       default:
         return (
           <Input
@@ -548,6 +557,12 @@ export default function DataManagementPage() {
         return (
           <span className="text-xs text-gray-500 font-mono">
             {String(value).substring(0, 8)}...
+          </span>
+        );
+      case 'date':
+        return (
+          <span className="text-sm text-gray-600">
+            {String(value).substring(0, 10)}
           </span>
         );
       default:

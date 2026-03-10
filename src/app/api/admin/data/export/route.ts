@@ -59,8 +59,9 @@ const TABLE_CONFIG: Record<string, { label: string; columns: { key: string; labe
     label: '规范性文件',
     columns: [
       { key: 'name', label: '文件名称' },
-      { key: 'type', label: '类型' },
-      { key: 'content', label: '内容' },
+      { key: 'summary', label: '内容摘要' },
+      { key: 'issuer', label: '颁发部门' },
+      { key: 'issue_date', label: '颁发时间' },
       { key: 'is_effective', label: '是否有效' },
     ],
   },

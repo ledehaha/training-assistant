@@ -48,8 +48,10 @@ const TABLE_SCHEMA: Record<string, string> = {
 
   normative_documents: `规范性文件表：
 - name (必填): 文件名称
-- type: 类型，可选值：费用标准、合规条款、政策文件、其他
-- content: 文件内容
+- summary: 内容摘要（50字以内，概括文件核心内容）
+- issuer: 颁发部门
+- issue_date: 颁发时间
+- file_url: 文件下载链接
 - is_effective: 是否有效（默认true）`,
 
   projects: `培训项目表：
@@ -105,31 +107,18 @@ export async function POST(request: NextRequest) {
       .select('*')
       .eq('is_effective', true);
 
-    // 构建规范性文件参考内容
+    // 构建规范性文件参考内容（用于讲师导入时的费用标准参考）
     let normativeContext = '';
     if (normativeDocs && normativeDocs.length > 0) {
-      const feeStandards = normativeDocs.filter(d => d.type === '费用标准');
-      const complianceRules = normativeDocs.filter(d => d.type === '合规条款');
-      const policyDocs = normativeDocs.filter(d => d.type === '政策文件');
-
-      if (feeStandards.length > 0) {
-        normativeContext += `\n### 费用标准（必须严格遵守）\n`;
-        feeStandards.forEach(doc => {
-          normativeContext += `- **${doc.name}**: ${doc.content}\n`;
-        });
-      }
-
-      if (complianceRules.length > 0) {
-        normativeContext += `\n### 合规条款（必须满足）\n`;
-        complianceRules.forEach(doc => {
-          normativeContext += `- **${doc.name}**: ${doc.content}\n`;
-        });
-      }
-
-      if (policyDocs.length > 0) {
-        normativeContext += `\n### 政策文件（参考依据）\n`;
-        policyDocs.forEach(doc => {
-          normativeContext += `- **${doc.name}**: ${doc.content}\n`;
+      // 筛选包含费用标准的文件
+      const feeDocs = normativeDocs.filter(d => 
+        d.summary && (d.summary.includes('费') || d.summary.includes('标准') || d.summary.includes('讲师'))
+      );
+      
+      if (feeDocs.length > 0) {
+        normativeContext += `\n### 规范性文件参考（必须严格遵守）\n`;
+        feeDocs.forEach(doc => {
+          normativeContext += `- **${doc.name}**（${doc.issuer || '未知'}）: ${doc.summary}\n`;
         });
       }
     }
