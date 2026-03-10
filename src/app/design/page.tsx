@@ -18,7 +18,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, Sparkles, Save, ArrowRight, User, MapPin, BookOpen, DollarSign } from 'lucide-react';
+import { Loader2, Sparkles, Save, ArrowRight, User, MapPin, BookOpen, DollarSign, X } from 'lucide-react';
 
 interface ProjectFormData {
   name: string;
@@ -90,6 +90,7 @@ const trainingPeriods = [
   '工作日',
   '连续',
   '分期',
+  '其他',
 ];
 
 export default function DesignPage() {
@@ -125,11 +126,20 @@ export default function DesignPage() {
   const [analyzingTarget, setAnalyzingTarget] = useState(false);
   const [analyzingAudience, setAnalyzingAudience] = useState(false);
   
+  // 培训周期"其他"选项
+  const [otherTrainingPeriod, setOtherTrainingPeriod] = useState('');
+  
   // 无预算范围选项
   const [noBudgetLimit, setNoBudgetLimit] = useState(true);
   
   // 方案修改意见
   const [modifySuggestion, setModifySuggestion] = useState('');
+  
+  // 智能需求分析
+  const [smartRequirementText, setSmartRequirementText] = useState('');
+  const [smartRequirementFile, setSmartRequirementFile] = useState<File | null>(null);
+  const [analyzingRequirement, setAnalyzingRequirement] = useState(false);
+  const [showSmartAnalysis, setShowSmartAnalysis] = useState(false);
 
   // 加载讲师和场地数据
   useEffect(() => {
@@ -160,6 +170,8 @@ export default function DesignPage() {
         // 无预算范围时，设置为 null
         budgetMin: noBudgetLimit ? null : formData.budgetMin,
         budgetMax: noBudgetLimit ? null : formData.budgetMax,
+        // 培训周期"其他"选项
+        trainingPeriod: formData.trainingPeriod === '其他' ? otherTrainingPeriod : formData.trainingPeriod,
       };
       const res = await fetch('/api/projects', {
         method: 'POST',
@@ -175,6 +187,81 @@ export default function DesignPage() {
       console.error('Save requirement error:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 智能需求分析
+  const handleSmartRequirementAnalysis = async () => {
+    if (!smartRequirementText.trim() && !smartRequirementFile) {
+      alert('请输入需求描述或上传需求文件');
+      return;
+    }
+    
+    setAnalyzingRequirement(true);
+    try {
+      let requirementContent = smartRequirementText;
+      
+      // 如果有文件，先解析文件
+      if (smartRequirementFile) {
+        const formDataToSend = new FormData();
+        formDataToSend.append('file', smartRequirementFile);
+        
+        const parseRes = await fetch('/api/parse-document', {
+          method: 'POST',
+          body: formDataToSend,
+        });
+        const parseData = await parseRes.json();
+        
+        if (parseData.text) {
+          requirementContent = requirementContent 
+            ? `${requirementContent}\n\n文件内容：\n${parseData.text}`
+            : parseData.text;
+        }
+      }
+      
+      // 调用AI分析需求
+      const res = await fetch('/api/ai/analyze-requirement', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requirementText: requirementContent }),
+      });
+      const data = await res.json();
+      
+      if (data.data) {
+        // 填充表单
+        const analysis = data.data;
+        setFormData(prev => ({
+          ...prev,
+          name: analysis.name || prev.name,
+          trainingTarget: analysis.trainingTarget || prev.trainingTarget,
+          targetAudience: analysis.targetAudience || prev.targetAudience,
+          participantCount: analysis.participantCount || prev.participantCount,
+          trainingDays: analysis.trainingDays || prev.trainingDays,
+          trainingHours: analysis.trainingHours || prev.trainingHours,
+          trainingPeriod: analysis.trainingPeriod || prev.trainingPeriod,
+          location: analysis.location || prev.location,
+          specialRequirements: analysis.specialRequirements || prev.specialRequirements,
+        }));
+        
+        // 如果培训类型或目标人群是其他，设置其他文本
+        if (analysis.trainingTarget && !['企业内训', '技能培训', '管理培训', '安全生产培训', '新员工培训', '专项培训'].includes(analysis.trainingTarget)) {
+          setFormData(prev => ({ ...prev, trainingTarget: '其他' }));
+          setOtherTrainingTarget(analysis.trainingTarget);
+        }
+        if (analysis.targetAudience && !['班组长', '中层管理', '高层管理', '新员工', '技术骨干', '全员'].includes(analysis.targetAudience)) {
+          setFormData(prev => ({ ...prev, targetAudience: '其他' }));
+          setOtherTargetAudience(analysis.targetAudience);
+        }
+        
+        setShowSmartAnalysis(false);
+        setSmartRequirementText('');
+        setSmartRequirementFile(null);
+      }
+    } catch (error) {
+      console.error('Smart requirement analysis error:', error);
+      alert('需求分析失败，请重试');
+    } finally {
+      setAnalyzingRequirement(false);
     }
   };
 
@@ -367,10 +454,104 @@ export default function DesignPage() {
           <TabsContent value="requirement">
             <Card>
               <CardHeader>
-                <CardTitle>培训需求信息</CardTitle>
-                <CardDescription>请填写培训的基本需求和约束条件</CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>培训需求信息</CardTitle>
+                    <CardDescription>请填写培训的基本需求和约束条件</CardDescription>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowSmartAnalysis(!showSmartAnalysis)}
+                    className="gap-2"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    {showSmartAnalysis ? '手动填写' : '智能分析'}
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent className="space-y-6">
+                {/* 智能需求分析区域 */}
+                {showSmartAnalysis && (
+                  <div className="border rounded-lg p-4 bg-gradient-to-r from-purple-50 to-blue-50 mb-6">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Sparkles className="w-5 h-5 text-purple-600" />
+                      <span className="font-medium text-purple-700">智能需求分析</span>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-4">
+                      输入需求描述或上传需求文件，AI将自动分析并填充表单
+                    </p>
+                    
+                    <div className="space-y-4">
+                      {/* 文字输入 */}
+                      <div>
+                        <Label className="text-sm font-medium mb-2 block">需求描述</Label>
+                        <Textarea
+                          placeholder="请描述培训需求，如：我们公司有50名中层管理者需要参加管理能力提升培训，预计培训4天，地点在上海..."
+                          value={smartRequirementText}
+                          onChange={(e) => setSmartRequirementText(e.target.value)}
+                          rows={4}
+                        />
+                      </div>
+                      
+                      <div className="flex items-center gap-4">
+                        <span className="text-sm text-gray-500">或</span>
+                        <div className="flex-1 border-t border-gray-200"></div>
+                      </div>
+                      
+                      {/* 文件上传 */}
+                      <div>
+                        <Label className="text-sm font-medium mb-2 block">上传需求文件</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            type="file"
+                            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                setSmartRequirementFile(file);
+                              }
+                            }}
+                            className="flex-1"
+                          />
+                          {smartRequirementFile && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setSmartRequirementFile(null)}
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
+                        {smartRequirementFile && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            已选择: {smartRequirementFile.name}
+                          </p>
+                        )}
+                      </div>
+                      
+                      {/* 分析按钮 */}
+                      <Button
+                        onClick={handleSmartRequirementAnalysis}
+                        disabled={analyzingRequirement || (!smartRequirementText.trim() && !smartRequirementFile)}
+                        className="w-full"
+                      >
+                        {analyzingRequirement ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            AI分析中...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-4 h-4 mr-2" />
+                            开始智能分析
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label htmlFor="name">项目名称 *</Label>
@@ -557,6 +738,14 @@ export default function DesignPage() {
                         ))}
                       </SelectContent>
                     </Select>
+                    {formData.trainingPeriod === '其他' && (
+                      <Input
+                        placeholder="请输入培训周期，如：每周一次、隔周培训等"
+                        value={otherTrainingPeriod}
+                        onChange={(e) => setOtherTrainingPeriod(e.target.value)}
+                        className="mt-2"
+                      />
+                    )}
                   </div>
 
                   <div className="space-y-2">
