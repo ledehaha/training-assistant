@@ -42,8 +42,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# 创建数据目录
-RUN mkdir -p /data && chown -R nextjs:nodejs /data
+# 创建数据和文件存储目录
+RUN mkdir -p /data/db /data/files && chown -R nextjs:nodejs /data
 
 # 复制构建产物
 COPY --from=builder /app/public ./public
@@ -64,6 +64,7 @@ EXPOSE 5000
 
 ENV PORT=5000
 ENV HOSTNAME="0.0.0.0"
-ENV DATABASE_PATH=/data/training.db
+ENV DATA_DIR=/data/db
+ENV FILE_STORAGE_PATH=/data/files
 
 CMD ["node", "server.js"]

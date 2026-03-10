@@ -87,7 +87,11 @@ export const normativeDocuments = sqliteTable(
     summary: text('summary'),
     issuer: text('issuer'),
     issueDate: text('issue_date'),
-    fileUrl: text('file_url'),
+    effectiveDate: text('effective_date'),
+    expiryDate: text('expiry_date'),
+    filePath: text('file_path'), // 本地文件路径
+    fileName: text('file_name'), // 原始文件名
+    fileSize: integer('file_size'), // 文件大小（字节）
     isEffective: integer('is_effective', { mode: 'boolean' }).default(true),
     createdAt: text('created_at').default(sql`datetime('now')`).notNull(),
     updatedAt: text('updated_at'),

@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { LLMClient, Config, HeaderUtils, S3Storage } from 'coze-coding-dev-sdk';
+import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 import { 
   db, teachers, venues, courseTemplates, normativeDocuments, 
   projects, projectCourses, satisfactionSurveys, sql 
 } from '@/storage/database';
 import { generateId, getTimestamp } from '@/storage/database';
+import { saveFile } from '@/storage/file-storage';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import { exec } from 'child_process';
@@ -185,7 +186,7 @@ const TABLE_SCHEMA: Record<string, string> = {
   teachers: '讲师信息表: name(必填), title, expertise, organization, bio, hourlyRate, rating, teachingCount, isActive',
   venues: '场地信息表: name(必填), location, capacity, dailyRate, facilities, rating, usageCount, isActive',
   course_templates: '课程模板表: name(必填), category, duration, targetAudience, difficulty, description, usageCount, avgRating',
-  normative_documents: '规范性文件表: name(必填), summary, issuer, issueDate, fileUrl, isEffective',
+  normative_documents: '规范性文件表: name(必填), summary, issuer, issueDate, filePath, isEffective',
   projects: '培训项目表: name(必填), status, trainingTarget, targetAudience, participantCount, trainingDays, totalBudget',
   project_courses: '项目课程表: projectId(必填), name, teacherId, duration, order',
   satisfaction_surveys: '满意度调查表: projectId, title, questions(JSON), status',
@@ -217,59 +218,74 @@ export async function POST(request: NextRequest) {
 
     if (!extractedText.trim()) return NextResponse.json({ error: '无法从文件中提取文本内容' }, { status: 400 });
 
-    // AI 解析
-    const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
-    const config = new Config();
-    const client = new LLMClient(config, customHeaders);
+    // 检查是否配置了 AI API Key
+    const hasApiKey = !!process.env.COZE_API_KEY;
+    
+    let records: Record<string, unknown>[] = [];
+    let summary = '';
 
-    // 获取规范性文件作为参考
-    const normativeDocsData = db.select().from(normativeDocuments).where(sql`${normativeDocuments.isEffective} = 1`).all();
+    if (hasApiKey) {
+      // AI 解析
+      const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
+      const config = new Config();
+      const client = new LLMClient(config, customHeaders);
 
-    let normativeContext = '';
-    if (normativeDocsData?.length > 0) {
-      const feeDocs = normativeDocsData.filter(d => d.summary?.includes('费') || d.summary?.includes('标准'));
-      if (feeDocs.length > 0) {
-        normativeContext = `\n规范性文件参考:\n${feeDocs.map(d => `- ${d.name}: ${d.summary}`).join('\n')}`;
+      // 获取规范性文件作为参考
+      const normativeDocsData = db.select().from(normativeDocuments).where(sql`${normativeDocuments.isEffective} = 1`).all();
+
+      let normativeContext = '';
+      if (normativeDocsData?.length > 0) {
+        const feeDocs = normativeDocsData.filter(d => d.summary?.includes('费') || d.summary?.includes('标准'));
+        if (feeDocs.length > 0) {
+          normativeContext = `\n规范性文件参考:\n${feeDocs.map(d => `- ${d.name}: ${d.summary}`).join('\n')}`;
+        }
       }
-    }
 
-    const prompt = `你是一个数据解析专家。从以下文件内容中提取${TABLE_SCHEMA[table] || table}的数据。
+      const prompt = `你是一个数据解析专家。从以下文件内容中提取${TABLE_SCHEMA[table] || table}的数据。
 ${normativeContext}
 文件内容:
 ${extractedText.substring(0, 8000)}
 
 以JSON格式返回: { "records": [...], "summary": "提取摘要" }`;
 
-    const response = await client.invoke([{ role: 'user', content: prompt }], { temperature: 0.3 });
+      const response = await client.invoke([{ role: 'user', content: prompt }], { temperature: 0.3 });
 
-    let parsedResult;
-    try {
-      const jsonMatch = response.content?.match(/\{[\s\S]*\}/);
-      if (jsonMatch) parsedResult = JSON.parse(jsonMatch[0]);
-      else throw new Error('未找到 JSON');
-    } catch {
-      return NextResponse.json({ error: 'AI 解析失败', extractedText: extractedText.substring(0, 500) }, { status: 400 });
+      let parsedResult;
+      try {
+        const jsonMatch = response.content?.match(/\{[\s\S]*\}/);
+        if (jsonMatch) parsedResult = JSON.parse(jsonMatch[0]);
+        else throw new Error('未找到 JSON');
+      } catch {
+        return NextResponse.json({ error: 'AI 解析失败', extractedText: extractedText.substring(0, 500) }, { status: 400 });
+      }
+
+      records = parsedResult?.records || [];
+      summary = parsedResult?.summary || '';
+    } else {
+      // 未配置 API Key，尝试简单解析（仅支持 Excel）
+      if (fileType === 'xlsx' || fileType === 'xls') {
+        const workbook = XLSX.read(buffer, { type: 'buffer' });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        records = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet);
+        summary = `从 Excel 解析出 ${records.length} 条记录`;
+      } else {
+        return NextResponse.json({ 
+          error: '未配置 AI API Key，仅支持 Excel 文件导入。请配置 COZE_API_KEY 环境变量以启用 AI 解析功能。' 
+        }, { status: 400 });
+      }
     }
 
-    const records = parsedResult?.records || [];
     if (records.length === 0) return NextResponse.json({ error: '未提取到有效数据' }, { status: 400 });
 
-    // 上传文件（如果是规范性文件）
-    let fileUrl = '';
+    // 保存文件到本地（如果是规范性文件）
+    let filePath = '';
     if (table === 'normative_documents') {
       try {
-        const storage = new S3Storage({
-          endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
-          accessKey: '', secretKey: '',
-          bucketName: process.env.COZE_BUCKET_NAME,
-          region: 'cn-beijing',
-        });
-        const fileKey = await storage.uploadFile({
-          fileContent: buffer, fileName: `normative_docs/${Date.now()}_${file.name}`,
-          contentType: file.type || 'application/octet-stream',
-        });
-        fileUrl = await storage.generatePresignedUrl({ key: fileKey, expireTime: 2592000 });
-      } catch (e) { console.error('File upload error:', e); }
+        filePath = saveFile(buffer, file.name, 'normative_docs');
+      } catch (e) { 
+        console.error('File save error:', e); 
+      }
     }
 
     // 插入数据
@@ -286,7 +302,8 @@ ${extractedText.substring(0, 8000)}
           if (['id', 'created_at', 'updated_at', 'createdAt', 'updatedAt'].includes(key)) continue;
           cleaned[key] = value;
         }
-        if (fileUrl) cleaned.fileUrl = fileUrl;
+        // 保存文件路径而非 URL
+        if (filePath) cleaned.filePath = filePath;
 
         const result = db.insert(tableSchema).values({ id: generateId(), ...cleaned, createdAt: now }).returning().get();
         insertedRecords.push(result);
@@ -294,7 +311,13 @@ ${extractedText.substring(0, 8000)}
       } catch (e) { console.error('Insert error:', e); }
     }
 
-    return NextResponse.json({ success: true, count: successCount, summary: parsedResult?.summary, preview: insertedRecords });
+    return NextResponse.json({ 
+      success: true, 
+      count: successCount, 
+      summary, 
+      preview: insertedRecords,
+      filePath: filePath || undefined
+    });
   } catch (error) {
     console.error('AI import file error:', error);
     return NextResponse.json({ error: '导入失败' }, { status: 500 });

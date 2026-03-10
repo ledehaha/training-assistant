@@ -103,7 +103,11 @@ export function initDatabase() {
       summary TEXT,
       issuer TEXT,
       issue_date TEXT,
-      file_url TEXT,
+      effective_date TEXT,
+      expiry_date TEXT,
+      file_path TEXT,
+      file_name TEXT,
+      file_size INTEGER,
       is_effective INTEGER DEFAULT 1,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT

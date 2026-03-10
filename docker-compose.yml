@@ -18,12 +18,11 @@ services:
     container_name: training-app
     restart: always
     environment:
-      # SQLite 数据库路径
-      DATABASE_PATH: /data/training.db
-      # Coze API（必须配置）
-      COZE_API_KEY: ${COZE_API_KEY}
-      COZE_BUCKET_ENDPOINT_URL: ${COZE_BUCKET_ENDPOINT_URL}
-      COZE_BUCKET_NAME: ${COZE_BUCKET_NAME}
+      # 数据存储路径
+      DATA_DIR: /data/db
+      FILE_STORAGE_PATH: /data/files
+      # Coze API（可选，用于 AI 功能）
+      COZE_API_KEY: ${COZE_API_KEY:-}
       # 应用配置
       NODE_ENV: production
       PORT: 5000
@@ -31,8 +30,8 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      # 数据持久化 - SQLite 数据库文件
-      - ./data:/data
+      # 数据持久化
+      - training-data:/data
     # 资源限制（可选，根据 NAS 配置调整）
     deploy:
       resources:
@@ -40,6 +39,13 @@ services:
           memory: 1G
         reservations:
           memory: 256M
+
+# ============================================
+# 数据卷
+# ============================================
+volumes:
+  training-data:
+    driver: local
 
 # ============================================
 # 网络
