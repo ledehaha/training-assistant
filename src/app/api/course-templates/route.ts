@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, courseTemplates, eq, desc, sql } from '@/storage/database';
+import { db, courseTemplates, eq, desc, sql, saveDatabaseImmediate, ensureDatabaseReady } from '@/storage/database';
 import { generateId, getTimestamp } from '@/storage/database';
 
 // GET /api/course-templates - 获取课程模板列表
 export async function GET(request: NextRequest) {
   try {
+    await ensureDatabaseReady();
+    
     const searchParams = request.nextUrl.searchParams;
     const category = searchParams.get('category');
     const targetAudience = searchParams.get('targetAudience');
@@ -51,6 +53,8 @@ export async function GET(request: NextRequest) {
 // POST /api/course-templates - 创建新课程模板
 export async function POST(request: NextRequest) {
   try {
+    await ensureDatabaseReady();
+    
     const body = await request.json();
     const id = generateId();
     const now = getTimestamp();
@@ -70,6 +74,9 @@ export async function POST(request: NextRequest) {
       })
       .returning()
       .get();
+
+    // 保存数据库到文件
+    saveDatabaseImmediate();
 
     return NextResponse.json({ data: result });
   } catch (error) {

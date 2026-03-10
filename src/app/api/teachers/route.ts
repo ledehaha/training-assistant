@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, teachers, eq, desc, sql } from '@/storage/database';
+import { db, teachers, eq, desc, sql, saveDatabaseImmediate, ensureDatabaseReady } from '@/storage/database';
 import { generateId, getTimestamp } from '@/storage/database';
 
 // GET /api/teachers - 获取讲师列表
 export async function GET(request: NextRequest) {
   try {
+    // 确保数据库已初始化
+    await ensureDatabaseReady();
+    
     const searchParams = request.nextUrl.searchParams;
     const title = searchParams.get('title');
     const expertise = searchParams.get('expertise');
@@ -51,6 +54,9 @@ export async function GET(request: NextRequest) {
 // POST /api/teachers - 创建新讲师
 export async function POST(request: NextRequest) {
   try {
+    // 确保数据库已初始化
+    await ensureDatabaseReady();
+    
     const body = await request.json();
     const id = generateId();
     const now = getTimestamp();
@@ -69,6 +75,9 @@ export async function POST(request: NextRequest) {
       })
       .returning()
       .get();
+
+    // 保存数据库到文件
+    saveDatabaseImmediate();
 
     return NextResponse.json({ data: result });
   } catch (error) {

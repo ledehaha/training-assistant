@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 import { 
   db, teachers, venues, courseTemplates, normativeDocuments, 
-  projects, projectCourses, satisfactionSurveys, sql 
+  projects, projectCourses, satisfactionSurveys, sql,
+  saveDatabaseImmediate, ensureDatabaseReady
 } from '@/storage/database';
 import { generateId, getTimestamp } from '@/storage/database';
 
@@ -95,6 +96,8 @@ const TABLE_SCHEMA: Record<string, string> = {
 // POST /api/admin/data/ai-import - AI 智能导入
 export async function POST(request: NextRequest) {
   try {
+    await ensureDatabaseReady();
+    
     const body = await request.json();
     const { table, text } = body;
 
@@ -229,6 +232,9 @@ ${text}
         console.error('Insert record error:', e);
       }
     }
+
+    // 保存数据库到文件
+    saveDatabaseImmediate();
 
     return NextResponse.json({
       success: true,

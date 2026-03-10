@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { 
   db, teachers, venues, courseTemplates, normativeDocuments, 
-  projects, projectCourses, satisfactionSurveys 
+  projects, projectCourses, satisfactionSurveys,
+  saveDatabaseImmediate, ensureDatabaseReady
 } from '@/storage/database';
 import { generateId, getTimestamp } from '@/storage/database';
 
@@ -30,6 +31,8 @@ const tableMap = {
 // POST /api/admin/data/import - 批量导入数据
 export async function POST(request: NextRequest) {
   try {
+    await ensureDatabaseReady();
+    
     const body = await request.json();
     const { table, records } = body;
 
@@ -68,6 +71,9 @@ export async function POST(request: NextRequest) {
         console.error('Insert record error:', e);
       }
     }
+
+    // 保存数据库到文件
+    saveDatabaseImmediate();
 
     return NextResponse.json({ 
       success: true, 

@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { 
-  db, teachers, venues, courseTemplates, normativeDocuments 
+  db, teachers, venues, courseTemplates, normativeDocuments,
+  saveDatabaseImmediate, ensureDatabaseReady
 } from '@/storage/database';
 import { generateId, getTimestamp } from '@/storage/database';
 
 // POST /api/init-data - 初始化模拟数据
 export async function POST(request: NextRequest) {
   try {
+    await ensureDatabaseReady();
+    
     const now = getTimestamp();
 
     // 初始化讲师数据
@@ -79,6 +82,9 @@ export async function POST(request: NextRequest) {
     } catch (e) {
       console.error('Normative documents insert error:', e);
     }
+
+    // 保存数据库到文件
+    saveDatabaseImmediate();
 
     return NextResponse.json({ 
       success: true, 

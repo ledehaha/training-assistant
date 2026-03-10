@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
   /* config options here */
   output: 'standalone', // Docker 部署需要
   allowedDevOrigins: ['*.dev.coze.site'],
-  serverExternalPackages: ['pdf2json'],
+  serverExternalPackages: ['pdf2json', 'sql.js'],
   images: {
     remotePatterns: [
       {

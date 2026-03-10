@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, projects, projectCourses, projectDocuments, eq, asc, desc } from '@/storage/database';
+import { db, projects, projectCourses, projectDocuments, eq, asc, desc, saveDatabaseImmediate, ensureDatabaseReady } from '@/storage/database';
 import { getTimestamp } from '@/storage/database';
 
 // GET /api/projects/[id] - 获取项目详情
@@ -8,6 +8,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    await ensureDatabaseReady();
+    
     const { id } = await params;
 
     // 获取项目信息
@@ -56,6 +58,8 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    await ensureDatabaseReady();
+    
     const { id } = await params;
     const body = await request.json();
     const now = getTimestamp();
@@ -110,6 +114,9 @@ export async function PUT(
       .returning()
       .get();
 
+    // 保存数据库到文件
+    saveDatabaseImmediate();
+
     return NextResponse.json({ data: result });
   } catch (error) {
     console.error('Update project error:', error);
@@ -123,10 +130,15 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    await ensureDatabaseReady();
+    
     const { id } = await params;
 
     // 由于设置了 ON DELETE CASCADE，删除项目会自动删除关联数据
     db.delete(projects).where(eq(projects.id, id)).run();
+
+    // 保存数据库到文件
+    saveDatabaseImmediate();
 
     return NextResponse.json({ success: true });
   } catch (error) {

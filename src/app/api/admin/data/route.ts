@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { 
   db, teachers, venues, courseTemplates, normativeDocuments, 
-  projects, projectCourses, satisfactionSurveys, eq, desc, sql 
+  projects, projectCourses, satisfactionSurveys, eq, desc, sql,
+  saveDatabaseImmediate, ensureDatabaseReady
 } from '@/storage/database';
 import { generateId, getTimestamp } from '@/storage/database';
 
@@ -26,6 +27,8 @@ function isValidTable(table: string): table is TableName {
 // GET /api/admin/data - 查询数据
 export async function GET(request: NextRequest) {
   try {
+    await ensureDatabaseReady();
+    
     const searchParams = request.nextUrl.searchParams;
     const table = searchParams.get('table') as string;
     const id = searchParams.get('id');
@@ -66,6 +69,8 @@ export async function GET(request: NextRequest) {
 // POST /api/admin/data - 新增数据
 export async function POST(request: NextRequest) {
   try {
+    await ensureDatabaseReady();
+    
     const body = await request.json();
     const { table, data } = body;
 
@@ -90,6 +95,9 @@ export async function POST(request: NextRequest) {
     const tableSchema = tableMap[table];
     const result = db.insert(tableSchema).values(insertData).returning().get();
 
+    // 保存数据库到文件
+    saveDatabaseImmediate();
+
     return NextResponse.json({ success: true, data: result });
   } catch (error) {
     console.error('Create data error:', error);
@@ -100,6 +108,8 @@ export async function POST(request: NextRequest) {
 // PUT /api/admin/data - 更新数据
 export async function PUT(request: NextRequest) {
   try {
+    await ensureDatabaseReady();
+    
     const body = await request.json();
     const { table, data, id } = body;
 
@@ -132,6 +142,9 @@ export async function PUT(request: NextRequest) {
       .returning()
       .get();
 
+    // 保存数据库到文件
+    saveDatabaseImmediate();
+
     return NextResponse.json({ success: true, data: result });
   } catch (error) {
     console.error('Update data error:', error);
@@ -142,6 +155,8 @@ export async function PUT(request: NextRequest) {
 // DELETE /api/admin/data - 删除数据
 export async function DELETE(request: NextRequest) {
   try {
+    await ensureDatabaseReady();
+    
     const searchParams = request.nextUrl.searchParams;
     const table = searchParams.get('table') as string;
     const id = searchParams.get('id');
@@ -158,6 +173,9 @@ export async function DELETE(request: NextRequest) {
     // 根据表执行删除
     const tableSchema = tableMap[table];
     db.delete(tableSchema).where(sql`id = ${id}`).run();
+
+    // 保存数据库到文件
+    saveDatabaseImmediate();
 
     return NextResponse.json({ success: true });
   } catch (error) {

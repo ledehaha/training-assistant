@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, venues, eq, desc, sql } from '@/storage/database';
+import { db, venues, eq, desc, sql, saveDatabaseImmediate, ensureDatabaseReady } from '@/storage/database';
 import { generateId, getTimestamp } from '@/storage/database';
 
 // GET /api/venues - 获取场地列表
 export async function GET(request: NextRequest) {
   try {
+    await ensureDatabaseReady();
+    
     const searchParams = request.nextUrl.searchParams;
     const minCapacity = searchParams.get('minCapacity');
     const location = searchParams.get('location');
@@ -51,6 +53,8 @@ export async function GET(request: NextRequest) {
 // POST /api/venues - 创建新场地
 export async function POST(request: NextRequest) {
   try {
+    await ensureDatabaseReady();
+    
     const body = await request.json();
     const id = generateId();
     const now = getTimestamp();
@@ -68,6 +72,9 @@ export async function POST(request: NextRequest) {
       })
       .returning()
       .get();
+
+    // 保存数据库到文件
+    saveDatabaseImmediate();
 
     return NextResponse.json({ data: result });
   } catch (error) {

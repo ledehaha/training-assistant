@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 import { 
   db, teachers, venues, courseTemplates, normativeDocuments, 
-  projects, projectCourses, satisfactionSurveys, sql 
+  projects, projectCourses, satisfactionSurveys, sql,
+  saveDatabaseImmediate, ensureDatabaseReady
 } from '@/storage/database';
 import { generateId, getTimestamp } from '@/storage/database';
 import { saveFile } from '@/storage/file-storage';
@@ -195,6 +196,8 @@ const TABLE_SCHEMA: Record<string, string> = {
 // POST /api/admin/data/ai-import-file - 文件上传 AI 智能导入
 export async function POST(request: NextRequest) {
   try {
+    await ensureDatabaseReady();
+    
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
     const table = formData.get('table') as string;
@@ -310,6 +313,9 @@ ${extractedText.substring(0, 8000)}
         successCount++;
       } catch (e) { console.error('Insert error:', e); }
     }
+
+    // 保存数据库到文件
+    saveDatabaseImmediate();
 
     return NextResponse.json({ 
       success: true, 

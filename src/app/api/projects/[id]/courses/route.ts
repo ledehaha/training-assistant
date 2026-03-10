@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, projectCourses, eq, asc } from '@/storage/database';
+import { db, projectCourses, eq, asc, saveDatabaseImmediate, ensureDatabaseReady } from '@/storage/database';
 import { generateId, getTimestamp } from '@/storage/database';
 
 // POST /api/projects/[id]/courses - 添加课程到项目
@@ -8,6 +8,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    await ensureDatabaseReady();
+    
     const { id } = await params;
     const body = await request.json();
     const courses = Array.isArray(body) ? body : [body];
@@ -32,6 +34,9 @@ export async function POST(
       db.insert(projectCourses).values(course).returning().get()
     );
 
+    // 保存数据库到文件
+    saveDatabaseImmediate();
+
     return NextResponse.json({ data: results });
   } catch (error) {
     console.error('Add project courses error:', error);
@@ -45,6 +50,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    await ensureDatabaseReady();
+    
     const { id } = await params;
 
     const results = db
@@ -67,9 +74,14 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    await ensureDatabaseReady();
+    
     const { id } = await params;
 
     db.delete(projectCourses).where(eq(projectCourses.projectId, id)).run();
+
+    // 保存数据库到文件
+    saveDatabaseImmediate();
 
     return NextResponse.json({ success: true });
   } catch (error) {
