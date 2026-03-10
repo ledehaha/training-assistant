@@ -1,16 +1,9 @@
 # ============================================
 # 培训助手系统 - Docker Compose 配置
 # ============================================
-# 使用方法：
-#   首次部署: docker compose up -d
-#   更新应用: docker compose up -d --build
-#   查看日志: docker compose logs -f
-#   停止服务: docker compose down
+# 适用于群晖 Container Manager
 
 services:
-  # ============================================
-  # 培训助手应用
-  # ============================================
   app:
     build:
       context: .
@@ -18,38 +11,13 @@ services:
     container_name: training-app
     restart: always
     environment:
-      # 数据存储路径
-      DATA_DIR: /data/db
-      FILE_STORAGE_PATH: /data/files
-      # Coze API（可选，用于 AI 功能）
-      COZE_API_KEY: ${COZE_API_KEY:-}
-      # 应用配置
-      NODE_ENV: production
-      PORT: 5000
-      NEXT_PUBLIC_APP_URL: ${APP_URL:-http://localhost:5000}
+      - DATA_DIR=/data/db
+      - FILE_STORAGE_PATH=/data/files
+      - COZE_API_KEY=
+      - NODE_ENV=production
+      - PORT=5000
     ports:
       - "5000:5000"
     volumes:
-      # 数据持久化
-      - training-data:/data
-    # 资源限制（可选，根据 NAS 配置调整）
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-        reservations:
-          memory: 256M
-
-# ============================================
-# 数据卷
-# ============================================
-volumes:
-  training-data:
-    driver: local
-
-# ============================================
-# 网络
-# ============================================
-networks:
-  default:
-    driver: bridge
+      # 使用本地目录存储数据（更方便备份）
+      - ./data:/data
