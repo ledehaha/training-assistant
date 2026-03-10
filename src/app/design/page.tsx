@@ -70,6 +70,7 @@ const trainingTargets = [
   '安全生产培训',
   '新员工培训',
   '专项培训',
+  '其他',
 ];
 
 const targetAudiences = [
@@ -79,6 +80,7 @@ const targetAudiences = [
   '新员工',
   '技术骨干',
   '全员',
+  '其他',
 ];
 
 const trainingPeriods = [
@@ -114,6 +116,12 @@ export default function DesignPage() {
   const [venues, setVenues] = useState<Venue[]>([]);
   const [selectedVenue, setSelectedVenue] = useState<Venue | null>(null);
   const [quotation, setQuotation] = useState<Record<string, unknown> | null>(null);
+  
+  // "其他"选项的文本输入
+  const [otherTrainingTarget, setOtherTrainingTarget] = useState('');
+  const [otherTargetAudience, setOtherTargetAudience] = useState('');
+  const [analyzingTarget, setAnalyzingTarget] = useState(false);
+  const [analyzingAudience, setAnalyzingAudience] = useState(false);
 
   // 加载讲师和场地数据
   useEffect(() => {
@@ -325,6 +333,51 @@ export default function DesignPage() {
                         ))}
                       </SelectContent>
                     </Select>
+                    {formData.trainingTarget === '其他' && (
+                      <div className="flex gap-2 mt-2">
+                        <Input
+                          placeholder="请输入培训类型，如：数字化转型培训、创新思维培训等"
+                          value={otherTrainingTarget}
+                          onChange={(e) => setOtherTrainingTarget(e.target.value)}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          disabled={!otherTrainingTarget.trim() || analyzingTarget}
+                          onClick={async () => {
+                            if (!otherTrainingTarget.trim()) return;
+                            setAnalyzingTarget(true);
+                            try {
+                              const res = await fetch('/api/ai/analyze-input', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  type: 'trainingTarget',
+                                  input: otherTrainingTarget,
+                                }),
+                              });
+                              const data = await res.json();
+                              if (data.data?.value) {
+                                setFormData(prev => ({ ...prev, trainingTarget: data.data.value }));
+                                setOtherTrainingTarget('');
+                              }
+                            } catch (error) {
+                              console.error('AI analyze error:', error);
+                            } finally {
+                              setAnalyzingTarget(false);
+                            }
+                          }}
+                          title="AI智能分析"
+                        >
+                          {analyzingTarget ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Sparkles className="w-4 h-4" />
+                          )}
+                        </Button>
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -344,6 +397,51 @@ export default function DesignPage() {
                         ))}
                       </SelectContent>
                     </Select>
+                    {formData.targetAudience === '其他' && (
+                      <div className="flex gap-2 mt-2">
+                        <Input
+                          placeholder="请输入目标人群，如：项目经理、财务人员、销售人员等"
+                          value={otherTargetAudience}
+                          onChange={(e) => setOtherTargetAudience(e.target.value)}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          disabled={!otherTargetAudience.trim() || analyzingAudience}
+                          onClick={async () => {
+                            if (!otherTargetAudience.trim()) return;
+                            setAnalyzingAudience(true);
+                            try {
+                              const res = await fetch('/api/ai/analyze-input', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  type: 'targetAudience',
+                                  input: otherTargetAudience,
+                                }),
+                              });
+                              const data = await res.json();
+                              if (data.data?.value) {
+                                setFormData(prev => ({ ...prev, targetAudience: data.data.value }));
+                                setOtherTargetAudience('');
+                              }
+                            } catch (error) {
+                              console.error('AI analyze error:', error);
+                            } finally {
+                              setAnalyzingAudience(false);
+                            }
+                          }}
+                          title="AI智能分析"
+                        >
+                          {analyzingAudience ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Sparkles className="w-4 h-4" />
+                          )}
+                        </Button>
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-2">
