@@ -1,15 +1,25 @@
 #!/bin/bash
 set -Eeuo pipefail
 
-COZE_WORKSPACE_PATH="${COZE_WORKSPACE_PATH:-$(pwd)}"
-PORT=5000
-DEPLOY_RUN_PORT="${DEPLOY_RUN_PORT:-$PORT}"
+# 获取项目目录
+PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+cd "${PROJECT_DIR}"
 
-start_service() {
-    cd "${COZE_WORKSPACE_PATH}"
-    echo "Starting HTTP service on port ${DEPLOY_RUN_PORT} for deploy..."
-    npx next start --port ${DEPLOY_RUN_PORT}
-}
+# 设置端口
+PORT=${PORT:-5900}
 
-echo "Starting HTTP service on port ${DEPLOY_RUN_PORT} for deploy..."
-start_service
+echo "=========================================="
+echo "培训助手系统启动中..."
+echo "端口: ${PORT}"
+echo "=========================================="
+
+# 设置数据目录
+export DATA_DIR="${PROJECT_DIR}/data"
+export FILE_STORAGE_PATH="${PROJECT_DIR}/data/files"
+
+# 创建数据目录
+mkdir -p "${DATA_DIR}" "${FILE_STORAGE_PATH}"
+
+# 使用 node 运行 Next.js
+echo "Starting service on port ${PORT}..."
+node .next/standalone/server.js
