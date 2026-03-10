@@ -28,13 +28,11 @@ import {
   Plus,
   Pencil,
   Trash2,
-  Upload,
   Download,
   Search,
   RefreshCw,
   AlertCircle,
   CheckCircle,
-  FileSpreadsheet,
   Sparkles,
   FileDown,
   Loader2,
@@ -177,17 +175,29 @@ export default function DataManagementPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [aiImportDialogOpen, setAiImportDialogOpen] = useState(false);
   const [currentItem, setCurrentItem] = useState<Record<string, unknown> | null>(null);
   const [formData, setFormData] = useState<Record<string, unknown>>({});
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [importData, setImportData] = useState<string>('');
   const [aiImportText, setAiImportText] = useState<string>('');
   const [aiImportLoading, setAiImportLoading] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [fileImportLoading, setFileImportLoading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+
+  // 根据表类型获取导入提示词
+  const getImportPlaceholder = () => {
+    const placeholders: Record<string, string> = {
+      teachers: '请输入讲师信息...\n\n例如：张三，正高职称，专业领域是管理培训，来自某大学商学院\n\n提示：可省略课时费，AI将根据职称自动填充（院士1500元、正高1000元、其他500元）',
+      venues: '请输入场地信息...\n\n例如：阳光培训中心，位于上海市浦东新区，可容纳100人，日租金5000元',
+      course_templates: '请输入课程模板信息...\n\n例如：班组长管理技能提升，管理技能类，8课时，面向班组长',
+      normative_documents: '请输入规范性文件内容...\n\n例如：讲师费标准：院士1500元/课时，正高1000元/课时，其他500元/课时',
+      projects: '请输入培训项目信息...\n\n例如：2024年班组长能力提升培训，目标人群班组长，参训人数50人，培训4天',
+      project_courses: '请输入项目课程信息...\n\n例如：第一天上午，管理基础，张明教授授课，4课时',
+      satisfaction_surveys: '请输入满意度调查数据...\n\n例如：总体评分4.8分，内容评分4.7分，讲师评分4.9分'
+    };
+    return placeholders[selectedTable.name] || '请输入要导入的数据描述...';
+  };
 
   // 加载所有表的数据计数
   const loadTableCounts = useCallback(async () => {
@@ -334,71 +344,6 @@ export default function DataManagementPage() {
     }
   };
 
-  // 导入数据
-  const handleImport = async () => {
-    try {
-      let records: Record<string, unknown>[] = [];
-      
-      // 尝试解析 JSON 或 CSV
-      try {
-        records = JSON.parse(importData);
-        if (!Array.isArray(records)) {
-          records = [records];
-        }
-      } catch {
-        // 尝试解析 CSV
-        const lines = importData.trim().split('\n');
-        if (lines.length > 1) {
-          const headers = lines[0].split(',').map(h => h.trim());
-          for (let i = 1; i < lines.length; i++) {
-            const values = lines[i].split(',');
-            const record: Record<string, unknown> = {};
-            headers.forEach((header, idx) => {
-              let value: unknown = values[idx]?.trim() || '';
-              // 尝试转换数字
-              if (!isNaN(Number(value)) && value !== '') {
-                value = Number(value);
-              }
-              // 转换布尔值
-              if (value === 'true') value = true;
-              if (value === 'false') value = false;
-              record[header] = value;
-            });
-            records.push(record);
-          }
-        }
-      }
-
-      if (records.length === 0) {
-        setMessage({ type: 'error', text: '没有有效的数据' });
-        return;
-      }
-
-      const res = await fetch('/api/admin/data/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          table: selectedTable.name,
-          records,
-        }),
-      });
-
-      const result = await res.json();
-      if (result.success) {
-        setMessage({ type: 'success', text: `成功导入 ${result.count} 条数据` });
-        setImportDialogOpen(false);
-        setImportData('');
-        loadData();
-      } else {
-        setMessage({ type: 'error', text: result.error || '导入失败' });
-      }
-    } catch (error) {
-      console.error('Import error:', error);
-      setMessage({ type: 'error', text: '导入失败，请检查数据格式' });
-    }
-  };
-
-  // 导出数据
   // 导出数据为 Excel
   const handleExport = async () => {
     try {
@@ -689,10 +634,6 @@ export default function DataManagementPage() {
                     <Sparkles className="w-4 h-4 mr-1" />
                     AI导入
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => setImportDialogOpen(true)}>
-                    <Upload className="w-4 h-4 mr-1" />
-                    导入
-                  </Button>
                   <Button size="sm" onClick={handleAdd}>
                     <Plus className="w-4 h-4 mr-1" />
                     新增
@@ -834,50 +775,6 @@ export default function DataManagementPage() {
         </DialogContent>
       </Dialog>
 
-      {/* 导入对话框 */}
-      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileSpreadsheet className="w-5 h-5" />
-              批量导入数据
-            </DialogTitle>
-            <DialogDescription>
-              支持 JSON 或 CSV 格式，数据将导入到「{selectedTable.label}」表
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="bg-blue-50 p-4 rounded-lg text-sm text-blue-700">
-              <p className="font-medium mb-2">JSON 格式示例：</p>
-              <pre className="text-xs overflow-x-auto">{`[
-  {"name": "张三", "title": "正高", "expertise": "管理培训"},
-  {"name": "李四", "title": "副高", "expertise": "安全教育"}
-]`}</pre>
-            </div>
-            <div className="bg-gray-50 p-4 rounded-lg text-sm text-gray-700">
-              <p className="font-medium mb-2">CSV 格式示例：</p>
-              <pre className="text-xs overflow-x-auto">{`name,title,expertise
-张三,正高,管理培训
-李四,副高,安全教育`}</pre>
-            </div>
-            <textarea
-              className="w-full h-48 p-3 border border-gray-300 rounded-lg font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="粘贴 JSON 或 CSV 数据..."
-              value={importData}
-              onChange={(e) => setImportData(e.target.value)}
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setImportDialogOpen(false)}>
-              取消
-            </Button>
-            <Button onClick={handleImport} disabled={!importData.trim()}>
-              导入
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* AI 智能导入对话框 */}
       <Dialog open={aiImportDialogOpen} onOpenChange={setAiImportDialogOpen}>
         <DialogContent className="max-w-2xl">
@@ -992,7 +889,7 @@ export default function DataManagementPage() {
             {/* 文字输入区域 */}
             <textarea
               className="w-full h-28 p-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
-              placeholder="请输入要导入的数据描述...&#10;&#10;例如：张三，正高职称，专业领域是管理培训，来自某大学商学院"
+              placeholder={getImportPlaceholder()}
               value={aiImportText}
               onChange={(e) => {
                 setAiImportText(e.target.value);
