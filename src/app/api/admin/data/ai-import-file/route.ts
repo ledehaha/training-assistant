@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
+import { LLMClient, Config, HeaderUtils, S3Storage } from 'coze-coding-dev-sdk';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import * as XLSX from 'xlsx';
 import { exec } from 'child_process';
@@ -359,6 +359,36 @@ ${extractedText.substring(0, 8000)} ${extractedText.length > 8000 ? '...(内容�
       }, { status: 400 });
     }
 
+    // 如果是规范性文件表，上传文件到对象存储并生成下载链接
+    let fileUrl = '';
+    if (table === 'normative_documents') {
+      try {
+        const storage = new S3Storage({
+          endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
+          accessKey: '',
+          secretKey: '',
+          bucketName: process.env.COZE_BUCKET_NAME,
+          region: 'cn-beijing',
+        });
+        
+        // 上传文件
+        const fileKey = await storage.uploadFile({
+          fileContent: buffer,
+          fileName: `normative_docs/${Date.now()}_${file.name}`,
+          contentType: file.type || 'application/octet-stream',
+        });
+        
+        // 生成签名 URL（有效期 30 天）
+        fileUrl = await storage.generatePresignedUrl({
+          key: fileKey,
+          expireTime: 2592000, // 30 天
+        });
+      } catch (uploadError) {
+        console.error('File upload error:', uploadError);
+        // 文件上传失败不影响数据导入，只是没有下载链接
+      }
+    }
+
     // 清理数据
     const cleanedRecords = records.map((record: Record<string, unknown>) => {
       const cleaned: Record<string, unknown> = {};
@@ -366,6 +396,10 @@ ${extractedText.substring(0, 8000)} ${extractedText.length > 8000 ? '...(内容�
         if (value === null || value === undefined || value === '') continue;
         if (key === 'id' || key === 'created_at' || key === 'updated_at') continue;
         cleaned[key] = value;
+      }
+      // 如果是规范性文件表且有文件链接，添加到记录中
+      if (table === 'normative_documents' && fileUrl) {
+        cleaned['file_url'] = fileUrl;
       }
       return cleaned;
     });

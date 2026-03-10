@@ -637,14 +637,18 @@ export default function DataManagementPage() {
                     <RefreshCw className="w-4 h-4 mr-1" />
                     刷新
                   </Button>
-                  <Button variant="outline" size="sm" onClick={handleDownloadTemplate}>
-                    <FileDown className="w-4 h-4 mr-1" />
-                    下载模板
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={handleExport}>
-                    <Download className="w-4 h-4 mr-1" />
-                    导出
-                  </Button>
+                  {selectedTable.name !== 'normative_documents' && (
+                    <>
+                      <Button variant="outline" size="sm" onClick={handleDownloadTemplate}>
+                        <FileDown className="w-4 h-4 mr-1" />
+                        下载模板
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={handleExport}>
+                        <Download className="w-4 h-4 mr-1" />
+                        导出
+                      </Button>
+                    </>
+                  )}
                   <Button variant="outline" size="sm" onClick={() => setAiImportDialogOpen(true)}>
                     <Sparkles className="w-4 h-4 mr-1" />
                     AI导入
