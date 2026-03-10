@@ -1,0 +1,84 @@
+# ============================================
+# 培训助手系统 - Docker Compose 配置
+# ============================================
+# 使用方法：
+#   首次部署: docker compose up -d
+#   更新应用: docker compose up -d --build
+#   查看日志: docker compose logs -f
+#   停止服务: docker compose down
+
+services:
+  # ============================================
+  # PostgreSQL 数据库
+  # ============================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: training-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-training_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-training_pass_2024}
+      POSTGRES_DB: ${DB_NAME:-training_db}
+      # 性能优化
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./deploy/init-database.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-training_user} -d ${DB_NAME:-training_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - training-network
+
+  # ============================================
+  # 培训助手应用
+  # ============================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: training-app
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # 数据库连接
+      DATABASE_URL: postgresql://${DB_USER:-training_user}:${DB_PASSWORD:-training_pass_2024}@postgres:5432/${DB_NAME:-training_db}
+      # Coze API（必须配置）
+      COZE_API_KEY: ${COZE_API_KEY}
+      COZE_BUCKET_ENDPOINT_URL: ${COZE_BUCKET_ENDPOINT_URL}
+      COZE_BUCKET_NAME: ${COZE_BUCKET_NAME}
+      # 应用配置
+      NODE_ENV: production
+      PORT: 5000
+      NEXT_PUBLIC_APP_URL: ${APP_URL:-http://localhost:5000}
+    ports:
+      - "5000:5000"
+    networks:
+      - training-network
+    # 资源限制（可选，根据 NAS 配置调整）
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+# ============================================
+# 数据卷
+# ============================================
+volumes:
+  postgres_data:
+    driver: local
+
+# ============================================
+# 网络
+# ============================================
+networks:
+  training-network:
+    driver: bridge

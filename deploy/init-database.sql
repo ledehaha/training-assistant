@@ -223,31 +223,26 @@ CREATE TABLE IF NOT EXISTS health_check (
 );
 
 -- ============================================
--- 插入示例数据（可选）
+-- 示例数据
 -- ============================================
 
 -- 示例讲师
 INSERT INTO teachers (name, title, expertise, organization, hourly_rate, rating) VALUES
 ('张教授', '正高', '领导力发展、团队管理', '清华大学', 2000.00, 4.8),
 ('李教授', '副高', '数据分析、Python编程', '北京大学', 1500.00, 4.6),
-('王老师', '中级', '沟通技巧、职场礼仪', '中科院', 1000.00, 4.5);
+('王老师', '中级', '沟通技巧、职场礼仪', '中科院', 1000.00, 4.5)
+ON CONFLICT DO NOTHING;
 
 -- 示例场地
 INSERT INTO venues (name, location, capacity, daily_rate, facilities, rating) VALUES
 ('中关村培训中心', '北京市海淀区中关村大街1号', 100, 5000.00, '投影仪、音响、空调、WiFi', 4.5),
 ('朝阳区会议中心', '北京市朝阳区建国路88号', 200, 8000.00, '投影仪、音响、空调、WiFi、茶歇区', 4.7),
-('西城培训基地', '北京市西城区金融街10号', 50, 3000.00, '投影仪、空调、WiFi', 4.3);
+('西城培训基地', '北京市西城区金融街10号', 50, 3000.00, '投影仪、空调、WiFi', 4.3)
+ON CONFLICT DO NOTHING;
 
 -- 示例课程模板
 INSERT INTO course_templates (name, category, description, duration, target_audience, difficulty, avg_rating) VALUES
 ('高效团队管理', '管理技能', '培养管理者的团队建设和领导能力', 8, '中层管理者', '中级', 4.6),
 ('数据驱动决策', '专业技能', '学习数据分析方法和决策模型', 16, '业务分析师', '高级', 4.5),
-('职场沟通艺术', '职业素养', '提升职场沟通能力和人际关系处理', 4, '全员', '初级', 4.4);
-
--- ============================================
--- 完成
--- ============================================
--- 数据库初始化完成！
--- 请确保已创建数据库用户并授予权限：
--- GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO training_user;
--- GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO training_user;
+('职场沟通艺术', '职业素养', '提升职场沟通能力和人际关系处理', 4, '全员', '初级', 4.4)
+ON CONFLICT DO NOTHING;

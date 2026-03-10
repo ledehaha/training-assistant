@@ -29,59 +29,54 @@ coze dev
 
 启动后，在浏览器中打开 [http://localhost:5000](http://localhost:5000) 查看应用。
 
-### 生产环境 - 群晖 NAS 直接部署
+### 生产环境 - Docker 部署
 
-> 详细部署指南请查看 [deploy/nas/DIRECT_DEPLOY_GUIDE.md](./deploy/nas/DIRECT_DEPLOY_GUIDE.md)
+> 详细部署指南请查看 [deploy/DOCKER_DEPLOY_GUIDE.md](./deploy/DOCKER_DEPLOY_GUIDE.md)
 
 **快速部署步骤：**
 
-1. **安装软件**（通过群晖套件中心）
-   - Node.js v18 或 v20 LTS
-   - PostgreSQL 15 或 16
+1. **安装 Docker**
+   
+   群晖套件中心搜索「Container Manager」或「Docker」并安装
 
-2. **创建目录并上传代码**
+2. **克隆项目**
    ```bash
-   mkdir -p /volume1/web/training-assistant
-   cd /volume1/web/training-assistant
-   # 上传代码或 git clone
+   cd /volume1/docker
+   git clone https://github.com/你的用户名/training-assistant.git
+   cd training-assistant
    ```
 
-3. **初始化数据库**
+3. **配置环境变量**
    ```bash
-   psql -U postgres -d training_db -f deploy/nas/init-database.sql
+   cp .env.example .env
+   nano .env  # 填入 API 密钥
    ```
 
-4. **配置环境变量**
+4. **启动服务**
    ```bash
-   cp deploy/nas/.env.example .env
-   nano .env  # 填入实际配置
+   docker compose up -d --build
    ```
 
-5. **安装依赖并构建**
-   ```bash
-   npm install -g pnpm pm2
-   pnpm install --prod
-   pnpm run build
-   ```
+5. **访问应用**
+   
+   打开 `http://你的NAS_IP:5000`
 
-6. **启动服务**
-   ```bash
-   pm2 start deploy/nas/ecosystem.config.js
-   pm2 startup
-   pm2 save
-   ```
+**从 GitHub 更新：**
+```bash
+cd /volume1/docker/training-assistant
+./deploy/update.sh
+```
 
 **部署文件说明：**
 
 | 文件 | 说明 |
 |------|------|
-| `DEPLOY_CHECKLIST.md` | 部署检查清单 |
-| `DIRECT_DEPLOY_GUIDE.md` | 详细部署指南 |
-| `init-database.sql` | 数据库初始化脚本 |
-| `ecosystem.config.js` | PM2 配置文件 |
-| `deploy.sh` | 一键部署脚本 |
-| `migrate-db.sh` | 数据迁移脚本 |
-| `backup-db.sh` | 数据库备份脚本 |
+| `Dockerfile` | Docker 镜像构建文件 |
+| `docker-compose.yml` | Docker Compose 配置 |
+| `.env.example` | 环境变量示例 |
+| `deploy/docker-deploy.sh` | 一键部署脚本 |
+| `deploy/update.sh` | 更新脚本 |
+| `deploy/backup-docker.sh` | 备份脚本 |
 
 ## 项目结构
 

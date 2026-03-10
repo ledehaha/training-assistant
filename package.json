@@ -12,9 +12,9 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
-    "nas:deploy": "bash ./deploy/nas/deploy.sh",
-    "nas:backup": "bash ./deploy/nas/backup-db.sh",
-    "nas:migrate": "bash ./deploy/nas/migrate-db.sh"
+    "docker:deploy": "bash ./deploy/docker-deploy.sh",
+    "docker:update": "bash ./deploy/update.sh",
+    "docker:backup": "bash ./deploy/backup-docker.sh"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.958.0",
