@@ -1,57 +1,62 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { 
+  db, teachers, venues, courseTemplates, normativeDocuments, 
+  projects, projectCourses, satisfactionSurveys, eq, desc, sql 
+} from '@/storage/database';
+import { generateId, getTimestamp } from '@/storage/database';
 
-// 允许操作的表（白名单）
-const ALLOWED_TABLES = [
-  'teachers',
-  'venues',
-  'course_templates',
-  'normative_documents',
-  'projects',
-  'project_courses',
-  'satisfaction_surveys',
-];
+// 表映射
+const tableMap = {
+  teachers,
+  venues,
+  course_templates: courseTemplates,
+  normative_documents: normativeDocuments,
+  projects,
+  project_courses: projectCourses,
+  satisfaction_surveys: satisfactionSurveys,
+} as const;
+
+type TableName = keyof typeof tableMap;
+
+// 验证表名
+function isValidTable(table: string): table is TableName {
+  return table in tableMap;
+}
 
 // GET /api/admin/data - 查询数据
 export async function GET(request: NextRequest) {
   try {
-    const client = getSupabaseClient();
     const searchParams = request.nextUrl.searchParams;
-    const table = searchParams.get('table');
+    const table = searchParams.get('table') as string;
     const id = searchParams.get('id');
 
     // 验证表名
-    if (!table || !ALLOWED_TABLES.includes(table)) {
+    if (!table || !isValidTable(table)) {
       return NextResponse.json({ error: '无效的数据表' }, { status: 400 });
     }
 
+    const tableSchema = tableMap[table];
+
     // 查询单条记录
     if (id) {
-      const { data, error } = await client
-        .from(table)
-        .select('*')
-        .eq('id', id)
-        .single();
+      const result = db
+        .select()
+        .from(tableSchema)
+        .where(sql`id = ${id}`)
+        .get();
 
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
-      }
-
-      return NextResponse.json({ data });
+      return NextResponse.json({ data: result });
     }
 
     // 查询全部记录
-    const { data, error } = await client
-      .from(table)
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(1000);
+    const results = db
+      .select()
+      .from(tableSchema)
+      .orderBy(desc(sql`created_at`))
+      .limit(1000)
+      .all();
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ data });
+    return NextResponse.json({ data: results });
   } catch (error) {
     console.error('Get data error:', error);
     return NextResponse.json({ error: '查询失败' }, { status: 500 });
@@ -61,12 +66,11 @@ export async function GET(request: NextRequest) {
 // POST /api/admin/data - 新增数据
 export async function POST(request: NextRequest) {
   try {
-    const client = getSupabaseClient();
     const body = await request.json();
     const { table, data } = body;
 
     // 验证表名
-    if (!table || !ALLOWED_TABLES.includes(table)) {
+    if (!table || !isValidTable(table)) {
       return NextResponse.json({ error: '无效的数据表' }, { status: 400 });
     }
 
@@ -74,22 +78,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '无效的数据' }, { status: 400 });
     }
 
-    // 移除 id 字段（新增时不需要）
-    const insertData = { ...data };
-    delete insertData.id;
-    delete insertData.created_at;
-    delete insertData.updated_at;
+    // 准备插入数据
+    const now = getTimestamp();
+    const insertData = {
+      id: generateId(),
+      ...data,
+      createdAt: now,
+    };
 
-    const { data: result, error } = await client
-      .from(table)
-      .insert(insertData)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Insert error:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    // 根据表执行插入
+    const tableSchema = tableMap[table];
+    const result = db.insert(tableSchema).values(insertData).returning().get();
 
     return NextResponse.json({ success: true, data: result });
   } catch (error) {
@@ -101,12 +100,11 @@ export async function POST(request: NextRequest) {
 // PUT /api/admin/data - 更新数据
 export async function PUT(request: NextRequest) {
   try {
-    const client = getSupabaseClient();
     const body = await request.json();
     const { table, data, id } = body;
 
     // 验证表名
-    if (!table || !ALLOWED_TABLES.includes(table)) {
+    if (!table || !isValidTable(table)) {
       return NextResponse.json({ error: '无效的数据表' }, { status: 400 });
     }
 
@@ -118,22 +116,21 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: '无效的数据' }, { status: 400 });
     }
 
-    // 移除不应更新的字段
-    const updateData = { ...data };
-    delete updateData.id;
-    delete updateData.created_at;
+    // 准备更新数据
+    const now = getTimestamp();
+    const updateData = {
+      ...data,
+      updatedAt: now,
+    };
 
-    const { data: result, error } = await client
-      .from(table)
-      .update(updateData)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Update error:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    // 根据表执行更新
+    const tableSchema = tableMap[table];
+    const result = db
+      .update(tableSchema)
+      .set(updateData)
+      .where(sql`id = ${id}`)
+      .returning()
+      .get();
 
     return NextResponse.json({ success: true, data: result });
   } catch (error) {
@@ -145,13 +142,12 @@ export async function PUT(request: NextRequest) {
 // DELETE /api/admin/data - 删除数据
 export async function DELETE(request: NextRequest) {
   try {
-    const client = getSupabaseClient();
     const searchParams = request.nextUrl.searchParams;
-    const table = searchParams.get('table');
+    const table = searchParams.get('table') as string;
     const id = searchParams.get('id');
 
     // 验证表名
-    if (!table || !ALLOWED_TABLES.includes(table)) {
+    if (!table || !isValidTable(table)) {
       return NextResponse.json({ error: '无效的数据表' }, { status: 400 });
     }
 
@@ -159,15 +155,9 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: '缺少记录ID' }, { status: 400 });
     }
 
-    const { error } = await client
-      .from(table)
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      console.error('Delete error:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    // 根据表执行删除
+    const tableSchema = tableMap[table];
+    db.delete(tableSchema).where(sql`id = ${id}`).run();
 
     return NextResponse.json({ success: true });
   } catch (error) {

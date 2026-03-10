@@ -1,58 +1,59 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { db, satisfactionSurveys, eq, desc } from '@/storage/database';
+import { generateId, getTimestamp } from '@/storage/database';
 
 // GET /api/surveys - 获取满意度调查列表
-// POST /api/surveys - 创建满意度调查
 export async function GET(request: NextRequest) {
   try {
-    const client = getSupabaseClient();
     const searchParams = request.nextUrl.searchParams;
     const projectId = searchParams.get('projectId');
     
-    let query = client
-      .from('satisfaction_surveys')
-      .select('*')
-      .order('created_at', { ascending: false });
-
+    let results;
+    
     if (projectId) {
-      query = query.eq('project_id', projectId);
+      results = db
+        .select()
+        .from(satisfactionSurveys)
+        .where(eq(satisfactionSurveys.projectId, projectId))
+        .orderBy(desc(satisfactionSurveys.createdAt))
+        .all();
+    } else {
+      results = db
+        .select()
+        .from(satisfactionSurveys)
+        .orderBy(desc(satisfactionSurveys.createdAt))
+        .all();
     }
 
-    const { data, error } = await query;
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ data });
+    return NextResponse.json({ data: results });
   } catch (error) {
     console.error('Get surveys error:', error);
     return NextResponse.json({ error: 'Failed to get surveys' }, { status: 500 });
   }
 }
 
+// POST /api/surveys - 创建满意度调查
 export async function POST(request: NextRequest) {
   try {
-    const client = getSupabaseClient();
     const body = await request.json();
+    const id = generateId();
+    const now = getTimestamp();
 
-    const { data, error } = await client
-      .from('satisfaction_surveys')
-      .insert({
-        project_id: body.projectId,
+    const result = db
+      .insert(satisfactionSurveys)
+      .values({
+        id,
+        projectId: body.projectId,
         title: body.title,
         description: body.description,
-        questions: body.questions,
+        questions: JSON.stringify(body.questions),
         status: 'active',
+        createdAt: now,
       })
-      .select()
-      .single();
+      .returning()
+      .get();
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ data });
+    return NextResponse.json({ data: result });
   } catch (error) {
     console.error('Create survey error:', error);
     return NextResponse.json({ error: 'Failed to create survey' }, { status: 500 });

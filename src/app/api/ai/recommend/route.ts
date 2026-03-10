@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { 
+  db, teachers, venues, courseTemplates, normativeDocuments, 
+  eq, desc, sql 
+} from '@/storage/database';
 
 // POST /api/ai/recommend - AI智能推荐
 export async function POST(request: NextRequest) {
@@ -11,7 +14,6 @@ export async function POST(request: NextRequest) {
     
     const config = new Config();
     const client = new LLMClient(config, customHeaders);
-    const supabase = getSupabaseClient();
 
     // 根据类型进行不同的推荐
     let prompt = '';
@@ -20,13 +22,14 @@ export async function POST(request: NextRequest) {
     switch (type) {
       case 'courses':
         // 获取历史课程数据
-        const { data: courseTemplates } = await supabase
-          .from('course_templates')
-          .select('*')
-          .eq('is_active', true)
-          .limit(20);
+        const courseTemplatesData = db
+          .select()
+          .from(courseTemplates)
+          .where(eq(courseTemplates.isActive, true))
+          .limit(20)
+          .all();
         
-        contextData = `现有课程模板数据：\n${JSON.stringify(courseTemplates, null, 2)}`;
+        contextData = `现有课程模板数据：\n${JSON.stringify(courseTemplatesData, null, 2)}`;
         const budgetStr = projectData.noBudgetLimit || (!projectData.budgetMin && !projectData.budgetMax)
           ? '无预算限制'
           : `${projectData.budgetMin || 0} - ${projectData.budgetMax || 0}万元`;
@@ -67,7 +70,6 @@ ${contextData}
         break;
 
       case 'modify-courses':
-        // 根据修改意见重新生成课程方案
         const modifyBudgetStr = projectData.noBudgetLimit || (!projectData.budgetMin && !projectData.budgetMax)
           ? '无预算限制'
           : `${projectData.budgetMin || 0} - ${projectData.budgetMax || 0}万元`;
@@ -116,14 +118,15 @@ ${projectData.modifySuggestion}
 
       case 'teachers':
         // 获取讲师数据
-        const { data: teachers } = await supabase
-          .from('teachers')
-          .select('*')
-          .eq('is_active', true)
-          .order('rating', { ascending: false })
-          .limit(20);
+        const teachersData = db
+          .select()
+          .from(teachers)
+          .where(eq(teachers.isActive, true))
+          .orderBy(desc(teachers.rating))
+          .limit(20)
+          .all();
         
-        contextData = `现有讲师资源：\n${JSON.stringify(teachers, null, 2)}`;
+        contextData = `现有讲师资源：\n${JSON.stringify(teachersData, null, 2)}`;
         prompt = `你是一个培训资源匹配专家。请根据以下课程需求，推荐合适的讲师：
 
 课程列表：${JSON.stringify(projectData.courses, null, 2)}
@@ -152,14 +155,15 @@ ${contextData}
 
       case 'venues':
         // 获取场地数据
-        const { data: venues } = await supabase
-          .from('venues')
-          .select('*')
-          .eq('is_active', true)
-          .order('rating', { ascending: false })
-          .limit(10);
+        const venuesData = db
+          .select()
+          .from(venues)
+          .where(eq(venues.isActive, true))
+          .orderBy(desc(venues.rating))
+          .limit(10)
+          .all();
         
-        contextData = `现有场地资源：\n${JSON.stringify(venues, null, 2)}`;
+        contextData = `现有场地资源：\n${JSON.stringify(venuesData, null, 2)}`;
         prompt = `你是一个培训场地推荐专家。请根据以下培训需求，推荐合适的场地：
 
 参训人数：${projectData.participantCount || '未指定'}人
@@ -191,13 +195,13 @@ ${contextData}
 
       case 'quotation':
         // 获取规范性文件（费用标准）
-        const { data: normativeDocs } = await supabase
-          .from('normative_documents')
-          .select('*')
-          .eq('is_effective', true)
-          .eq('type', '费用标准');
+        const normativeDocsData = db
+          .select()
+          .from(normativeDocuments)
+          .where(sql`${normativeDocuments.isEffective} = 1`)
+          .all();
         
-        contextData = `规范性文件（费用标准）：\n${JSON.stringify(normativeDocs, null, 2)}`;
+        contextData = `规范性文件（费用标准）：\n${JSON.stringify(normativeDocsData, null, 2)}`;
         prompt = `你是一个培训项目报价专家。请根据以下培训方案，生成详细的报价单：
 
 培训信息：
@@ -311,14 +315,13 @@ ${projectData.feedback}
     try {
       let content = response.content || '';
       
-      // 尝试提取JSON块（可能被```json...```包裹）
+      // 尝试提取JSON块
       const jsonBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
       if (jsonBlockMatch) {
         content = jsonBlockMatch[1].trim();
       }
       
       // 尝试找到第一个完整的JSON对象
-      // 从第一个 { 开始，找到匹配的 }
       let startIndex = content.indexOf('{');
       if (startIndex !== -1) {
         let depth = 0;
@@ -361,10 +364,9 @@ ${projectData.feedback}
           try {
             result = JSON.parse(jsonStr);
           } catch {
-            // 如果解析失败，尝试清理可能的格式问题
             const cleanedJson = jsonStr
-              .replace(/,\s*}/g, '}')  // 移除尾部逗号
-              .replace(/,\s*]/g, ']'); // 移除数组尾部逗号
+              .replace(/,\s*}/g, '}')
+              .replace(/,\s*]/g, ']');
             try {
               result = JSON.parse(cleanedJson);
             } catch (e) {

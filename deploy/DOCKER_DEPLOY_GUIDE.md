@@ -6,14 +6,15 @@
 ┌─────────────────────────────────────────────┐
 │           群晖 NAS Docker                   │
 ├─────────────────────────────────────────────┤
-│  ┌─────────────────┐    ┌─────────────────┐ │
-│  │ training-postgres│◄───│ training-app    │ │
-│  │ PostgreSQL 16   │    │ Next.js App     │ │
-│  │ 端口: 5432      │    │ 端口: 5000      │ │
-│  └─────────────────┘    └─────────────────┘ │
+│  ┌────────────────────────────────────────┐ │
+│  │ training-app                           │ │
+│  │ Next.js App + SQLite                   │ │
+│  │ 端口: 5000                             │ │
+│  └────────────────────────────────────────┘ │
 │         │                                   │
 │         ▼                                   │
 │  Docker Volume (数据持久化)                  │
+│  /data/training.db                         │
 └─────────────────────────────────────────────┘
 ```
 
@@ -98,11 +99,6 @@ docker compose ps
 创建 `.env` 文件：
 
 ```env
-# 数据库配置
-DB_USER=training_user
-DB_PASSWORD=your_secure_password
-DB_NAME=training_db
-
 # Coze API（必须配置）
 COZE_API_KEY=your_coze_api_key
 COZE_BUCKET_ENDPOINT_URL=your_s3_endpoint
@@ -110,6 +106,9 @@ COZE_BUCKET_NAME=your_bucket_name
 
 # 应用配置
 APP_URL=http://你的NAS_IP:5000
+
+# 数据库路径（可选，默认 /data/training.db）
+DATABASE_PATH=/data/training.db
 ```
 
 ---
@@ -142,7 +141,6 @@ docker compose ps
 # 查看日志
 docker compose logs -f
 docker compose logs -f app        # 只看应用日志
-docker compose logs -f postgres   # 只看数据库日志
 
 # 重启服务
 docker compose restart
@@ -155,18 +153,20 @@ docker compose up -d
 
 # 进入容器
 docker exec -it training-app sh
-docker exec -it training-postgres bash
-
-# 连接数据库
-docker exec -it training-postgres psql -U training_user -d training_db
 ```
 
 ---
 
 ## 七、数据备份
 
+SQLite 数据库是单文件，备份非常简单：
+
 ```bash
 # 手动备份
+cp /volume1/docker/training-assistant/data/training.db \
+   /volume1/backup/training-assistant/training_$(date +%Y%m%d).db
+
+# 或使用备份脚本
 ./deploy/backup-docker.sh
 
 # 定时备份（群晖任务计划）
@@ -181,8 +181,15 @@ docker exec -it training-postgres psql -U training_user -d training_db
 
 ```bash
 # 从备份恢复
-gunzip -c /volume1/backup/training-assistant/backup_xxx.sql.gz | \
-  docker exec -i training-postgres psql -U training_user -d training_db
+# 1. 停止应用
+docker compose stop app
+
+# 2. 恢复数据库文件
+cp /volume1/backup/training-assistant/training_YYYYMMDD.db \
+   /volume1/docker/training-assistant/data/training.db
+
+# 3. 重启应用
+docker compose start app
 ```
 
 ---
@@ -194,10 +201,9 @@ gunzip -c /volume1/backup/training-assistant/backup_xxx.sql.gz | \
 docker compose logs --tail 100
 ```
 
-### 重启单个服务
+### 重启服务
 ```bash
 docker compose restart app
-docker compose restart postgres
 ```
 
 ### 完全重置
@@ -207,13 +213,13 @@ docker compose down -v
 docker compose up -d --build
 ```
 
-### 数据库连接问题
+### 数据库问题
 ```bash
-# 检查数据库状态
-docker exec training-postgres pg_isready
+# 检查数据库文件是否存在
+ls -la /volume1/docker/training-assistant/data/
 
-# 查看数据库日志
-docker compose logs postgres
+# 检查文件权限
+chmod 644 /volume1/docker/training-assistant/data/training.db
 ```
 
 ---
@@ -221,14 +227,50 @@ docker compose logs postgres
 ## 十、资源需求
 
 - **内存**: 建议 2GB 以上
-- **存储**: 约 2GB (应用 + 数据库)
-- **端口**: 5000 (应用), 5432 (数据库)
+- **存储**: 约 1GB (应用 + 数据库)
+- **端口**: 5000 (应用)
 
 ---
 
 ## 十一、安全建议
 
-1. **修改默认密码**: 修改 `.env` 中的数据库密码
-2. **不要暴露数据库端口**: 如无需外网访问，可删除 docker-compose.yml 中数据库的 ports 配置
-3. **定期备份**: 设置定时备份任务
-4. **使用 HTTPS**: 通过群晖反向代理配置 SSL
+1. **定期备份**: 设置定时备份任务
+2. **使用 HTTPS**: 通过群晖反向代理配置 SSL
+3. **数据隔离**: 数据库文件存储在 Docker Volume 中，与其他应用隔离
+
+---
+
+## 十二、迁移指南
+
+### 从 PostgreSQL 迁移
+
+如果您之前使用 PostgreSQL 版本，迁移步骤：
+
+1. **导出旧数据**
+   ```bash
+   # 从 PostgreSQL 导出数据为 JSON 或 CSV
+   ```
+
+2. **启动新版本**
+   ```bash
+   docker compose down
+   docker compose up -d --build
+   ```
+
+3. **导入数据**
+   - 通过「数据管理」页面的导入功能导入
+   - 或使用 API 批量导入
+
+---
+
+## 十三、与 PostgreSQL 版本对比
+
+| 特性 | SQLite 版本 | PostgreSQL 版本 |
+|------|------------|-----------------|
+| 部署复杂度 | 简单（单容器） | 复杂（双容器） |
+| 内存占用 | ~300MB | ~800MB |
+| 数据备份 | 复制文件即可 | 需要 pg_dump |
+| 并发性能 | 适合中小规模 | 适合大规模 |
+| 维护成本 | 低 | 高 |
+
+**推荐使用 SQLite 版本**，除非您的并发用户超过 100 人或数据量超过 10GB。

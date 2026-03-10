@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { 
+  db, teachers, venues, courseTemplates, normativeDocuments, 
+  projects, projectCourses, satisfactionSurveys, desc, sql 
+} from '@/storage/database';
 
 // 允许操作的表（白名单）
 const ALLOWED_TABLES = [
@@ -11,7 +14,18 @@ const ALLOWED_TABLES = [
   'projects',
   'project_courses',
   'satisfaction_surveys',
-];
+] as const;
+
+// 表映射
+const tableMap = {
+  teachers,
+  venues,
+  course_templates: courseTemplates,
+  normative_documents: normativeDocuments,
+  projects,
+  project_courses: projectCourses,
+  satisfaction_surveys: satisfactionSurveys,
+};
 
 // 表配置
 const TABLE_CONFIG: Record<string, { label: string; columns: { key: string; label: string }[] }> = {
@@ -23,10 +37,10 @@ const TABLE_CONFIG: Record<string, { label: string; columns: { key: string; labe
       { key: 'expertise', label: '专业领域' },
       { key: 'organization', label: '所属单位' },
       { key: 'bio', label: '简介' },
-      { key: 'hourly_rate', label: '课时费(元)' },
+      { key: 'hourlyRate', label: '课时费(元)' },
       { key: 'rating', label: '评分' },
-      { key: 'teaching_count', label: '授课次数' },
-      { key: 'is_active', label: '是否启用' },
+      { key: 'teachingCount', label: '授课次数' },
+      { key: 'isActive', label: '是否启用' },
     ],
   },
   venues: {
@@ -35,11 +49,11 @@ const TABLE_CONFIG: Record<string, { label: string; columns: { key: string; labe
       { key: 'name', label: '名称' },
       { key: 'location', label: '地址' },
       { key: 'capacity', label: '容纳人数' },
-      { key: 'daily_rate', label: '日租金(元)' },
+      { key: 'dailyRate', label: '日租金(元)' },
       { key: 'facilities', label: '设施' },
       { key: 'rating', label: '评分' },
-      { key: 'usage_count', label: '使用次数' },
-      { key: 'is_active', label: '是否启用' },
+      { key: 'usageCount', label: '使用次数' },
+      { key: 'isActive', label: '是否启用' },
     ],
   },
   course_templates: {
@@ -48,11 +62,11 @@ const TABLE_CONFIG: Record<string, { label: string; columns: { key: string; labe
       { key: 'name', label: '课程名称' },
       { key: 'category', label: '类别' },
       { key: 'duration', label: '课时' },
-      { key: 'target_audience', label: '目标人群' },
+      { key: 'targetAudience', label: '目标人群' },
       { key: 'difficulty', label: '难度' },
       { key: 'description', label: '描述' },
-      { key: 'usage_count', label: '使用次数' },
-      { key: 'avg_rating', label: '平均评分' },
+      { key: 'usageCount', label: '使用次数' },
+      { key: 'avgRating', label: '平均评分' },
     ],
   },
   normative_documents: {
@@ -61,8 +75,8 @@ const TABLE_CONFIG: Record<string, { label: string; columns: { key: string; labe
       { key: 'name', label: '文件名称' },
       { key: 'summary', label: '内容摘要' },
       { key: 'issuer', label: '颁发部门' },
-      { key: 'issue_date', label: '颁发时间' },
-      { key: 'is_effective', label: '是否有效' },
+      { key: 'issueDate', label: '颁发时间' },
+      { key: 'isEffective', label: '是否有效' },
     ],
   },
   projects: {
@@ -70,33 +84,30 @@ const TABLE_CONFIG: Record<string, { label: string; columns: { key: string; labe
     columns: [
       { key: 'name', label: '项目名称' },
       { key: 'status', label: '状态' },
-      { key: 'training_target', label: '培训目标' },
-      { key: 'target_audience', label: '目标人群' },
-      { key: 'participant_count', label: '参训人数' },
-      { key: 'training_days', label: '培训天数' },
-      { key: 'total_budget', label: '总预算' },
+      { key: 'trainingTarget', label: '培训目标' },
+      { key: 'targetAudience', label: '目标人群' },
+      { key: 'participantCount', label: '参训人数' },
+      { key: 'trainingDays', label: '培训天数' },
+      { key: 'totalBudget', label: '总预算' },
     ],
   },
   project_courses: {
     label: '项目课程',
     columns: [
-      { key: 'project_id', label: '项目ID' },
-      { key: 'course_name', label: '课程名称' },
-      { key: 'teacher_id', label: '讲师ID' },
-      { key: 'venue_id', label: '场地ID' },
+      { key: 'projectId', label: '项目ID' },
+      { key: 'name', label: '课程名称' },
+      { key: 'teacherId', label: '讲师ID' },
       { key: 'duration', label: '课时' },
-      { key: 'sequence', label: '顺序' },
+      { key: 'order', label: '顺序' },
     ],
   },
   satisfaction_surveys: {
     label: '满意度调查',
     columns: [
-      { key: 'project_id', label: '项目ID' },
-      { key: 'overall_score', label: '总体评分' },
-      { key: 'content_score', label: '内容评分' },
-      { key: 'teacher_score', label: '讲师评分' },
-      { key: 'venue_score', label: '场地评分' },
-      { key: 'suggestions', label: '建议' },
+      { key: 'projectId', label: '项目ID' },
+      { key: 'title', label: '标题' },
+      { key: 'status', label: '状态' },
+      { key: 'responseCount', label: '响应数' },
     ],
   },
 };
@@ -107,7 +118,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const table = searchParams.get('table');
 
-    if (!table || !ALLOWED_TABLES.includes(table)) {
+    if (!table || !ALLOWED_TABLES.includes(table as typeof ALLOWED_TABLES[number])) {
       return NextResponse.json({ error: '无效的数据表' }, { status: 400 });
     }
 
@@ -117,21 +128,18 @@ export async function GET(request: NextRequest) {
     }
 
     // 查询数据
-    const supabase = getSupabaseClient();
-    const { data, error } = await supabase
-      .from(table)
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    const tableSchema = tableMap[table as keyof typeof tableMap];
+    const data = db
+      .select()
+      .from(tableSchema)
+      .orderBy(desc(sql`created_at`))
+      .all();
 
     // 转换数据格式
     const rows = (data || []).map(item => {
       const row: Record<string, unknown> = {};
       config.columns.forEach(col => {
-        let value = item[col.key];
+        let value = (item as Record<string, unknown>)[col.key];
         // 处理布尔值
         if (typeof value === 'boolean') {
           value = value ? '是' : '否';

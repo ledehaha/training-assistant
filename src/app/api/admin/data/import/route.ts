@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { 
+  db, teachers, venues, courseTemplates, normativeDocuments, 
+  projects, projectCourses, satisfactionSurveys 
+} from '@/storage/database';
+import { generateId, getTimestamp } from '@/storage/database';
 
 // 允许操作的表（白名单）
 const ALLOWED_TABLES = [
@@ -10,17 +14,27 @@ const ALLOWED_TABLES = [
   'projects',
   'project_courses',
   'satisfaction_surveys',
-];
+] as const;
+
+// 表映射
+const tableMap = {
+  teachers,
+  venues,
+  course_templates: courseTemplates,
+  normative_documents: normativeDocuments,
+  projects,
+  project_courses: projectCourses,
+  satisfaction_surveys: satisfactionSurveys,
+};
 
 // POST /api/admin/data/import - 批量导入数据
 export async function POST(request: NextRequest) {
   try {
-    const client = getSupabaseClient();
     const body = await request.json();
     const { table, records } = body;
 
     // 验证表名
-    if (!table || !ALLOWED_TABLES.includes(table)) {
+    if (!table || !ALLOWED_TABLES.includes(table as typeof ALLOWED_TABLES[number])) {
       return NextResponse.json({ error: '无效的数据表' }, { status: 400 });
     }
 
@@ -28,30 +42,37 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '无效的导入数据' }, { status: 400 });
     }
 
-    // 清理数据：移除不应导入的字段
-    const cleanedRecords = records.map(record => {
-      const cleaned = { ...record };
-      delete cleaned.id;
-      delete cleaned.created_at;
-      delete cleaned.updated_at;
-      return cleaned;
-    });
+    const tableSchema = tableMap[table as keyof typeof tableMap];
+    const now = getTimestamp();
+    let successCount = 0;
 
     // 批量插入
-    const { data, error } = await client
-      .from(table)
-      .insert(cleanedRecords)
-      .select();
+    for (const record of records) {
+      try {
+        const cleaned = { ...record };
+        delete cleaned.id;
+        delete cleaned.created_at;
+        delete cleaned.updated_at;
+        delete cleaned.createdAt;
+        delete cleaned.updatedAt;
 
-    if (error) {
-      console.error('Import error:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+        db.insert(tableSchema)
+          .values({
+            id: generateId(),
+            ...cleaned,
+            createdAt: now,
+          })
+          .run();
+        successCount++;
+      } catch (e) {
+        console.error('Insert record error:', e);
+      }
     }
 
     return NextResponse.json({ 
       success: true, 
-      count: data?.length || 0,
-      message: `成功导入 ${data?.length || 0} 条数据`
+      count: successCount,
+      message: `成功导入 ${successCount} 条数据`
     });
   } catch (error) {
     console.error('Import data error:', error);

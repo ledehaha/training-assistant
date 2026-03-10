@@ -1,70 +1,81 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { db, projects, eq, desc, sql } from '@/storage/database';
+import { generateId, getTimestamp } from '@/storage/database';
 
 // GET /api/projects - 获取项目列表
-// POST /api/projects - 创建新项目
 export async function GET(request: NextRequest) {
   try {
-    const client = getSupabaseClient();
     const searchParams = request.nextUrl.searchParams;
     const status = searchParams.get('status');
     const search = searchParams.get('search');
     
-    let query = client
-      .from('projects')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (status && status !== 'all') {
-      query = query.eq('status', status);
+    let results;
+    
+    if (status && status !== 'all' && search) {
+      results = db
+        .select()
+        .from(projects)
+        .where(sql`${projects.status} = ${status} AND ${projects.name} LIKE ${'%' + search + '%'}`)
+        .orderBy(desc(projects.createdAt))
+        .all();
+    } else if (status && status !== 'all') {
+      results = db
+        .select()
+        .from(projects)
+        .where(eq(projects.status, status))
+        .orderBy(desc(projects.createdAt))
+        .all();
+    } else if (search) {
+      results = db
+        .select()
+        .from(projects)
+        .where(sql`${projects.name} LIKE ${'%' + search + '%'}`)
+        .orderBy(desc(projects.createdAt))
+        .all();
+    } else {
+      results = db
+        .select()
+        .from(projects)
+        .orderBy(desc(projects.createdAt))
+        .all();
     }
 
-    if (search) {
-      query = query.ilike('name', `%${search}%`);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ data });
+    return NextResponse.json({ data: results });
   } catch (error) {
     console.error('Get projects error:', error);
     return NextResponse.json({ error: 'Failed to get projects' }, { status: 500 });
   }
 }
 
+// POST /api/projects - 创建新项目
 export async function POST(request: NextRequest) {
   try {
-    const client = getSupabaseClient();
     const body = await request.json();
+    const id = generateId();
+    const now = getTimestamp();
 
-    const { data, error } = await client
-      .from('projects')
-      .insert({
+    const result = db
+      .insert(projects)
+      .values({
+        id,
         name: body.name,
-        training_target: body.trainingTarget,
-        target_audience: body.targetAudience,
-        participant_count: body.participantCount,
-        training_days: body.trainingDays,
-        training_hours: body.trainingHours,
-        training_period: body.trainingPeriod,
-        budget_min: body.budgetMin,
-        budget_max: body.budgetMax,
+        trainingTarget: body.trainingTarget,
+        targetAudience: body.targetAudience,
+        participantCount: body.participantCount,
+        trainingDays: body.trainingDays,
+        trainingHours: body.trainingHours,
+        trainingPeriod: body.trainingPeriod,
+        budgetMin: body.budgetMin,
+        budgetMax: body.budgetMax,
         location: body.location,
-        special_requirements: body.specialRequirements,
+        specialRequirements: body.specialRequirements,
         status: 'draft',
+        createdAt: now,
       })
-      .select()
-      .single();
+      .returning()
+      .get();
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ data });
+    return NextResponse.json({ data: result });
   } catch (error) {
     console.error('Create project error:', error);
     return NextResponse.json({ error: 'Failed to create project' }, { status: 500 });

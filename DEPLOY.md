@@ -50,12 +50,24 @@ sudo apt-get install -y git
 sudo yum install -y git
 ```
 
+### 5. 安装构建工具（SQLite 编译依赖）
+```bash
+# Ubuntu
+sudo apt-get install -y build-essential python3
+
+# CentOS
+sudo yum groupinstall -y "Development Tools"
+sudo yum install -y python3
+```
+
 ## 三、项目部署
 
 ### 1. 克隆代码
 ```bash
-# 创建应用目录
+# 创建应用目录和数据目录
 mkdir -p /var/www
+mkdir -p /data
+
 cd /var/www
 
 # 克隆项目 (替换为您的 GitHub 仓库地址)
@@ -74,10 +86,16 @@ nano .env.production
 PORT=5000
 NODE_ENV=production
 
-# Supabase 数据库配置
-DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
-NEXT_PUBLIC_SUPABASE_URL=https://[PROJECT-REF].supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+# SQLite 数据库配置
+# 数据库文件存储路径
+DATABASE_PATH=/data/training.db
+
+# LLM API 配置（用于 AI 智能推荐）
+COZE_API_KEY=your-coze-api-key
+
+# 对象存储配置（用于文件上传）
+COZE_BUCKET_ENDPOINT_URL=your-endpoint-url
+COZE_BUCKET_NAME=your-bucket-name
 ```
 
 ### 3. 安装依赖并构建
@@ -114,7 +132,52 @@ curl http://localhost:5000
 curl http://your-ecs-ip:5000
 ```
 
-## 四、配置域名和 HTTPS (可选)
+## 四、数据库管理
+
+### 数据存储
+- **数据库文件**：`/data/training.db`
+- **特点**：SQLite 单文件数据库，无需额外数据库服务
+
+### 数据备份
+```bash
+# 创建备份目录
+mkdir -p /data/backups
+
+# 手动备份
+cp /data/training.db /data/backups/training_$(date +%Y%m%d_%H%M%S).db
+
+# 设置定时备份（可选）
+crontab -e
+# 添加以下内容（每天凌晨 2 点自动备份）
+0 2 * * * cp /data/training.db /data/backups/training_$(date +\%Y\%m\%d_\%H\%M\%S).db
+```
+
+### 数据恢复
+```bash
+# 停止应用
+pm2 stop training-assistant
+
+# 恢复数据
+cp /data/backups/training_YYYYMMDD_HHMMSS.db /data/training.db
+
+# 重启应用
+pm2 start training-assistant
+```
+
+### 数据迁移
+从其他服务器迁移数据只需复制 `training.db` 文件：
+```bash
+# 在源服务器打包
+tar -czvf training-data.tar.gz /data/training.db
+
+# 传输到目标服务器
+scp training-data.tar.gz root@new-server:/data/
+
+# 在目标服务器解压
+cd /data && tar -xzvf training-data.tar.gz
+```
+
+## 五、配置域名和 HTTPS (可选)
 
 ### 1. 安装 Nginx
 ```bash
@@ -169,7 +232,7 @@ sudo certbot --nginx -d your-domain.com
 sudo certbot renew --dry-run
 ```
 
-## 五、GitHub Actions 自动部署
+## 六、GitHub Actions 自动部署
 
 ### 步骤 1：生成 SSH 密钥对
 
@@ -245,7 +308,7 @@ git push origin main
 
 ---
 
-## 六、手动更新（备用方案）
+## 七、手动更新（备用方案）
 
 如果自动部署失败，可以手动执行：
 ```bash
@@ -256,7 +319,7 @@ pnpm run build
 pm2 restart training-assistant
 ```
 
-## 七、常用运维命令
+## 八、常用运维命令
 
 ```bash
 # 查看应用状态
@@ -279,11 +342,18 @@ sudo systemctl restart nginx
 
 # 查看防火墙状态
 sudo ufw status
+
+# 查看数据库文件大小
+ls -lh /data/training.db
+
+# 备份数据库
+cp /data/training.db /data/backups/training_$(date +%Y%m%d).db
 ```
 
-## 八、注意事项
+## 九、注意事项
 
-1. **数据库连接**：确保 ECS 能访问 Supabase 或阿里云 RDS
+1. **数据安全**：SQLite 数据库文件存储在 `/data/training.db`，请定期备份
 2. **安全组配置**：开放必要的端口
-3. **定期备份**：建议定期备份数据库
+3. **权限管理**：确保应用有读写 `/data` 目录的权限
 4. **日志监控**：可使用 PM2 Plus 或阿里云监控服务
+5. **磁盘空间**：定期清理旧备份文件，监控磁盘使用情况

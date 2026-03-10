@@ -1,49 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { db, projects, projectCourses, projectDocuments, eq, asc, desc } from '@/storage/database';
+import { getTimestamp } from '@/storage/database';
 
 // GET /api/projects/[id] - 获取项目详情
-// PUT /api/projects/[id] - 更新项目
-// DELETE /api/projects/[id] - 删除项目
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const client = getSupabaseClient();
     const { id } = await params;
 
     // 获取项目信息
-    const { data: project, error: projectError } = await client
-      .from('projects')
-      .select('*')
-      .eq('id', id)
-      .single();
+    const project = db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, id))
+      .get();
 
-    if (projectError) {
-      return NextResponse.json({ error: projectError.message }, { status: 500 });
+    if (!project) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
     // 获取项目课程
-    const { data: courses, error: coursesError } = await client
-      .from('project_courses')
-      .select('*')
-      .eq('project_id', id)
-      .order('order', { ascending: true });
-
-    if (coursesError) {
-      return NextResponse.json({ error: coursesError.message }, { status: 500 });
-    }
+    const courses = db
+      .select()
+      .from(projectCourses)
+      .where(eq(projectCourses.projectId, id))
+      .orderBy(asc(projectCourses.order))
+      .all();
 
     // 获取项目文档
-    const { data: documents, error: documentsError } = await client
-      .from('project_documents')
-      .select('*')
-      .eq('project_id', id)
-      .order('created_at', { ascending: false });
-
-    if (documentsError) {
-      return NextResponse.json({ error: documentsError.message }, { status: 500 });
-    }
+    const documents = db
+      .select()
+      .from(projectDocuments)
+      .where(eq(projectDocuments.projectId, id))
+      .orderBy(desc(projectDocuments.createdAt))
+      .all();
 
     return NextResponse.json({
       data: {
@@ -58,77 +50,83 @@ export async function GET(
   }
 }
 
+// PUT /api/projects/[id] - 更新项目
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const client = getSupabaseClient();
     const { id } = await params;
     const body = await request.json();
+    const now = getTimestamp();
 
     const updateData: Record<string, unknown> = {
-      updated_at: new Date().toISOString(),
+      updatedAt: now,
     };
 
-    // 只更新提供的字段
-    const fields = [
-      'name', 'status', 'training_target', 'target_audience', 'participant_count',
-      'training_days', 'training_hours', 'training_period', 'budget_min', 'budget_max',
-      'location', 'special_requirements', 'start_date', 'end_date', 'venue_id',
-      'teacher_fee', 'venue_fee', 'catering_fee', 'tea_break_fee', 'material_fee',
-      'labor_fee', 'other_fee', 'management_fee', 'total_budget', 'actual_cost',
-      'avg_satisfaction', 'survey_response_rate', 'completed_at', 'archived_at'
-    ];
+    // 字段映射（驼峰转下划线）
+    const fieldMapping: Record<string, string> = {
+      name: 'name',
+      status: 'status',
+      trainingTarget: 'trainingTarget',
+      targetAudience: 'targetAudience',
+      participantCount: 'participantCount',
+      trainingDays: 'trainingDays',
+      trainingHours: 'trainingHours',
+      trainingPeriod: 'trainingPeriod',
+      budgetMin: 'budgetMin',
+      budgetMax: 'budgetMax',
+      location: 'location',
+      specialRequirements: 'specialRequirements',
+      startDate: 'startDate',
+      endDate: 'endDate',
+      venueId: 'venueId',
+      teacherFee: 'teacherFee',
+      venueFee: 'venueFee',
+      cateringFee: 'cateringFee',
+      teaBreakFee: 'teaBreakFee',
+      materialFee: 'materialFee',
+      laborFee: 'laborFee',
+      otherFee: 'otherFee',
+      managementFee: 'managementFee',
+      totalBudget: 'totalBudget',
+      actualCost: 'actualCost',
+      avgSatisfaction: 'avgSatisfaction',
+      surveyResponseRate: 'surveyResponseRate',
+      completedAt: 'completedAt',
+      archivedAt: 'archivedAt',
+    };
 
-    fields.forEach(field => {
-      const camelCase = field.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
-      if (body[camelCase] !== undefined) {
-        updateData[field] = body[camelCase];
-      }
-      if (body[field] !== undefined) {
-        updateData[field] = body[field];
+    Object.entries(fieldMapping).forEach(([bodyKey, dbKey]) => {
+      if (body[bodyKey] !== undefined) {
+        updateData[dbKey] = body[bodyKey];
       }
     });
 
-    const { data, error } = await client
-      .from('projects')
-      .update(updateData)
-      .eq('id', id)
-      .select()
-      .single();
+    const result = db
+      .update(projects)
+      .set(updateData)
+      .where(eq(projects.id, id))
+      .returning()
+      .get();
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ data });
+    return NextResponse.json({ data: result });
   } catch (error) {
     console.error('Update project error:', error);
     return NextResponse.json({ error: 'Failed to update project' }, { status: 500 });
   }
 }
 
+// DELETE /api/projects/[id] - 删除项目
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const client = getSupabaseClient();
     const { id } = await params;
 
-    // 删除关联的课程
-    await client.from('project_courses').delete().eq('project_id', id);
-    
-    // 删除关联的文档
-    await client.from('project_documents').delete().eq('project_id', id);
-
-    // 删除项目
-    const { error } = await client.from('projects').delete().eq('id', id);
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    // 由于设置了 ON DELETE CASCADE，删除项目会自动删除关联数据
+    db.delete(projects).where(eq(projects.id, id)).run();
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -4,8 +4,8 @@
 
 FROM node:20-alpine AS builder
 
-# 安装依赖
-RUN apk add --no-cache libc6-compat
+# 安装编译依赖（better-sqlite3 需要）
+RUN apk add --no-cache libc6-compat python3 make g++
 
 WORKDIR /app
 
@@ -31,6 +31,9 @@ FROM node:20-alpine AS runner
 
 WORKDIR /app
 
+# 安装运行时依赖（better-sqlite3 需要）
+RUN apk add --no-cache libstdc++
+
 # 设置环境变量
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -39,12 +42,16 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
+# 创建数据目录
+RUN mkdir -p /data && chown -R nextjs:nodejs /data
+
 # 复制构建产物
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
 # 复制数据库相关文件
+COPY --from=builder /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
 COPY --from=builder /app/src/storage ./src/storage
 COPY --from=builder /app/drizzle.config.ts ./
 
@@ -57,5 +64,6 @@ EXPOSE 5000
 
 ENV PORT=5000
 ENV HOSTNAME="0.0.0.0"
+ENV DATABASE_PATH=/data/training.db
 
 CMD ["node", "server.js"]

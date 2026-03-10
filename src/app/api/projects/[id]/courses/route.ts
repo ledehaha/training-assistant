@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { db, projectCourses, eq, asc } from '@/storage/database';
+import { generateId, getTimestamp } from '@/storage/database';
 
 // POST /api/projects/[id]/courses - 添加课程到项目
 export async function POST(
@@ -7,34 +8,31 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const client = getSupabaseClient();
     const { id } = await params;
     const body = await request.json();
     const courses = Array.isArray(body) ? body : [body];
+    const now = getTimestamp();
 
     const coursesToInsert = courses.map((course: Record<string, unknown>, index: number) => ({
-      project_id: id,
-      course_template_id: course.courseTemplateId || null,
-      teacher_id: course.teacherId || null,
-      name: course.name,
-      day: course.day || 1,
-      start_time: course.startTime || '09:00',
-      end_time: course.endTime || '12:00',
-      duration: course.duration || 4,
-      description: course.description || '',
+      id: generateId(),
+      projectId: id,
+      courseTemplateId: (course.courseTemplateId as string) || null,
+      teacherId: (course.teacherId as string) || null,
+      name: course.name as string,
+      day: (course.day as number) || 1,
+      startTime: (course.startTime as string) || '09:00',
+      endTime: (course.endTime as string) || '12:00',
+      duration: (course.duration as number) || 4,
+      description: (course.description as string) || '',
       order: index,
+      createdAt: now,
     }));
 
-    const { data, error } = await client
-      .from('project_courses')
-      .insert(coursesToInsert)
-      .select();
+    const results = coursesToInsert.map(course => 
+      db.insert(projectCourses).values(course).returning().get()
+    );
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ data });
+    return NextResponse.json({ data: results });
   } catch (error) {
     console.error('Add project courses error:', error);
     return NextResponse.json({ error: 'Failed to add project courses' }, { status: 500 });
@@ -47,20 +45,16 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const client = getSupabaseClient();
     const { id } = await params;
 
-    const { data, error } = await client
-      .from('project_courses')
-      .select('*')
-      .eq('project_id', id)
-      .order('order', { ascending: true });
+    const results = db
+      .select()
+      .from(projectCourses)
+      .where(eq(projectCourses.projectId, id))
+      .orderBy(asc(projectCourses.order))
+      .all();
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ data });
+    return NextResponse.json({ data: results });
   } catch (error) {
     console.error('Get project courses error:', error);
     return NextResponse.json({ error: 'Failed to get project courses' }, { status: 500 });
@@ -73,17 +67,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const client = getSupabaseClient();
     const { id } = await params;
 
-    const { error } = await client
-      .from('project_courses')
-      .delete()
-      .eq('project_id', id);
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    db.delete(projectCourses).where(eq(projectCourses.projectId, id)).run();
 
     return NextResponse.json({ success: true });
   } catch (error) {
