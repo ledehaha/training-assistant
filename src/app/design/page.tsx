@@ -122,6 +122,9 @@ export default function DesignPage() {
   const [otherTargetAudience, setOtherTargetAudience] = useState('');
   const [analyzingTarget, setAnalyzingTarget] = useState(false);
   const [analyzingAudience, setAnalyzingAudience] = useState(false);
+  
+  // 无预算范围选项
+  const [noBudgetLimit, setNoBudgetLimit] = useState(true);
 
   // 加载讲师和场地数据
   useEffect(() => {
@@ -147,10 +150,16 @@ export default function DesignPage() {
   const handleSaveRequirement = async () => {
     setLoading(true);
     try {
+      const dataToSave = {
+        ...formData,
+        // 无预算范围时，设置为 null
+        budgetMin: noBudgetLimit ? null : formData.budgetMin,
+        budgetMax: noBudgetLimit ? null : formData.budgetMax,
+      };
       const res = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(dataToSave),
       });
       const data = await res.json();
       if (data.data) {
@@ -173,12 +182,18 @@ export default function DesignPage() {
     
     setGenerateLoading(true);
     try {
+      const projectDataToSend = {
+        ...formData,
+        budgetMin: noBudgetLimit ? null : formData.budgetMin,
+        budgetMax: noBudgetLimit ? null : formData.budgetMax,
+        noBudgetLimit,
+      };
       const res = await fetch('/api/ai/recommend', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'courses',
-          projectData: formData,
+          projectData: projectDataToSend,
         }),
       });
       const data = await res.json();
@@ -505,6 +520,28 @@ export default function DesignPage() {
 
                   <div className="space-y-2">
                     <Label htmlFor="budgetMin">预算范围（万元）</Label>
+                    <div className="flex items-center gap-4 mb-2">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="budgetType"
+                          checked={noBudgetLimit}
+                          onChange={() => setNoBudgetLimit(true)}
+                          className="w-4 h-4 text-purple-600"
+                        />
+                        <span className="text-sm">无预算范围</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="budgetType"
+                          checked={!noBudgetLimit}
+                          onChange={() => setNoBudgetLimit(false)}
+                          className="w-4 h-4 text-purple-600"
+                        />
+                        <span className="text-sm">指定预算范围</span>
+                      </label>
+                    </div>
                     <div className="flex gap-2">
                       <Input
                         id="budgetMin"
@@ -512,6 +549,8 @@ export default function DesignPage() {
                         placeholder="最低"
                         value={formData.budgetMin}
                         onChange={(e) => setFormData({ ...formData, budgetMin: parseFloat(e.target.value) || 0 })}
+                        disabled={noBudgetLimit}
+                        className={noBudgetLimit ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}
                       />
                       <span className="flex items-center text-gray-500">-</span>
                       <Input
@@ -519,6 +558,8 @@ export default function DesignPage() {
                         placeholder="最高"
                         value={formData.budgetMax}
                         onChange={(e) => setFormData({ ...formData, budgetMax: parseFloat(e.target.value) || 0 })}
+                        disabled={noBudgetLimit}
+                        className={noBudgetLimit ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}
                       />
                     </div>
                   </div>

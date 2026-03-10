@@ -27,6 +27,10 @@ export async function POST(request: NextRequest) {
           .limit(20);
         
         contextData = `现有课程模板数据：\n${JSON.stringify(courseTemplates, null, 2)}`;
+        const budgetStr = projectData.noBudgetLimit || (!projectData.budgetMin && !projectData.budgetMax)
+          ? '无预算限制'
+          : `${projectData.budgetMin || 0} - ${projectData.budgetMax || 0}万元`;
+        
         prompt = `你是一个专业的培训方案设计专家。请根据以下培训需求，推荐合适的课程安排：
 
 培训对象：${projectData.trainingTarget || '未指定'}
@@ -34,7 +38,7 @@ export async function POST(request: NextRequest) {
 参训人数：${projectData.participantCount || '未指定'}人
 培训天数：${projectData.trainingDays || '未指定'}天
 培训课时：${projectData.trainingHours || '未指定'}课时
-培训预算：${projectData.budgetMin || 0} - ${projectData.budgetMax || 0}万元
+培训预算：${budgetStr}
 特殊要求：${projectData.specialRequirements || '无'}
 
 ${contextData}
