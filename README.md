@@ -35,9 +35,9 @@ coze dev
 
 **快速部署步骤：**
 
-1. **安装 Docker**
+1. **安装 Container Manager**
    
-   群晖套件中心搜索「Container Manager」或「Docker」并安装
+   群晖套件中心搜索「Container Manager」并安装（等同于 Docker）
 
 2. **上传代码**
    

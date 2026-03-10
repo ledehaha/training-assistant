@@ -21,9 +21,11 @@
 
 ## 一、准备工作
 
-### 1. 安装 Docker
+### 1. 安装 Container Manager
 
-群晖套件中心搜索「Container Manager」或「Docker」并安装
+群晖套件中心搜索「**Container Manager**」并安装
+
+> 注：Container Manager 是群晖 DSM 7.2+ 版本的容器管理工具，等同于 Docker
 
 ### 2. SSH 连接到群晖
 
