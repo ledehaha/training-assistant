@@ -18,7 +18,14 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, Sparkles, Save, ArrowRight, User, MapPin, BookOpen, DollarSign, X } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Loader2, Sparkles, Save, ArrowRight, User, MapPin, BookOpen, DollarSign, X, FolderOpen, Plus, Clock } from 'lucide-react';
 
 interface ProjectFormData {
   name: string;
@@ -140,6 +147,32 @@ export default function DesignPage() {
   const [smartRequirementFile, setSmartRequirementFile] = useState<File | null>(null);
   const [analyzingRequirement, setAnalyzingRequirement] = useState(false);
   const [showSmartAnalysis, setShowSmartAnalysis] = useState(false);
+  
+  // 草稿项目管理
+  const [draftProjects, setDraftProjects] = useState<Array<{
+    id: string;
+    name: string;
+    created_at: string;
+    updated_at: string;
+    status: string;
+    progress?: string;
+  }>>([]);
+  const [showDraftList, setShowDraftList] = useState(false);
+  const [lastSaveTime, setLastSaveTime] = useState<Date | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  
+  // 浏览器离开提示
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (formData.name?.trim() || projectId) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [formData.name, projectId]);
 
   // 加载讲师和场地数据
   useEffect(() => {
@@ -159,7 +192,186 @@ export default function DesignPage() {
       }
     };
     loadResources();
+    
+    // 加载草稿项目列表
+    loadDraftProjects();
   }, []);
+
+  // 加载草稿项目列表
+  const loadDraftProjects = async () => {
+    try {
+      const res = await fetch('/api/projects?status=draft');
+      const data = await res.json();
+      if (data.data) {
+        setDraftProjects(data.data.map((p: Record<string, unknown>) => ({
+          id: p.id as string,
+          name: (p.name as string) || '未命名项目',
+          created_at: p.created_at as string,
+          updated_at: p.updated_at as string,
+          status: p.status as string,
+          progress: calculateProgress(p),
+        })));
+      }
+    } catch (error) {
+      console.error('Load draft projects error:', error);
+    }
+  };
+
+  // 计算项目进度
+  const calculateProgress = (project: Record<string, unknown>): string => {
+    if (project.status === 'draft') {
+      if (project.name && project.participant_count && project.training_days) {
+        return '需求填写';
+      }
+      return '新建';
+    }
+    return '设计中';
+  };
+
+  // 自动保存草稿（防抖2秒）
+  useEffect(() => {
+    if (!formData.name && !projectId) return; // 没有内容不保存
+    
+    const timer = setTimeout(() => {
+      autoSaveDraft();
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [formData, courses, selectedVenue]);
+
+  // 自动保存草稿
+  const autoSaveDraft = async () => {
+    if (!formData.name?.trim() && !projectId) return; // 没有项目名称不保存
+    
+    setIsSaving(true);
+    try {
+      const dataToSave = {
+        ...formData,
+        budgetMin: noBudgetLimit ? null : formData.budgetMin,
+        budgetMax: noBudgetLimit ? null : formData.budgetMax,
+        trainingPeriod: formData.trainingPeriod === '其他' ? otherTrainingPeriod : formData.trainingPeriod,
+        status: 'draft',
+        courses,
+        selectedVenueId: selectedVenue?.id,
+      };
+
+      if (projectId) {
+        // 更新已有项目
+        await fetch(`/api/projects/${projectId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(dataToSave),
+        });
+      } else {
+        // 创建新项目
+        const res = await fetch('/api/projects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(dataToSave),
+        });
+        const data = await res.json();
+        if (data.data?.id) {
+          setProjectId(data.data.id);
+        }
+      }
+      
+      setLastSaveTime(new Date());
+      loadDraftProjects(); // 刷新草稿列表
+    } catch (error) {
+      console.error('Auto save error:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // 新建项目
+  const handleNewProject = () => {
+    setProjectId(null);
+    setFormData({
+      name: '',
+      trainingTarget: '',
+      targetAudience: '',
+      participantCount: 50,
+      trainingDays: 4,
+      trainingHours: 32,
+      trainingPeriod: '',
+      budgetMin: 8,
+      budgetMax: 12,
+      location: '',
+      specialRequirements: '',
+    });
+    setCourses([]);
+    setSelectedVenue(null);
+    setQuotation(null);
+    setActiveTab('requirement');
+    setShowDraftList(false);
+    setOtherTrainingTarget('');
+    setOtherTargetAudience('');
+    setOtherTrainingPeriod('');
+    setNoBudgetLimit(true);
+    setModifySuggestion('');
+  };
+
+  // 加载草稿项目
+  const handleLoadProject = async (id: string) => {
+    try {
+      const res = await fetch(`/api/projects/${id}`);
+      const data = await res.json();
+      
+      if (data.data) {
+        const project = data.data;
+        setProjectId(project.id);
+        setFormData({
+          name: project.name || '',
+          trainingTarget: project.training_target || '',
+          targetAudience: project.target_audience || '',
+          participantCount: project.participant_count || 50,
+          trainingDays: project.training_days || 4,
+          trainingHours: project.training_hours || 32,
+          trainingPeriod: project.training_period || '',
+          budgetMin: project.budget_min || 8,
+          budgetMax: project.budget_max || 12,
+          location: project.location || '',
+          specialRequirements: project.special_requirements || '',
+        });
+        
+        // 加载课程
+        if (project.courses) {
+          setCourses(project.courses);
+        }
+        
+        // 加载场地
+        if (project.selected_venue_id) {
+          const venue = venues.find(v => v.id === project.selected_venue_id);
+          if (venue) setSelectedVenue(venue);
+        }
+        
+        setShowDraftList(false);
+        setActiveTab('requirement');
+      }
+    } catch (error) {
+      console.error('Load project error:', error);
+    }
+  };
+
+  // 删除草稿
+  const handleDeleteDraft = async (id: string) => {
+    if (!confirm('确定要删除这个草稿吗？')) return;
+    
+    try {
+      await fetch(`/api/projects/${id}`, {
+        method: 'DELETE',
+      });
+      loadDraftProjects();
+      
+      // 如果删除的是当前项目，清空表单
+      if (id === projectId) {
+        handleNewProject();
+      }
+    } catch (error) {
+      console.error('Delete draft error:', error);
+    }
+  };
 
   // 保存需求并创建项目
   const handleSaveRequirement = async () => {
@@ -418,10 +630,140 @@ export default function DesignPage() {
     <MainLayout>
       <div className="space-y-6">
         {/* 页面标题 */}
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">项目设计</h1>
-          <p className="text-gray-500 mt-1">录入培训需求，生成培训方案和报价单</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">项目设计</h1>
+            <p className="text-gray-500 mt-1">录入培训需求，生成培训方案和报价单</p>
+          </div>
+          
+          {/* 右侧操作区 */}
+          <div className="flex items-center gap-4">
+            {/* 自动保存提示 */}
+            {lastSaveTime && (
+              <span className="text-xs text-gray-400 flex items-center gap-1">
+                {isSaving ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    保存中...
+                  </>
+                ) : (
+                  <>
+                    <Clock className="w-3 h-3" />
+                    已保存 {lastSaveTime.toLocaleTimeString()}
+                  </>
+                )}
+              </span>
+            )}
+            
+            {/* 草稿项目按钮 */}
+            <Button
+              variant="outline"
+              onClick={() => setShowDraftList(true)}
+              className="gap-2"
+            >
+              <FolderOpen className="w-4 h-4" />
+              进行中的项目
+              {draftProjects.length > 0 && (
+                <Badge variant="secondary" className="ml-1">
+                  {draftProjects.length}
+                </Badge>
+              )}
+            </Button>
+          </div>
         </div>
+
+        {/* 草稿项目列表弹窗 */}
+        <Dialog open={showDraftList} onOpenChange={setShowDraftList}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center justify-between">
+                <span>进行中的项目</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    handleNewProject();
+                    setShowDraftList(false);
+                  }}
+                  className="gap-1"
+                >
+                  <Plus className="w-4 h-4" />
+                  新建项目
+                </Button>
+              </DialogTitle>
+              <DialogDescription>
+                选择一个项目继续设计，或创建新项目
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="max-h-96 overflow-y-auto">
+              {draftProjects.length === 0 ? (
+                <div className="py-8 text-center">
+                  <FolderOpen className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                  <p className="text-gray-500 mb-4">暂无进行中的项目</p>
+                  <Button
+                    onClick={() => {
+                      handleNewProject();
+                      setShowDraftList(false);
+                    }}
+                  >
+                    创建新项目
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {draftProjects.map((project) => (
+                    <div
+                      key={project.id}
+                      className={`p-4 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors ${
+                        projectId === project.id ? 'border-blue-500 bg-blue-50' : ''
+                      }`}
+                      onClick={() => {
+                        handleLoadProject(project.id);
+                        setShowDraftList(false);
+                      }}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-gray-900">
+                              {project.name || '未命名项目'}
+                            </p>
+                            {projectId === project.id && (
+                              <Badge variant="default" className="text-xs">
+                                当前
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 mt-2 text-sm text-gray-500">
+                            <Badge variant="outline" className="text-xs">
+                              {project.progress}
+                            </Badge>
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {new Date(project.updated_at).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteDraft(project.id);
+                          }}
+                          className="text-gray-400 hover:text-red-500"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* 步骤指示器 */}
         <div className="flex items-center justify-between bg-white rounded-lg p-4 border">
