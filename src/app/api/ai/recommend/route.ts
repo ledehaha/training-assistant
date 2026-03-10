@@ -66,6 +66,54 @@ ${contextData}
 注意：只返回JSON数据，不要包含任何解释或思考过程。`;
         break;
 
+      case 'modify-courses':
+        // 根据修改意见重新生成课程方案
+        const modifyBudgetStr = projectData.noBudgetLimit || (!projectData.budgetMin && !projectData.budgetMax)
+          ? '无预算限制'
+          : `${projectData.budgetMin || 0} - ${projectData.budgetMax || 0}万元`;
+        
+        prompt = `你是一个专业的培训方案设计专家。用户对当前的培训方案提出了修改意见，请根据修改意见调整课程安排。
+
+## 原培训需求
+培训对象：${projectData.trainingTarget || '未指定'}
+目标人群：${projectData.targetAudience || '未指定'}
+参训人数：${projectData.participantCount || '未指定'}人
+培训天数：${projectData.trainingDays || '未指定'}天
+培训课时：${projectData.trainingHours || '未指定'}课时
+培训预算：${modifyBudgetStr}
+特殊要求：${projectData.specialRequirements || '无'}
+
+## 当前课程方案
+${JSON.stringify(projectData.currentCourses, null, 2)}
+
+## 用户修改意见
+${projectData.modifySuggestion}
+
+## 调整要求
+1. 根据用户的修改意见调整课程方案
+2. 保持课程类别分布：职业素养类30%、管理技能类30%、专业技能类20%、综合提升类20%
+3. 总课时必须等于 ${projectData.trainingHours || 32} 课时
+4. 天数范围：第1天到第${projectData.trainingDays || 4}天
+
+请以JSON格式返回调整后的课程列表，格式如下：
+{
+  "courses": [
+    {
+      "day": 1,
+      "name": "课程名称",
+      "duration": 4,
+      "description": "课程描述",
+      "category": "课程类别",
+      "teacherTitle": "建议讲师职称",
+      "location": "建议上课地点"
+    }
+  ],
+  "summary": "调整说明"
+}
+
+注意：只返回JSON数据，不要包含任何解释或思考过程。`;
+        break;
+
       case 'teachers':
         // 获取讲师数据
         const { data: teachers } = await supabase

@@ -43,6 +43,8 @@ interface Course {
   category: string;
   teacherId?: string;
   teacherName?: string;
+  teacherTitle?: string;
+  location?: string;
 }
 
 interface Teacher {
@@ -125,6 +127,9 @@ export default function DesignPage() {
   
   // 无预算范围选项
   const [noBudgetLimit, setNoBudgetLimit] = useState(true);
+  
+  // 方案修改意见
+  const [modifySuggestion, setModifySuggestion] = useState('');
 
   // 加载讲师和场地数据
   useEffect(() => {
@@ -206,10 +211,56 @@ export default function DesignPage() {
           duration: c.duration as number,
           description: c.description as string,
           category: c.category as string,
+          teacherTitle: c.teacherTitle as string,
+          location: c.location as string,
         })));
       }
     } catch (error) {
       console.error('Generate scheme error:', error);
+    } finally {
+      setGenerateLoading(false);
+    }
+  };
+
+  // 根据修改意见重新生成方案
+  const handleModifyScheme = async () => {
+    if (!projectId || !modifySuggestion.trim()) return;
+    
+    setGenerateLoading(true);
+    try {
+      const projectDataToSend = {
+        ...formData,
+        budgetMin: noBudgetLimit ? null : formData.budgetMin,
+        budgetMax: noBudgetLimit ? null : formData.budgetMax,
+        noBudgetLimit,
+        currentCourses: courses,
+        modifySuggestion: modifySuggestion.trim(),
+      };
+      const res = await fetch('/api/ai/recommend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'modify-courses',
+          projectData: projectDataToSend,
+        }),
+      });
+      const data = await res.json();
+      
+      if (data.data?.courses) {
+        setCourses(data.data.courses.map((c: Record<string, unknown>, index: number) => ({
+          id: `temp-${index}`,
+          name: c.name as string,
+          day: c.day as number,
+          duration: c.duration as number,
+          description: c.description as string,
+          category: c.category as string,
+          teacherTitle: c.teacherTitle as string,
+          location: c.location as string,
+        })));
+        setModifySuggestion(''); // 清空修改意见
+      }
+    } catch (error) {
+      console.error('Modify scheme error:', error);
     } finally {
       setGenerateLoading(false);
     }
@@ -636,31 +687,78 @@ export default function DesignPage() {
                       <Badge variant="outline">综合提升类: 20%</Badge>
                     </div>
 
-                    {/* 按天分组显示课程 */}
-                    {Array.from({ length: formData.trainingDays }, (_, i) => i + 1).map((day) => (
-                      <div key={day} className="border rounded-lg p-4">
-                        <h4 className="font-medium text-gray-900 mb-3">第 {day} 天</h4>
-                        <div className="space-y-2">
-                          {courses
-                            .filter((c) => c.day === day)
-                            .map((course) => (
-                              <div
-                                key={course.id}
-                                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                              >
-                                <div>
-                                  <p className="font-medium text-gray-900">{course.name}</p>
-                                  <p className="text-sm text-gray-500">{course.description}</p>
-                                </div>
-                                <div className="flex items-center gap-4">
-                                  <Badge variant="secondary">{course.category}</Badge>
-                                  <span className="text-sm text-gray-500">{course.duration}课时</span>
-                                </div>
-                              </div>
-                            ))}
-                        </div>
+                    {/* 课程表格 */}
+                    <div className="border rounded-lg overflow-hidden">
+                      <table className="w-full">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 w-16">天数</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">课程名称</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">课程介绍</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 w-28">授课师资</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 w-20">课时数</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 w-28">上课地点</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {courses.map((course) => (
+                            <tr key={course.id} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 text-sm">
+                                <Badge variant="secondary">第{course.day}天</Badge>
+                              </td>
+                              <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                                {course.name}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-600">
+                                {course.description}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-600">
+                                {course.teacherTitle || '待定'}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-600">
+                                {course.duration}课时
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-600">
+                                {course.location || '待定'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* 修改意见输入 */}
+                    <div className="border rounded-lg p-4 bg-gray-50">
+                      <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                        修改意见（可选）
+                      </Label>
+                      <div className="flex gap-2">
+                        <Textarea
+                          placeholder="请输入修改意见，如：增加实操课程、调整课程顺序、更换某些课程主题等..."
+                          value={modifySuggestion}
+                          onChange={(e) => setModifySuggestion(e.target.value)}
+                          rows={2}
+                          className="flex-1"
+                        />
+                        <Button
+                          onClick={handleModifyScheme}
+                          disabled={generateLoading || !modifySuggestion.trim()}
+                          className="self-end"
+                        >
+                          {generateLoading ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              重新生成中...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-4 h-4 mr-2" />
+                              重新生成
+                            </>
+                          )}
+                        </Button>
                       </div>
-                    ))}
+                    </div>
 
                     <div className="flex justify-end gap-4 mt-6">
                       <Button variant="outline" onClick={() => setActiveTab('requirement')}>
