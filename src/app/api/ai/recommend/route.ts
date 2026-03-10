@@ -61,7 +61,9 @@ ${contextData}
     }
   ],
   "summary": "方案概述"
-}`;
+}
+
+注意：只返回JSON数据，不要包含任何解释或思考过程。`;
         break;
 
       case 'teachers':
@@ -95,7 +97,9 @@ ${contextData}
       "reason": "推荐理由"
     }
   ]
-}`;
+}
+
+注意：只返回JSON数据，不要包含任何解释或思考过程。`;
         break;
 
       case 'venues':
@@ -132,7 +136,9 @@ ${contextData}
       "reasons": ["推荐理由1", "推荐理由2"]
     }
   ]
-}`;
+}
+
+注意：只返回JSON数据，不要包含任何解释或思考过程。`;
         break;
 
       case 'quotation':
@@ -188,7 +194,9 @@ ${contextData}
     "compliant": true,
     "issues": []
   }
-}`;
+}
+
+注意：只返回JSON数据，不要包含任何解释或思考过程。`;
         break;
 
       case 'satisfaction-analysis':
@@ -228,7 +236,9 @@ ${projectData.feedback}
     "keywords": ["关键词1", "关键词2"]
   },
   "recommendations": ["建议1", "建议2"]
-}`;
+}
+
+注意：只返回JSON数据，不要包含任何解释或思考过程。`;
         break;
 
       default:
@@ -238,7 +248,7 @@ ${projectData.feedback}
     const messages = [
       {
         role: 'system' as const,
-        content: '你是一个专业的非学历培训全周期管理专家，擅长培训方案设计、资源匹配、成本测算和效果评估。请始终以JSON格式返回结果。',
+        content: '你是一个专业的非学历培训全周期管理专家，擅长培训方案设计、资源匹配、成本测算和效果评估。请始终以纯JSON格式返回结果，不要包含任何解释或思考过程。',
       },
       { role: 'user' as const, content: prompt },
     ];
@@ -251,14 +261,51 @@ ${projectData.feedback}
     // 解析JSON响应
     let result;
     try {
-      // 提取JSON部分
-      const jsonMatch = response.content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        result = JSON.parse(jsonMatch[0]);
-      } else {
+      let content = response.content || '';
+      
+      // 尝试提取JSON块（可能被```json...```包裹）
+      const jsonBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (jsonBlockMatch) {
+        content = jsonBlockMatch[1].trim();
+      }
+      
+      // 尝试找到第一个完整的JSON对象
+      // 从第一个 { 开始，找到匹配的 }
+      let startIndex = content.indexOf('{');
+      if (startIndex !== -1) {
+        let depth = 0;
+        let endIndex = -1;
+        
+        for (let i = startIndex; i < content.length; i++) {
+          if (content[i] === '{') depth++;
+          else if (content[i] === '}') {
+            depth--;
+            if (depth === 0) {
+              endIndex = i + 1;
+              break;
+            }
+          }
+        }
+        
+        if (endIndex !== -1) {
+          const jsonStr = content.substring(startIndex, endIndex);
+          try {
+            result = JSON.parse(jsonStr);
+          } catch {
+            // 如果解析失败，尝试清理可能的格式问题
+            const cleanedJson = jsonStr
+              .replace(/,\s*}/g, '}')  // 移除尾部逗号
+              .replace(/,\s*]/g, ']'); // 移除数组尾部逗号
+            result = JSON.parse(cleanedJson);
+          }
+        }
+      }
+      
+      if (!result) {
         result = { raw: response.content };
       }
-    } catch {
+    } catch (parseError) {
+      console.error('JSON parse error:', parseError);
       result = { raw: response.content };
     }
 
