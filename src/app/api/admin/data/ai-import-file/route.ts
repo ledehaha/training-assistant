@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { LLMClient, Config, HeaderUtils, S3Storage } from 'coze-coding-dev-sdk';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import * as XLSX from 'xlsx';
+import JSZip from 'jszip';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { writeFile, unlink } from 'fs/promises';
@@ -141,6 +142,94 @@ function parseExcel(buffer: Buffer): string {
   }
 }
 
+// 解析 PPT 文件（支持 .ppt 和 .pptx）
+async function parsePPT(buffer: Buffer, originalFileName: string): Promise<string> {
+  try {
+    const ext = originalFileName.split('.').pop()?.toLowerCase();
+    
+    // .pptx 格式使用 jszip 解析
+    if (ext === 'pptx') {
+      const zip = await JSZip.loadAsync(buffer);
+      const slides: string[] = [];
+      
+      // 获取所有幻灯片文件
+      const slideFiles: string[] = [];
+      zip.forEach((relativePath) => {
+        if (relativePath.match(/ppt\/slides\/slide\d+\.xml$/)) {
+          slideFiles.push(relativePath);
+        }
+      });
+      
+      // 按幻灯片编号排序
+      slideFiles.sort((a, b) => {
+        const numA = parseInt(a.match(/slide(\d+)/)?.[1] || '0');
+        const numB = parseInt(b.match(/slide(\d+)/)?.[1] || '0');
+        return numA - numB;
+      });
+      
+      // 解析每个幻灯片
+      for (const slideFile of slideFiles) {
+        const slideNum = slideFile.match(/slide(\d+)/)?.[1] || '?';
+        const content = await zip.file(slideFile)?.async('string');
+        
+        if (content) {
+          // 提取 XML 中的文本内容
+          const textMatches = content.match(/<a:t>([^<]*)<\/a:t>/g);
+          if (textMatches && textMatches.length > 0) {
+            const slideText = textMatches
+              .map(m => m.replace(/<\/?a:t>/g, ''))
+              .filter(t => t.trim())
+              .join(' ');
+            if (slideText.trim()) {
+              slides.push(`【幻灯片 ${slideNum}】${slideText}`);
+            }
+          }
+        }
+      }
+      
+      return slides.join('\n');
+    }
+    
+    // .ppt 格式需要用 LibreOffice 转换
+    if (ext === 'ppt') {
+      const tmpDir = '/tmp';
+      const tmpPptPath = path.join(tmpDir, `ppt_${Date.now()}.ppt`);
+      const tmpTxtPath = path.join(tmpDir, `ppt_${Date.now()}.txt`);
+      
+      try {
+        // 写入临时 .ppt 文件
+        await writeFile(tmpPptPath, buffer);
+        
+        // 使用 LibreOffice 转换为文本
+        await execAsync(`libreoffice --headless --convert-to txt:Text --outdir ${tmpDir} ${tmpPptPath}`, {
+          timeout: 30000
+        });
+        
+        // 读取转换后的文本
+        const { default: fs } = await import('fs/promises');
+        const txtPath = tmpPptPath.replace('.ppt', '.txt');
+        const text = await fs.readFile(txtPath, 'utf-8');
+        
+        // 清理临时文件
+        await unlink(tmpPptPath).catch(() => {});
+        await unlink(txtPath).catch(() => {});
+        
+        return text;
+      } catch (conversionError) {
+        console.error('LibreOffice conversion error:', conversionError);
+        // 清理临时文件
+        await unlink(tmpPptPath).catch(() => {});
+        return '';
+      }
+    }
+    
+    return '';
+  } catch (error) {
+    console.error('PPT parse error:', error);
+    return '';
+  }
+}
+
 // 允许操作的表（白名单）
 const ALLOWED_TABLES = [
   'teachers',
@@ -249,9 +338,11 @@ export async function POST(request: NextRequest) {
       extractedText = await parseWord(buffer, file.name);
     } else if (fileType === 'xlsx' || fileType === 'xls') {
       extractedText = parseExcel(buffer);
+    } else if (fileType === 'pptx' || fileType === 'ppt') {
+      extractedText = await parsePPT(buffer, file.name);
     } else {
       return NextResponse.json({ 
-        error: '不支持的文件格式，请上传 PDF、Word 或 Excel 文件' 
+        error: '不支持的文件格式，请上传 PDF、Word、Excel 或 PPT 文件' 
       }, { status: 400 });
     }
 

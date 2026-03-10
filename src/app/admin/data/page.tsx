@@ -828,7 +828,7 @@ export default function DataManagementPage() {
                 const file = e.dataTransfer.files?.[0];
                 if (file) {
                   const ext = file.name.split('.').pop()?.toLowerCase();
-                  if (['pdf', 'doc', 'docx', 'xls', 'xlsx'].includes(ext || '')) {
+                  if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext || '')) {
                     setUploadFile(file);
                     setAiImportText(''); // 清空文字输入
                   } else {
@@ -841,7 +841,7 @@ export default function DataManagementPage() {
                 type="file"
                 className="hidden"
                 id="file-upload"
-                accept=".pdf,.doc,.docx,.xls,.xlsx"
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) {
@@ -874,7 +874,7 @@ export default function DataManagementPage() {
                         <span className="text-purple-600 font-medium">点击上传</span> 或拖拽文件到此处
                       </p>
                       <p className="text-xs text-gray-400">
-                        支持 PDF、Word (.doc/.docx)、Excel (.xls/.xlsx)
+                        支持 PDF、Word、Excel、PPT 文件
                       </p>
                     </>
                   )}
