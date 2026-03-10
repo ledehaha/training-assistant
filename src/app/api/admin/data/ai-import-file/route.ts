@@ -265,13 +265,24 @@ ${extractedText.substring(0, 8000)}
       records = parsedResult?.records || [];
       summary = parsedResult?.summary || '';
     } else {
-      // 未配置 API Key，尝试简单解析（仅支持 Excel）
+      // 未配置 API Key
       if (fileType === 'xlsx' || fileType === 'xls') {
+        // Excel 文件可以直接解析
         const workbook = XLSX.read(buffer, { type: 'buffer' });
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
         records = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet);
         summary = `从 Excel 解析出 ${records.length} 条记录`;
+      } else if (table === 'normative_documents') {
+        // 规范性文件可以不上传内容解析，直接保存文件
+        records = [{
+          name: file.name.replace(/\.[^/.]+$/, ''), // 去掉扩展名作为文件名
+          summary: extractedText.substring(0, 200) || '待补充摘要', // 使用前200字作为摘要
+          file_name: file.name,
+          file_size: file.size,
+          is_effective: true,
+        }];
+        summary = '文件已保存，摘要已自动提取前200字（可后续编辑完善）';
       } else {
         return NextResponse.json({ 
           error: '未配置 AI API Key，仅支持 Excel 文件导入。请配置 COZE_API_KEY 环境变量以启用 AI 解析功能。' 
@@ -307,6 +318,8 @@ ${extractedText.substring(0, 8000)}
         }
         // 保存文件路径而非 URL
         if (filePath) cleaned.filePath = filePath;
+        // 保存原始文件名
+        if (filePath && !cleaned.name) cleaned.name = file.name;
 
         const result = db.insert(tableSchema).values({ id: generateId(), ...cleaned, createdAt: now }).returning().get();
         insertedRecords.push(result);
