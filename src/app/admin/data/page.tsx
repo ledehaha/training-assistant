@@ -185,6 +185,7 @@ export default function DataManagementPage() {
   const [aiImportLoading, setAiImportLoading] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [fileImportLoading, setFileImportLoading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   // 加载所有表的数据计数
   const loadTableCounts = useCallback(async () => {
@@ -867,79 +868,122 @@ export default function DataManagementPage() {
               AI 智能导入
             </DialogTitle>
             <DialogDescription>
-              支持文字描述或上传文件，AI 将自动解析并导入到「{selectedTable.label}」表
+              AI 将自动解析内容并导入到「{selectedTable.label}」表
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {/* 文件上传区域 */}
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
-              <div className="flex items-center justify-center gap-4">
-                <label className="flex-1 cursor-pointer">
-                  <input
-                    type="file"
-                    className="hidden"
-                    accept=".pdf,.doc,.docx,.xls,.xlsx"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) setUploadFile(file);
-                    }}
-                  />
-                  <div className="flex items-center justify-center gap-2 py-4 text-gray-600 hover:text-purple-600 transition-colors">
-                    <FileUp className="w-6 h-6" />
-                    <span className="font-medium">上传文件导入</span>
-                  </div>
-                </label>
-              </div>
-              {uploadFile ? (
-                <div className="flex items-center justify-between mt-2 p-2 bg-purple-50 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-purple-500" />
-                    <span className="text-sm text-purple-700">{uploadFile.name}</span>
-                  </div>
-                  <button
-                    onClick={() => setUploadFile(null)}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+            {/* 文件上传区域（支持拖拽） */}
+            <div
+              className={`border-2 border-dashed rounded-lg p-6 transition-colors ${
+                isDragging 
+                  ? 'border-purple-500 bg-purple-50' 
+                  : 'border-gray-300 hover:border-purple-400'
+              }`}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                setIsDragging(false);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragging(false);
+                const file = e.dataTransfer.files?.[0];
+                if (file) {
+                  const ext = file.name.split('.').pop()?.toLowerCase();
+                  if (['pdf', 'doc', 'docx', 'xls', 'xlsx'].includes(ext || '')) {
+                    setUploadFile(file);
+                    setAiImportText(''); // 清空文字输入
+                  } else {
+                    setMessage({ type: 'error', text: '不支持的文件格式' });
+                  }
+                }
+              }}
+            >
+              <input
+                type="file"
+                className="hidden"
+                id="file-upload"
+                accept=".pdf,.doc,.docx,.xls,.xlsx"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    setUploadFile(file);
+                    setAiImportText(''); // 清空文字输入
+                  }
+                }}
+              />
+              <label htmlFor="file-upload" className="cursor-pointer">
+                <div className="flex flex-col items-center gap-2">
+                  <FileUp className={`w-10 h-10 ${isDragging ? 'text-purple-500' : 'text-gray-400'}`} />
+                  {uploadFile ? (
+                    <div className="flex items-center gap-2 p-2 bg-purple-100 rounded-lg">
+                      <FileText className="w-4 h-4 text-purple-600" />
+                      <span className="text-sm text-purple-700 font-medium">{uploadFile.name}</span>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setUploadFile(null);
+                        }}
+                        className="text-gray-400 hover:text-red-500 ml-1"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-sm text-gray-600">
+                        <span className="text-purple-600 font-medium">点击上传</span> 或拖拽文件到此处
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        支持 PDF、Word (.doc/.docx)、Excel (.xls/.xlsx)
+                      </p>
+                    </>
+                  )}
                 </div>
-              ) : (
-                <p className="text-center text-xs text-gray-500 mt-2">
-                  支持 PDF、Word (.doc/.docx)、Excel (.xls/.xlsx) 文件
-                </p>
-              )}
+              </label>
             </div>
 
-            {/* 文字输入区域 */}
+            {/* 分隔线 */}
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-gray-200"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">或输入文字描述</span>
+                <span className="px-2 bg-white text-gray-500">或直接输入文字描述</span>
               </div>
             </div>
 
-            <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-4 rounded-lg text-sm">
+            {/* 规范性文件提示 */}
+            <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-3 rounded-lg text-sm">
               <div className="flex items-start gap-2">
                 <FileText className="w-4 h-4 text-purple-500 mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="font-medium text-purple-700 mb-1">智能参考规范性文件</p>
-                  <p className="text-xs text-gray-600">
-                    AI 将根据系统中的费用标准、合规条款等规范性文件自动补全数据。
-                    例如：根据讲师职称自动设置课时费（正高2000元、副高1500元、中级800元）。
+                  <p className="font-medium text-purple-700">智能参考规范性文件</p>
+                  <p className="text-xs text-gray-600 mt-1">
+                    AI 将根据费用标准、合规条款等自动补全数据
                   </p>
                 </div>
               </div>
             </div>
+
+            {/* 文字输入区域 */}
             <textarea
-              className="w-full h-32 p-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-              placeholder="请输入要导入的数据描述，支持多行多条记录...&#10;&#10;提示：可以省略课时费等字段，AI 会根据规范性文件自动填充"
+              className="w-full h-28 p-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+              placeholder="请输入要导入的数据描述...&#10;&#10;例如：张三，正高职称，专业领域是管理培训，来自某大学商学院"
               value={aiImportText}
-              onChange={(e) => setAiImportText(e.target.value)}
+              onChange={(e) => {
+                setAiImportText(e.target.value);
+                if (e.target.value.trim()) {
+                  setUploadFile(null); // 清空文件
+                }
+              }}
             />
           </div>
-          <DialogFooter className="flex-col gap-2 sm:flex-row">
+          <DialogFooter>
             <Button variant="outline" onClick={() => {
               setAiImportDialogOpen(false);
               setUploadFile(null);
@@ -947,31 +991,12 @@ export default function DataManagementPage() {
             }}>
               取消
             </Button>
-            {uploadFile && (
-              <Button 
-                onClick={handleFileImport} 
-                disabled={fileImportLoading}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                {fileImportLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    解析文件中...
-                  </>
-                ) : (
-                  <>
-                    <FileUp className="w-4 h-4 mr-2" />
-                    导入文件
-                  </>
-                )}
-              </Button>
-            )}
             <Button 
-              onClick={handleAiImport} 
-              disabled={!aiImportText.trim() || aiImportLoading}
+              onClick={uploadFile ? handleFileImport : handleAiImport} 
+              disabled={(!uploadFile && !aiImportText.trim()) || aiImportLoading || fileImportLoading}
               className="bg-purple-600 hover:bg-purple-700"
             >
-              {aiImportLoading ? (
+              {(aiImportLoading || fileImportLoading) ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   AI 解析中...
@@ -979,7 +1004,7 @@ export default function DataManagementPage() {
               ) : (
                 <>
                   <Sparkles className="w-4 h-4 mr-2" />
-                  AI 解析文字
+                  AI 分析导入
                 </>
               )}
             </Button>
