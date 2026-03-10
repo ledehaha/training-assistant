@@ -2,36 +2,86 @@
 
 > 从需求分析到项目总结的完整闭环管理系统
 
-## 自动部署测试 ✅
-部署时间: 2026-03-09
-
 ---
 
 这是一个基于 [Next.js 16](https://nextjs.org) + [shadcn/ui](https://ui.shadcn.com) 的全栈应用项目，由扣子编程 CLI 创建。
 
-## 快速开始
+## 功能特性
 
-### 启动开发服务器
+- **项目设计**：需求分析、方案设计、费用预算
+- **项目申报**：申报材料生成、审批流程
+- **项目总结**：满意度调查、总结报告
+- **项目查询**：项目检索、统计分析
+- **数据管理**：讲师、场地、课程模板、规范性文件的增删改查
+- **AI 智能**：智能推荐课程/讲师/场地、智能导入数据
+
+## 部署方式
+
+### 开发环境
 
 ```bash
+# 安装依赖
+pnpm install
+
+# 启动开发服务器
 coze dev
 ```
 
 启动后，在浏览器中打开 [http://localhost:5000](http://localhost:5000) 查看应用。
 
-开发服务器支持热更新，修改代码后页面会自动刷新。
+### 生产环境 - 群晖 NAS 直接部署
 
-### 构建生产版本
+> 详细部署指南请查看 [deploy/nas/DIRECT_DEPLOY_GUIDE.md](./deploy/nas/DIRECT_DEPLOY_GUIDE.md)
 
-```bash
-coze build
-```
+**快速部署步骤：**
 
-### 启动生产服务器
+1. **安装软件**（通过群晖套件中心）
+   - Node.js v18 或 v20 LTS
+   - PostgreSQL 15 或 16
 
-```bash
-coze start
-```
+2. **创建目录并上传代码**
+   ```bash
+   mkdir -p /volume1/web/training-assistant
+   cd /volume1/web/training-assistant
+   # 上传代码或 git clone
+   ```
+
+3. **初始化数据库**
+   ```bash
+   psql -U postgres -d training_db -f deploy/nas/init-database.sql
+   ```
+
+4. **配置环境变量**
+   ```bash
+   cp deploy/nas/.env.example .env
+   nano .env  # 填入实际配置
+   ```
+
+5. **安装依赖并构建**
+   ```bash
+   npm install -g pnpm pm2
+   pnpm install --prod
+   pnpm run build
+   ```
+
+6. **启动服务**
+   ```bash
+   pm2 start deploy/nas/ecosystem.config.js
+   pm2 startup
+   pm2 save
+   ```
+
+**部署文件说明：**
+
+| 文件 | 说明 |
+|------|------|
+| `DEPLOY_CHECKLIST.md` | 部署检查清单 |
+| `DIRECT_DEPLOY_GUIDE.md` | 详细部署指南 |
+| `init-database.sql` | 数据库初始化脚本 |
+| `ecosystem.config.js` | PM2 配置文件 |
+| `deploy.sh` | 一键部署脚本 |
+| `migrate-db.sh` | 数据迁移脚本 |
+| `backup-db.sh` | 数据库备份脚本 |
 
 ## 项目结构
 
