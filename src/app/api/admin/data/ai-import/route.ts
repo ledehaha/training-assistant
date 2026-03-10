@@ -6,6 +6,7 @@ import {
   saveDatabaseImmediate, ensureDatabaseReady
 } from '@/storage/database';
 import { generateId, getTimestamp } from '@/storage/database';
+import { getApiKey } from '@/lib/api-key';
 
 // 允许操作的表（白名单）
 const ALLOWED_TABLES = [
@@ -109,6 +110,18 @@ export async function POST(request: NextRequest) {
     if (!text || typeof text !== 'string' || text.trim().length === 0) {
       return NextResponse.json({ error: '请输入要导入的文字内容' }, { status: 400 });
     }
+
+    // 检查 API Key
+    const apiKey = await getApiKey();
+    if (!apiKey) {
+      return NextResponse.json({ 
+        error: '未配置 AI API Key，请在设置页面配置后再使用智能导入功能' 
+      }, { status: 400 });
+    }
+
+    // 设置 API Key 到环境变量
+    process.env.LLM_API_KEY = apiKey;
+    process.env.COZE_API_KEY = apiKey;
 
     // 初始化客户端
     const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);

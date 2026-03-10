@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
+import { getApiKey } from '@/lib/api-key';
 
 // POST /api/ai/analyze-requirement - AI智能分析培训需求
 export async function POST(request: NextRequest) {
@@ -10,6 +11,18 @@ export async function POST(request: NextRequest) {
     if (!requirementText) {
       return NextResponse.json({ error: '缺少需求描述' }, { status: 400 });
     }
+
+    // 检查 API Key
+    const apiKey = await getApiKey();
+    if (!apiKey) {
+      return NextResponse.json({ 
+        error: '未配置 AI API Key，请在设置页面配置' 
+      }, { status: 400 });
+    }
+
+    // 设置 API Key 到环境变量
+    process.env.LLM_API_KEY = apiKey;
+    process.env.COZE_API_KEY = apiKey;
 
     // 初始化 LLM 客户端
     const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);

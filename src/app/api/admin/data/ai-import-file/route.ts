@@ -7,6 +7,7 @@ import {
 } from '@/storage/database';
 import { generateId, getTimestamp } from '@/storage/database';
 import { saveFile } from '@/storage/file-storage';
+import { getApiKey } from '@/lib/api-key';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import { exec } from 'child_process';
@@ -222,12 +223,19 @@ export async function POST(request: NextRequest) {
     if (!extractedText.trim()) return NextResponse.json({ error: '无法从文件中提取文本内容' }, { status: 400 });
 
     // 检查是否配置了 AI API Key
-    const hasApiKey = !!process.env.COZE_API_KEY;
+    const apiKey = await getApiKey();
+    const hasApiKey = !!apiKey;
     
     let records: Record<string, unknown>[] = [];
     let summary = '';
 
     if (hasApiKey) {
+      // AI 解析 - 设置 API Key 到环境变量
+      if (apiKey) {
+        process.env.LLM_API_KEY = apiKey;
+        process.env.COZE_API_KEY = apiKey; // 兼容 SDK
+      }
+      
       // AI 解析
       const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
       const config = new Config();

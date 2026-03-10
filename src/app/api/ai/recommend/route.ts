@@ -4,10 +4,23 @@ import {
   db, teachers, venues, courseTemplates, normativeDocuments, 
   eq, desc, sql 
 } from '@/storage/database';
+import { getApiKey } from '@/lib/api-key';
 
 // POST /api/ai/recommend - AI智能推荐
 export async function POST(request: NextRequest) {
   try {
+    // 检查 API Key
+    const apiKey = await getApiKey();
+    if (!apiKey) {
+      return NextResponse.json({ 
+        error: '未配置 AI API Key，请在设置页面配置' 
+      }, { status: 400 });
+    }
+
+    // 设置 API Key 到环境变量
+    process.env.LLM_API_KEY = apiKey;
+    process.env.COZE_API_KEY = apiKey;
+
     const body = await request.json();
     const { type, projectData } = body;
     const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
