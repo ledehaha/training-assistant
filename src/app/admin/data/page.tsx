@@ -41,6 +41,7 @@ import {
   FileText,
   FileUp,
   X,
+  ExternalLink,
 } from 'lucide-react';
 
 // 数据表配置
@@ -52,7 +53,7 @@ const TABLES_CONFIG = [
     columns: [
       { key: 'id', label: 'ID', type: 'uuid', editable: false },
       { key: 'name', label: '姓名', type: 'text', editable: true, required: true },
-      { key: 'title', label: '职称', type: 'select', options: ['正高', '副高', '中级', '初级'], editable: true },
+      { key: 'title', label: '职称', type: 'select', options: ['院士', '正高', '副高', '中级', '初级', '其他'], editable: true },
       { key: 'expertise', label: '专业领域', type: 'text', editable: true },
       { key: 'organization', label: '所属单位', type: 'text', editable: true },
       { key: 'bio', label: '简介', type: 'textarea', editable: true },
@@ -101,8 +102,9 @@ const TABLES_CONFIG = [
     columns: [
       { key: 'id', label: 'ID', type: 'uuid', editable: false },
       { key: 'name', label: '文件名称', type: 'text', editable: true, required: true },
-      { key: 'type', label: '类型', type: 'select', options: ['费用标准', '合规条款', '政策文件', '其他'], editable: true },
-      { key: 'content', label: '内容', type: 'textarea', editable: true },
+      { key: 'type', label: '类型', type: 'select', options: ['费用标准', '合规条款', '政策文件', '职称对照表', '其他'], editable: true },
+      { key: 'content', label: '内容摘要', type: 'textarea', editable: true },
+      { key: 'file_url', label: '文件链接', type: 'text', editable: true },
       { key: 'is_effective', label: '是否有效', type: 'boolean', editable: true },
     ]
   },
@@ -572,6 +574,23 @@ export default function DataManagementPage() {
   // 渲染单元格值
   const renderCellValue = (col: ColumnConfig, value: unknown) => {
     if (value === null || value === undefined) return '-';
+
+    // 特殊处理文件链接字段
+    if (col.key === 'file_url' && value) {
+      const url = String(value);
+      return (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <ExternalLink className="w-3 h-3" />
+          下载文件
+        </a>
+      );
+    }
 
     switch (col.type) {
       case 'boolean':

@@ -17,11 +17,11 @@ const ALLOWED_TABLES = [
 const TABLE_SCHEMA: Record<string, string> = {
   teachers: `讲师信息表：
 - name (必填): 姓名
-- title: 职称，可选值：正高、副高、中级、初级
+- title: 职称，可选值：院士、正高、副高、中级、初级、其他
 - expertise: 专业领域，多个用逗号分隔
 - organization: 所属单位
 - bio: 个人简介
-- hourly_rate: 课时费（元），【重要】根据规范性文件中的费用标准自动设置
+- hourly_rate: 课时费（元），【重要】根据规范性文件中的费用标准自动设置（院士1500元、正高1000元、其他500元）
 - rating: 评分（1-5）
 - teaching_count: 授课次数
 - is_active: 是否启用（默认true）`,

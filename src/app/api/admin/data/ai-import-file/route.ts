@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import * as XLSX from 'xlsx';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import { writeFile, unlink } from 'fs/promises';
+import path from 'path';
+
+const execAsync = promisify(exec);
 
 // 解析 PDF 文件（使用动态导入避免构建问题）
 async function parsePDF(buffer: Buffer): Promise<string> {
@@ -56,11 +62,52 @@ async function parsePDF(buffer: Buffer): Promise<string> {
   }
 }
 
-async function parseWord(buffer: Buffer): Promise<string> {
+// 解析 Word 文件（支持 .doc 和 .docx）
+async function parseWord(buffer: Buffer, originalFileName: string): Promise<string> {
   try {
-    const mammoth = await import('mammoth');
-    const result = await mammoth.extractRawText({ buffer });
-    return result.value || '';
+    const ext = originalFileName.split('.').pop()?.toLowerCase();
+    
+    // .docx 格式直接用 mammoth 解析
+    if (ext === 'docx') {
+      const mammoth = await import('mammoth');
+      const result = await mammoth.extractRawText({ buffer });
+      return result.value || '';
+    }
+    
+    // .doc 格式需要用 LibreOffice 转换
+    if (ext === 'doc') {
+      const tmpDir = '/tmp';
+      const tmpDocPath = path.join(tmpDir, `doc_${Date.now()}.doc`);
+      const tmpTxtPath = path.join(tmpDir, `doc_${Date.now()}.txt`);
+      
+      try {
+        // 写入临时 .doc 文件
+        await writeFile(tmpDocPath, buffer);
+        
+        // 使用 LibreOffice 转换为文本
+        await execAsync(`libreoffice --headless --convert-to txt:Text --outdir ${tmpDir} ${tmpDocPath}`, {
+          timeout: 30000
+        });
+        
+        // 读取转换后的文本
+        const { default: fs } = await import('fs/promises');
+        const txtPath = tmpDocPath.replace('.doc', '.txt');
+        const text = await fs.readFile(txtPath, 'utf-8');
+        
+        // 清理临时文件
+        await unlink(tmpDocPath).catch(() => {});
+        await unlink(txtPath).catch(() => {});
+        
+        return text;
+      } catch (conversionError) {
+        console.error('LibreOffice conversion error:', conversionError);
+        // 清理临时文件
+        await unlink(tmpDocPath).catch(() => {});
+        return '';
+      }
+    }
+    
+    return '';
   } catch (error) {
     console.error('Word parse error:', error);
     return '';
@@ -109,11 +156,11 @@ const ALLOWED_TABLES = [
 const TABLE_SCHEMA: Record<string, string> = {
   teachers: `讲师信息表：
 - name (必填): 姓名
-- title: 职称，可选值：正高、副高、中级、初级
+- title: 职称，可选值：院士、正高、副高、中级、初级、其他
 - expertise: 专业领域，多个用逗号分隔
 - organization: 所属单位
 - bio: 个人简介
-- hourly_rate: 课时费（元），【重要】根据规范性文件中的费用标准自动设置
+- hourly_rate: 课时费（元），【重要】根据规范性文件中的费用标准自动设置（院士1500元、正高1000元、其他500元）
 - rating: 评分（1-5）
 - teaching_count: 授课次数
 - is_active: 是否启用（默认true）`,
@@ -197,7 +244,7 @@ export async function POST(request: NextRequest) {
     if (fileType === 'pdf') {
       extractedText = await parsePDF(buffer);
     } else if (fileType === 'docx' || fileType === 'doc') {
-      extractedText = await parseWord(buffer);
+      extractedText = await parseWord(buffer, file.name);
     } else if (fileType === 'xlsx' || fileType === 'xls') {
       extractedText = parseExcel(buffer);
     } else {

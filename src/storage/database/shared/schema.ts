@@ -112,6 +112,7 @@ export const normativeDocuments = pgTable(
     name: varchar("name", { length: 300 }).notNull(),
     type: varchar("type", { length: 50 }), // 类型：费用标准、讲师费标准、合规条款
     content: text("content"), // 内容
+    fileUrl: text("file_url"), // 文件链接
     effectiveDate: date("effective_date"), // 生效日期
     expiryDate: date("expiry_date"), // 失效日期
     isEffective: boolean("is_effective").default(true),
