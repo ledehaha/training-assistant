@@ -892,19 +892,6 @@ export default function DataManagementPage() {
               </div>
             </div>
 
-            {/* 规范性文件提示 */}
-            <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-3 rounded-lg text-sm">
-              <div className="flex items-start gap-2">
-                <FileText className="w-4 h-4 text-purple-500 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="font-medium text-purple-700">智能参考规范性文件</p>
-                  <p className="text-xs text-gray-600 mt-1">
-                    AI 将根据费用标准、合规条款等自动补全数据
-                  </p>
-                </div>
-              </div>
-            </div>
-
             {/* 文字输入区域 */}
             <textarea
               className="w-full h-28 p-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
