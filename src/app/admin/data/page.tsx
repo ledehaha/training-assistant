@@ -1600,9 +1600,8 @@ export default function DataManagementPage() {
                 }
               }}
             />
-          </div>
-          
-          {/* AI 分析预览结果 */}
+
+            {/* AI 分析预览结果 */}
           {aiImportPreview && aiImportPreview.length > 0 && (
             <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
               {/* 重复数据提示 */}
@@ -2279,6 +2278,7 @@ export default function DataManagementPage() {
               </div>
             </div>
           )}
+          </div>
           
           <DialogFooter className="shrink-0 border-t pt-4 mt-2">
             <Button variant="outline" onClick={() => {
