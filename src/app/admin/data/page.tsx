@@ -208,6 +208,10 @@ export default function DataManagementPage() {
   // API Key 检查对话框状态
   const [apiKeyCheckOpen, setApiKeyCheckOpen] = useState(false);
   const [apiKeyConfigured, setApiKeyConfigured] = useState<boolean | null>(null);
+  // 批量选择状态
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [batchDeleteDialogOpen, setBatchDeleteDialogOpen] = useState(false);
+  const [batchDeleting, setBatchDeleting] = useState(false);
 
   // 初始化时检查 API Key 状态
   useEffect(() => {
@@ -373,6 +377,75 @@ export default function DataManagementPage() {
     } catch (error) {
       console.error('Delete error:', error);
       setMessage({ type: 'error', text: '删除失败' });
+    }
+  };
+
+  // 批量删除
+  const handleBatchDelete = async () => {
+    if (selectedIds.size === 0) return;
+
+    setBatchDeleting(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const id of selectedIds) {
+      try {
+        const res = await fetch(`/api/admin/data?table=${selectedTable.name}&id=${id}`, {
+          method: 'DELETE',
+        });
+        const result = await res.json();
+        if (result.success) {
+          successCount++;
+        } else {
+          failCount++;
+        }
+      } catch {
+        failCount++;
+      }
+    }
+
+    setBatchDeleting(false);
+    setBatchDeleteDialogOpen(false);
+    setSelectedIds(new Set());
+    loadData();
+
+    if (failCount === 0) {
+      setMessage({ type: 'success', text: `成功删除 ${successCount} 条记录` });
+    } else {
+      setMessage({ type: 'success', text: `成功删除 ${successCount} 条，失败 ${failCount} 条` });
+    }
+  };
+
+  // 批量导出
+  const handleBatchExport = async () => {
+    if (selectedIds.size === 0) return;
+
+    try {
+      const ids = Array.from(selectedIds);
+      const res = await fetch('/api/admin/data/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          table: selectedTable.name,
+          ids: ids,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error('导出失败');
+      }
+      
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${selectedTable.name}_selected_${new Date().toISOString().split('T')[0]}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setMessage({ type: 'success', text: `成功导出 ${ids.length} 条记录` });
+    } catch (error) {
+      console.error('Batch export error:', error);
+      setMessage({ type: 'error', text: '导出失败' });
     }
   };
 
@@ -1003,6 +1076,39 @@ export default function DataManagementPage() {
               </div>
             </CardHeader>
             <CardContent>
+              {/* 批量操作栏 */}
+              {selectedIds.size > 0 && (
+                <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg mb-3">
+                  <span className="text-sm text-blue-700">
+                    已选择 {selectedIds.size} 条记录
+                  </span>
+                  <div className="flex-1" />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleBatchExport}
+                  >
+                    <Download className="w-4 h-4 mr-1" />
+                    批量导出
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setBatchDeleteDialogOpen(true)}
+                  >
+                    <Trash2 className="w-4 h-4 mr-1" />
+                    批量删除
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedIds(new Set())}
+                  >
+                    取消选择
+                  </Button>
+                </div>
+              )}
+              
               {loading ? (
                 <div className="flex items-center justify-center py-12">
                   <RefreshCw className="w-6 h-6 animate-spin text-gray-400" />
@@ -1018,6 +1124,25 @@ export default function DataManagementPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-[40px]">
+                          <input
+                            type="checkbox"
+                            checked={filteredData.length > 0 && selectedIds.size === filteredData.length}
+                            ref={(el) => {
+                              if (el) {
+                                el.indeterminate = selectedIds.size > 0 && selectedIds.size < filteredData.length;
+                              }
+                            }}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedIds(new Set(filteredData.map(item => String(item.id))));
+                              } else {
+                                setSelectedIds(new Set());
+                              }
+                            }}
+                            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                          />
+                        </TableHead>
                         {selectedTable.columns.map(col => (
                           <TableHead key={col.key}>{col.label}</TableHead>
                         ))}
@@ -1025,44 +1150,64 @@ export default function DataManagementPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredData.map((item, idx) => (
-                        <TableRow 
-                          key={item.id as string || idx}
-                          className="cursor-pointer hover:bg-blue-50"
-                          onDoubleClick={() => handleEdit(item)}
-                        >
-                          {selectedTable.columns.map(col => (
-                            <TableCell key={col.key}>
-                              {renderCellValue(col, item[col.key])}
+                      {filteredData.map((item, idx) => {
+                        const itemId = String(item.id);
+                        const isSelected = selectedIds.has(itemId);
+                        return (
+                          <TableRow 
+                            key={itemId || idx}
+                            className={`cursor-pointer hover:bg-blue-50 ${isSelected ? 'bg-blue-50' : ''}`}
+                            onDoubleClick={() => handleEdit(item)}
+                          >
+                            <TableCell onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  const newSet = new Set(selectedIds);
+                                  if (e.target.checked) {
+                                    newSet.add(itemId);
+                                  } else {
+                                    newSet.delete(itemId);
+                                  }
+                                  setSelectedIds(newSet);
+                                }}
+                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                              />
                             </TableCell>
-                          ))}
-                          <TableCell>
-                            <div className="flex items-center gap-1">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleEdit(item);
-                                }}
-                              >
-                                <Pencil className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setCurrentItem(item);
-                                  setDeleteDialogOpen(true);
-                                }}
-                              >
-                                <Trash2 className="w-4 h-4 text-red-500" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                            {selectedTable.columns.map(col => (
+                              <TableCell key={col.key}>
+                                {renderCellValue(col, item[col.key])}
+                              </TableCell>
+                            ))}
+                            <TableCell>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleEdit(item);
+                                  }}
+                                >
+                                  <Pencil className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCurrentItem(item);
+                                    setDeleteDialogOpen(true);
+                                  }}
+                                >
+                                  <Trash2 className="w-4 h-4 text-red-500" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
@@ -1315,6 +1460,26 @@ export default function DataManagementPage() {
               取消
             </Button>
             <Button variant="destructive" onClick={handleDelete}>
+              删除
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 批量删除确认对话框 */}
+      <Dialog open={batchDeleteDialogOpen} onOpenChange={setBatchDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>确认批量删除</DialogTitle>
+            <DialogDescription>
+              确定要删除选中的 {selectedIds.size} 条数据吗？此操作无法撤销。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBatchDeleteDialogOpen(false)}>
+              取消
+            </Button>
+            <Button variant="destructive" onClick={handleBatchDelete}>
               删除
             </Button>
           </DialogFooter>

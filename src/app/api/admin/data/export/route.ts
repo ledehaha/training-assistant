@@ -191,3 +191,87 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: '导出失败' }, { status: 500 });
   }
 }
+
+// POST /api/admin/data/export - 批量导出选中数据
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { table, ids } = body;
+
+    if (!table || !ALLOWED_TABLES.includes(table as typeof ALLOWED_TABLES[number])) {
+      return NextResponse.json({ error: '无效的数据表' }, { status: 400 });
+    }
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return NextResponse.json({ error: '请选择要导出的数据' }, { status: 400 });
+    }
+
+    const config = TABLE_CONFIG[table];
+    if (!config) {
+      return NextResponse.json({ error: '未找到表配置' }, { status: 400 });
+    }
+
+    // 查询选中的数据
+    const tableSchema = tableMap[table as keyof typeof tableMap];
+    const data = db
+      .select()
+      .from(tableSchema)
+      .all()
+      .filter(item => ids.includes((item as Record<string, unknown>).id));
+
+    // 转换数据格式
+    const rows = (data || []).map(item => {
+      const row: Record<string, unknown> = {};
+      config.columns.forEach(col => {
+        let value = (item as Record<string, unknown>)[col.key];
+        // 处理布尔值
+        if (typeof value === 'boolean') {
+          value = value ? '是' : '否';
+        }
+        // 处理 null/undefined
+        if (value === null || value === undefined) {
+          value = '';
+        }
+        row[col.label] = value;
+      });
+      return row;
+    });
+
+    // 创建工作簿
+    const workbook = XLSX.utils.book_new();
+
+    // 表头
+    const headers = config.columns.map(col => col.label);
+
+    // 数据行
+    const sheetData = [
+      headers,
+      ...rows.map(row => headers.map(h => row[h] ?? ''))
+    ];
+
+    // 创建工作表
+    const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+    // 设置列宽
+    worksheet['!cols'] = config.columns.map(col => ({
+      wch: Math.max(col.label.length * 2, 12)
+    }));
+
+    // 添加工作表
+    XLSX.utils.book_append_sheet(workbook, worksheet, config.label);
+
+    // 生成 Excel 文件
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+    // 返回文件
+    return new NextResponse(buffer, {
+      headers: {
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': `attachment; filename="${table}_selected_${new Date().toISOString().split('T')[0]}.xlsx"`,
+      },
+    });
+  } catch (error) {
+    console.error('Batch export error:', error);
+    return NextResponse.json({ error: '导出失败' }, { status: 500 });
+  }
+}
