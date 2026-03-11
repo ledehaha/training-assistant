@@ -46,28 +46,28 @@ import ApiKeyCheckDialog, { checkApiKeyConfigured } from '@/components/api-key-c
 
 // 职称到课时费的映射表
 const TITLE_TO_HOURLY_RATE: Record<string, number> = {
-  // 院士级
+  // 院士级：1500元/小时
   '院士': 1500,
   '中国科学院院士': 1500,
   '中国工程院院士': 1500,
   
-  // 正高
+  // 教授级：1000元/小时
   '教授': 1000,
   '正教授': 1000,
-  '研究员': 1000,
-  '正高级工程师': 1000,
-  '正高级经济师': 1000,
-  '正高级会计师': 1000,
-  '主任医师': 1000,
-  '主任药师': 1000,
-  '主任技师': 1000,
-  '编审': 1000,
-  '译审': 1000,
-  '教授级高级工程师': 1000,
-  '教授级高工': 1000,
-  '国家级教练': 1000,
   
-  // 副高
+  // 其他职称：500元/小时
+  '研究员': 500,
+  '正高级工程师': 500,
+  '正高级经济师': 500,
+  '正高级会计师': 500,
+  '主任医师': 500,
+  '主任药师': 500,
+  '主任技师': 500,
+  '编审': 500,
+  '译审': 500,
+  '教授级高级工程师': 500,
+  '教授级高工': 500,
+  '国家级教练': 500,
   '副教授': 500,
   '副研究员': 500,
   '高级工程师': 500,
@@ -86,8 +86,6 @@ const TITLE_TO_HOURLY_RATE: Record<string, number> = {
   '高级教师': 500,
   '省级教练': 500,
   '高级技师': 500,
-  
-  // 中级
   '讲师': 500,
   '助理研究员': 500,
   '工程师': 500,
@@ -103,8 +101,6 @@ const TITLE_TO_HOURLY_RATE: Record<string, number> = {
   '一级教师': 500,
   '一级教练': 500,
   '技师': 500,
-  
-  // 初级
   '助教': 500,
   '助理工程师': 500,
   '助理经济师': 500,
@@ -120,7 +116,7 @@ const TITLE_TO_HOURLY_RATE: Record<string, number> = {
   '二级教练': 500,
   
   // 标准等级（兼容旧数据）
-  '正高': 1000,
+  '正高': 500,
   '副高': 500,
   '中级': 500,
   '初级': 500,
@@ -136,15 +132,12 @@ const getHourlyRateByTitle = (title: string | undefined | null): number => {
     return TITLE_TO_HOURLY_RATE[title];
   }
   
-  // 模糊匹配
+  // 模糊匹配（上海市三档标准：院士1500、教授1000、其他500）
   const lowerTitle = title.toLowerCase();
   if (lowerTitle.includes('院士')) return 1500;
-  if (lowerTitle.includes('正高') || lowerTitle.includes('教授级')) return 1000;
   if (lowerTitle.includes('教授') && !lowerTitle.includes('副')) return 1000;
-  if (lowerTitle.includes('研究员') && !lowerTitle.includes('副') && !lowerTitle.includes('助理')) return 1000;
-  if (lowerTitle.includes('副高') || lowerTitle.includes('副教授') || lowerTitle.includes('高级工程师') || lowerTitle.includes('高级技师')) return 500;
-  if (lowerTitle.includes('讲师') || lowerTitle.includes('工程师') || lowerTitle.includes('技师')) return 500;
   
+  // 其他所有职称统一500元
   return 500;
 };
 
