@@ -185,9 +185,16 @@ const tableMap = {
 
 // 表结构描述
 const TABLE_SCHEMA: Record<string, string> = {
-  teachers: `讲师信息表: name(必填), title(职称:院士/正高/副高/中级/初级/其他), expertise, organization, bio, hourlyRate(课时费:院士1500/正高1000/副高500/中级500/初级500/其他500), rating, teachingCount, isActive
+  teachers: `讲师信息表: name(必填), title(职称:院士/正高/副高/中级/初级/其他), expertise, organization, bio, hourlyRate(课时费), rating, teachingCount, isActive
 
-**重要**：识别职称后必须自动计算hourlyRate字段！教授=正高(1000元)，副教授=副高(500元)`,
+**职称识别规则**：
+- 院士级(1500元)：院士、中国科学院院士、中国工程院院士
+- 正高(1000元)：教授、研究员、正高级工程师、主任医师、教授级高级工程师、国家级教练
+- 副高(500元)：副教授、副研究员、高级工程师、高级经济师、副主任医师、高级技师
+- 中级(500元)：讲师、工程师、经济师、主治医师、技师
+- 初级(500元)：助教、助理工程师、医师
+
+注意："高级工程师"是副高，"教授级高级工程师"才是正高；"高级技师"是副高，"技师"是中级`,
   venues: '场地信息表: name(必填), location, capacity, dailyRate, facilities, rating, usageCount, isActive',
   course_templates: '课程模板表: name(必填), category, duration, targetAudience, difficulty, description, usageCount, avgRating',
   normative_documents: '规范性文件表: name(必填), summary, issuer, issueDate, filePath, isEffective',
