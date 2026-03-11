@@ -620,6 +620,10 @@ export default function DesignPage() {
   const doGenerateScheme = async () => {
     setGenerateLoading(true);
     try {
+      // 添加超时控制（60秒）
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
+      
       const res = await fetch('/api/ai/recommend', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -633,7 +637,10 @@ export default function DesignPage() {
             noBudgetLimit,
           },
         }),
+        signal: controller.signal,
       });
+      
+      clearTimeout(timeoutId);
       
       const data = await res.json();
       
@@ -649,12 +656,23 @@ export default function DesignPage() {
         }));
         
         setCourses(generatedCourses);
+      } else if (data.data?.raw) {
+        // AI 返回了内容但无法解析
+        console.error('AI response parse error:', data.data.raw);
+        alert('AI 响应格式异常，请重试');
       } else if (data.error) {
         alert(data.error);
+      } else {
+        console.error('Unexpected response:', data);
+        alert('生成方案失败，请重试');
       }
     } catch (error) {
       console.error('Generate scheme error:', error);
-      alert('生成方案失败，请重试');
+      if (error instanceof Error && error.name === 'AbortError') {
+        alert('生成超时，请重试');
+      } else {
+        alert('生成方案失败，请重试');
+      }
     } finally {
       setGenerateLoading(false);
     }
@@ -762,12 +780,10 @@ export default function DesignPage() {
   const handleNextToScheme = async () => {
     setActiveTab('scheme');
     
-    // 如果没有课程，自动生成方案（无需用户确认）
+    // 如果没有课程且有项目名称，自动生成方案
     if (courses.length === 0 && formData.name) {
-      // 延迟一下，让 tab 切换完成
-      setTimeout(() => {
-        handleGenerateScheme();
-      }, 300);
+      // 直接调用生成，不用 setTimeout
+      handleGenerateScheme();
     }
   };
 
