@@ -83,6 +83,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '无效的数据' }, { status: 400 });
     }
 
+    // 调试日志
+    console.log('[API /admin/data POST] table:', table);
+    console.log('[API /admin/data POST] data:', JSON.stringify(data, null, 2));
+
     // 准备插入数据
     const now = getTimestamp();
     const insertData = {
@@ -91,9 +95,13 @@ export async function POST(request: NextRequest) {
       createdAt: now,
     };
 
+    console.log('[API /admin/data POST] insertData:', JSON.stringify(insertData, null, 2));
+
     // 根据表执行插入
     const tableSchema = tableMap[table];
     const result = db.insert(tableSchema).values(insertData).returning().get();
+
+    console.log('[API /admin/data POST] result:', JSON.stringify(result, null, 2));
 
     // 保存数据库到文件
     saveDatabaseImmediate();

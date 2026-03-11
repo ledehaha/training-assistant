@@ -192,6 +192,15 @@ export default function DataManagementPage() {
   const [aiImportPreview, setAiImportPreview] = useState<Record<string, unknown>[] | null>(null);
   const [aiImportConfirming, setAiImportConfirming] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0); // 当前编辑的数据索引
+  // 重复数据检测状态
+  const [duplicateCheckLoading, setDuplicateCheckLoading] = useState(false);
+  const [duplicates, setDuplicates] = useState<Array<{
+    index: number;
+    record: Record<string, unknown>;
+    existing: Record<string, unknown> | null;
+    matchFields: string[];
+  }>>([]);
+  const [importDecisions, setImportDecisions] = useState<Record<number, 'skip' | 'update' | 'add'>>({});
   // 规范性文件专用状态
   const [normativeFile, setNormativeFile] = useState<File | null>(null);
   const [aiFillingLoading, setAiFillingLoading] = useState(false);
@@ -425,6 +434,36 @@ export default function DataManagementPage() {
     await doAiImport();
   };
 
+  // 检测重复数据
+  const checkDuplicates = async (records: Record<string, unknown>[]) => {
+    setDuplicateCheckLoading(true);
+    try {
+      const res = await fetch('/api/admin/data/check-duplicates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          table: selectedTable.name,
+          records: records,
+        }),
+      });
+
+      const result = await res.json();
+      if (result.success) {
+        setDuplicates(result.duplicates || []);
+        // 默认所有重复记录选择"新增"
+        const defaultDecisions: Record<number, 'skip' | 'update' | 'add'> = {};
+        result.duplicates?.forEach((dup: { index: number }) => {
+          defaultDecisions[dup.index] = 'add';
+        });
+        setImportDecisions(defaultDecisions);
+      }
+    } catch (error) {
+      console.error('Check duplicates error:', error);
+    } finally {
+      setDuplicateCheckLoading(false);
+    }
+  };
+
   // 实际执行 AI 导入
   const doAiImport = async () => {
     setAiImportLoading(true);
@@ -444,6 +483,8 @@ export default function DataManagementPage() {
         const previewData = Array.isArray(result.data) ? result.data : [result.data];
         setAiImportPreview(previewData);
         setCurrentIndex(0);
+        // 检测重复数据
+        await checkDuplicates(previewData);
       } else {
         setMessage({ type: 'error', text: result.error || 'AI 解析失败' });
       }
@@ -491,6 +532,8 @@ export default function DataManagementPage() {
         const previewData = Array.isArray(result.data) ? result.data : [result.data];
         setAiImportPreview(previewData);
         setCurrentIndex(0);
+        // 检测重复数据
+        await checkDuplicates(previewData);
       } else {
         setMessage({ type: 'error', text: result.error || '文件解析失败' });
       }
@@ -586,44 +629,92 @@ export default function DataManagementPage() {
     try {
       let successCount = 0;
       let failCount = 0;
+      let skipCount = 0;
+      let updateCount = 0;
+
+      // 构建重复数据索引映射
+      const duplicateMap = new Map<number, { existing: Record<string, unknown>; decision: 'skip' | 'update' | 'add' }>();
+      duplicates.forEach(dup => {
+        duplicateMap.set(dup.index, { 
+          existing: dup.existing || {}, 
+          decision: importDecisions[dup.index] || 'add' 
+        });
+      });
 
       // 批量导入数据
-      for (const item of aiImportPreview) {
+      for (let i = 0; i < aiImportPreview.length; i++) {
+        const item = aiImportPreview[i];
+        const dupInfo = duplicateMap.get(i);
+
+        // 如果是重复数据且选择跳过
+        if (dupInfo && dupInfo.decision === 'skip') {
+          skipCount++;
+          continue;
+        }
+
         try {
           // 转换字段名
           const convertedData = convertFieldNames(selectedTable.name, item);
           
-          const res = await fetch('/api/admin/data', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              table: selectedTable.name,
-              data: convertedData,
-            }),
-          });
+          // 如果是重复数据且选择更新
+          if (dupInfo && dupInfo.decision === 'update' && dupInfo.existing.id) {
+            const res = await fetch('/api/admin/data', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                table: selectedTable.name,
+                id: dupInfo.existing.id,
+                data: convertedData,
+              }),
+            });
 
-          const result = await res.json();
-          if (result.success) {
-            successCount++;
+            const result = await res.json();
+            if (result.success) {
+              successCount++;
+              updateCount++;
+            } else {
+              failCount++;
+            }
           } else {
-            failCount++;
+            // 新增数据
+            const res = await fetch('/api/admin/data', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                table: selectedTable.name,
+                data: convertedData,
+              }),
+            });
+
+            const result = await res.json();
+            if (result.success) {
+              successCount++;
+            } else {
+              failCount++;
+            }
           }
         } catch {
           failCount++;
         }
       }
 
-      if (successCount > 0) {
+      if (successCount > 0 || skipCount > 0) {
+        const messages: string[] = [];
+        if (successCount > 0) messages.push(`导入 ${successCount} 条`);
+        if (updateCount > 0) messages.push(`更新 ${updateCount} 条`);
+        if (skipCount > 0) messages.push(`跳过 ${skipCount} 条`);
+        if (failCount > 0) messages.push(`失败 ${failCount} 条`);
+        
         setMessage({ 
           type: 'success', 
-          text: failCount > 0 
-            ? `成功导入 ${successCount} 条数据，${failCount} 条失败` 
-            : `成功导入 ${successCount} 条数据`
+          text: messages.join('，')
         });
         setAiImportDialogOpen(false);
         setUploadFile(null);
         setAiImportPreview(null);
         setCurrentIndex(0);
+        setDuplicates([]);
+        setImportDecisions({});
         loadData();
       } else {
         setMessage({ type: 'error', text: '导入失败' });
@@ -1349,6 +1440,29 @@ export default function DataManagementPage() {
           {/* AI 分析预览结果 */}
           {aiImportPreview && aiImportPreview.length > 0 && (
             <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              {/* 重复数据提示 */}
+              {duplicates.length > 0 && (
+                <div className="mb-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertCircle className="w-5 h-5 text-yellow-600" />
+                    <span className="font-medium text-yellow-700">
+                      发现 {duplicates.length} 条可能重复的数据
+                    </span>
+                  </div>
+                  <p className="text-sm text-yellow-600">
+                    以下标记为重复的数据，请选择处理方式：跳过（不导入）、更新（覆盖已有数据）或新增（作为新记录）。
+                  </p>
+                </div>
+              )}
+              
+              {/* 重复检测加载中 */}
+              {duplicateCheckLoading && (
+                <div className="flex items-center gap-2 mb-3 text-sm text-gray-500">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  正在检测重复数据...
+                </div>
+              )}
+              
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <CheckCircle className="w-5 h-5 text-blue-600" />
@@ -1380,6 +1494,65 @@ export default function DataManagementPage() {
                   </div>
                 )}
               </div>
+              
+              {/* 当前记录的重复数据处理选择 */}
+              {(() => {
+                const currentDup = duplicates.find(d => d.index === currentIndex);
+                if (!currentDup) return null;
+                return (
+                  <div className="mb-3 p-3 bg-yellow-50 rounded-lg border border-yellow-300">
+                    <div className="flex items-center gap-2 mb-2">
+                      <AlertCircle className="w-4 h-4 text-yellow-600" />
+                      <span className="font-medium text-yellow-700">发现重复数据</span>
+                    </div>
+                    <div className="text-sm text-yellow-700 mb-2">
+                      匹配字段：{currentDup.matchFields.join('、')}
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <Button
+                        variant={importDecisions[currentIndex] === 'skip' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setImportDecisions({ ...importDecisions, [currentIndex]: 'skip' })}
+                        className={importDecisions[currentIndex] === 'skip' ? 'bg-gray-600 hover:bg-gray-700' : ''}
+                      >
+                        跳过
+                      </Button>
+                      <Button
+                        variant={importDecisions[currentIndex] === 'update' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setImportDecisions({ ...importDecisions, [currentIndex]: 'update' })}
+                        className={importDecisions[currentIndex] === 'update' ? 'bg-blue-600 hover:bg-blue-700' : ''}
+                      >
+                        更新
+                      </Button>
+                      <Button
+                        variant={importDecisions[currentIndex] === 'add' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setImportDecisions({ ...importDecisions, [currentIndex]: 'add' })}
+                        className={importDecisions[currentIndex] === 'add' ? 'bg-green-600 hover:bg-green-700' : ''}
+                      >
+                        新增
+                      </Button>
+                    </div>
+                    {currentDup.existing && (
+                      <div className="mt-2 p-2 bg-white rounded border text-xs text-gray-600">
+                        <div className="font-medium mb-1">已有记录：</div>
+                        <div className="space-y-1">
+                          {Object.entries(currentDup.existing)
+                            .filter(([key]) => !['id', 'created_at', 'updated_at'].includes(key))
+                            .slice(0, 5)
+                            .map(([key, value]) => (
+                              <div key={key}>
+                                <span className="font-medium">{key}：</span>
+                                {String(value).substring(0, 50)}
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
               
               {/* 通用预览表单 - 根据表类型渲染不同字段 */}
               <div className="space-y-3 text-sm">
