@@ -188,9 +188,10 @@ export default function DataManagementPage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [fileImportLoading, setFileImportLoading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  // AI 导入预览状态
-  const [aiImportPreview, setAiImportPreview] = useState<Record<string, unknown> | null>(null);
+  // AI 导入预览状态（支持多条数据）
+  const [aiImportPreview, setAiImportPreview] = useState<Record<string, unknown>[] | null>(null);
   const [aiImportConfirming, setAiImportConfirming] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(0); // 当前编辑的数据索引
   // 规范性文件专用状态
   const [normativeFile, setNormativeFile] = useState<File | null>(null);
   const [aiFillingLoading, setAiFillingLoading] = useState(false);
@@ -428,7 +429,7 @@ export default function DataManagementPage() {
   const doAiImport = async () => {
     setAiImportLoading(true);
     try {
-      const res = await fetch('/api/admin/data/ai-import', {
+      const res = await fetch('/api/admin/data/ai-analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -438,11 +439,11 @@ export default function DataManagementPage() {
       });
 
       const result = await res.json();
-      if (result.success) {
-        setMessage({ type: 'success', text: result.summary || `成功导入 ${result.count} 条数据` });
-        setAiImportDialogOpen(false);
-        setAiImportText('');
-        loadData();
+      if (result.success && result.data) {
+        // 显示预览结果（支持单条或多条）
+        const previewData = Array.isArray(result.data) ? result.data : [result.data];
+        setAiImportPreview(previewData);
+        setCurrentIndex(0);
       } else {
         setMessage({ type: 'error', text: result.error || 'AI 解析失败' });
       }
@@ -474,49 +475,24 @@ export default function DataManagementPage() {
   const doFileImport = async () => {
     setFileImportLoading(true);
     try {
-      // 对于规范性文件，先分析显示预览
-      if (selectedTable.name === 'normative_documents') {
-        const formDataObj = new FormData();
-        formDataObj.append('file', uploadFile!);
+      // 调用通用 AI 分析 API
+      const formDataObj = new FormData();
+      formDataObj.append('file', uploadFile!);
+      formDataObj.append('table', selectedTable.name);
 
-        const res = await fetch('/api/admin/data/analyze-normative', {
-          method: 'POST',
-          body: formDataObj,
-        });
+      const res = await fetch('/api/admin/data/ai-analyze', {
+        method: 'POST',
+        body: formDataObj,
+      });
 
-        const result = await res.json();
-        if (result.success && result.data) {
-          // 显示预览结果
-          setAiImportPreview({
-            name: result.data.name || uploadFile!.name.replace(/\.[^/.]+$/, ''),
-            summary: result.data.summary || '',
-            issuer: result.data.issuer || '',
-            issue_date: result.data.issueDate || '',
-            is_effective: true,
-          });
-        } else {
-          setMessage({ type: 'error', text: result.error || '文件解析失败' });
-        }
+      const result = await res.json();
+      if (result.success && result.data) {
+        // 显示预览结果（支持单条或多条）
+        const previewData = Array.isArray(result.data) ? result.data : [result.data];
+        setAiImportPreview(previewData);
+        setCurrentIndex(0);
       } else {
-        // 其他表直接导入
-        const formDataObj = new FormData();
-        formDataObj.append('file', uploadFile!);
-        formDataObj.append('table', selectedTable.name);
-
-        const res = await fetch('/api/admin/data/ai-import-file', {
-          method: 'POST',
-          body: formDataObj,
-        });
-
-        const result = await res.json();
-        if (result.success) {
-          setMessage({ type: 'success', text: result.summary || `成功导入 ${result.count} 条数据` });
-          setAiImportDialogOpen(false);
-          setUploadFile(null);
-          loadData();
-        } else {
-          setMessage({ type: 'error', text: result.error || '文件解析失败' });
-        }
+        setMessage({ type: 'error', text: result.error || '文件解析失败' });
       }
     } catch (error) {
       console.error('File import error:', error);
@@ -526,30 +502,52 @@ export default function DataManagementPage() {
     }
   };
 
-  // 确认导入规范性文件
-  const confirmImportNormative = async () => {
-    if (!aiImportPreview) return;
+  // 确认导入数据
+  const confirmImport = async () => {
+    if (!aiImportPreview || aiImportPreview.length === 0) return;
     
     setAiImportConfirming(true);
     try {
-      const res = await fetch('/api/admin/data', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          table: 'normative_documents',
-          data: aiImportPreview,
-        }),
-      });
+      let successCount = 0;
+      let failCount = 0;
 
-      const result = await res.json();
-      if (result.success) {
-        setMessage({ type: 'success', text: '规范性文件导入成功' });
+      // 批量导入数据
+      for (const item of aiImportPreview) {
+        try {
+          const res = await fetch('/api/admin/data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              table: selectedTable.name,
+              data: item,
+            }),
+          });
+
+          const result = await res.json();
+          if (result.success) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } catch {
+          failCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        setMessage({ 
+          type: 'success', 
+          text: failCount > 0 
+            ? `成功导入 ${successCount} 条数据，${failCount} 条失败` 
+            : `成功导入 ${successCount} 条数据`
+        });
         setAiImportDialogOpen(false);
         setUploadFile(null);
         setAiImportPreview(null);
+        setCurrentIndex(0);
         loadData();
       } else {
-        setMessage({ type: 'error', text: result.error || '导入失败' });
+        setMessage({ type: 'error', text: '导入失败' });
       }
     } catch (error) {
       console.error('Confirm import error:', error);
@@ -1270,80 +1268,582 @@ export default function DataManagementPage() {
           </div>
           
           {/* AI 分析预览结果 */}
-          {aiImportPreview && selectedTable.name === 'normative_documents' && (
+          {aiImportPreview && aiImportPreview.length > 0 && (
             <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="flex items-center gap-2 mb-3">
-                <CheckCircle className="w-5 h-5 text-blue-600" />
-                <span className="font-medium text-blue-700">AI 分析结果（可编辑）</span>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-5 h-5 text-blue-600" />
+                  <span className="font-medium text-blue-700">
+                    AI 分析结果（可编辑）{aiImportPreview.length > 1 && ` - 共 ${aiImportPreview.length} 条`}
+                  </span>
+                </div>
+                {aiImportPreview.length > 1 && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
+                      disabled={currentIndex === 0}
+                    >
+                      上一条
+                    </Button>
+                    <span className="text-sm text-gray-600">
+                      {currentIndex + 1} / {aiImportPreview.length}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentIndex(Math.min(aiImportPreview.length - 1, currentIndex + 1))}
+                      disabled={currentIndex === aiImportPreview.length - 1}
+                    >
+                      下一条
+                    </Button>
+                  </div>
+                )}
               </div>
+              
+              {/* 通用预览表单 - 根据表类型渲染不同字段 */}
               <div className="space-y-3 text-sm">
-                {/* 文件名称 */}
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-gray-700 w-20 shrink-0">文件名称：</span>
-                  <Input
-                    type="text"
-                    value={String(aiImportPreview.name || '')}
-                    onChange={(e) => setAiImportPreview({ ...aiImportPreview, name: e.target.value })}
-                    className="flex-1 bg-white"
-                  />
-                </div>
-                {/* 颁发部门 */}
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-gray-700 w-20 shrink-0">颁发部门：</span>
-                  <Input
-                    type="text"
-                    value={String(aiImportPreview.issuer || '')}
-                    onChange={(e) => setAiImportPreview({ ...aiImportPreview, issuer: e.target.value })}
-                    placeholder="未识别"
-                    className="flex-1 bg-white"
-                  />
-                </div>
-                {/* 颁发时间 */}
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-gray-700 w-20 shrink-0">颁发时间：</span>
-                  <Input
-                    type="date"
-                    value={String(aiImportPreview.issue_date || '').substring(0, 10)}
-                    onChange={(e) => setAiImportPreview({ ...aiImportPreview, issue_date: e.target.value })}
-                    className="flex-1 bg-white"
-                  />
-                </div>
-                {/* 内容摘要 */}
-                <div>
-                  <span className="font-medium text-gray-700">内容摘要：</span>
-                  <textarea
-                    className="mt-1 w-full p-2 bg-white border border-gray-300 rounded-md text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    rows={3}
-                    value={String(aiImportPreview.summary || '')}
-                    onChange={(e) => setAiImportPreview({ ...aiImportPreview, summary: e.target.value })}
-                    placeholder="未识别"
-                  />
-                </div>
-                {/* 是否有效 */}
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-gray-700 w-20 shrink-0">是否有效：</span>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(aiImportPreview.is_effective)}
-                      onChange={(e) => setAiImportPreview({ ...aiImportPreview, is_effective: e.target.checked })}
-                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                    />
-                    <span className="text-gray-600">是</span>
-                  </label>
-                </div>
+                {selectedTable.name === 'teachers' && aiImportPreview[currentIndex] && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700 w-24 shrink-0">讲师姓名：</span>
+                      <Input
+                        type="text"
+                        value={String(aiImportPreview[currentIndex].name || '')}
+                        onChange={(e) => {
+                          const newData = [...aiImportPreview];
+                          newData[currentIndex] = { ...newData[currentIndex], name: e.target.value };
+                          setAiImportPreview(newData);
+                        }}
+                        className="flex-1 bg-white"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700 w-24 shrink-0">职称：</span>
+                      <Input
+                        type="text"
+                        value={String(aiImportPreview[currentIndex].title || '')}
+                        onChange={(e) => {
+                          const newData = [...aiImportPreview];
+                          newData[currentIndex] = { ...newData[currentIndex], title: e.target.value };
+                          setAiImportPreview(newData);
+                        }}
+                        placeholder="未识别"
+                        className="flex-1 bg-white"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700 w-24 shrink-0">专业领域：</span>
+                      <Input
+                        type="text"
+                        value={String(aiImportPreview[currentIndex].expertise || '')}
+                        onChange={(e) => {
+                          const newData = [...aiImportPreview];
+                          newData[currentIndex] = { ...newData[currentIndex], expertise: e.target.value };
+                          setAiImportPreview(newData);
+                        }}
+                        placeholder="未识别"
+                        className="flex-1 bg-white"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700 w-24 shrink-0">所属单位：</span>
+                      <Input
+                        type="text"
+                        value={String(aiImportPreview[currentIndex].organization || '')}
+                        onChange={(e) => {
+                          const newData = [...aiImportPreview];
+                          newData[currentIndex] = { ...newData[currentIndex], organization: e.target.value };
+                          setAiImportPreview(newData);
+                        }}
+                        placeholder="未识别"
+                        className="flex-1 bg-white"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700 w-24 shrink-0">课时费(元)：</span>
+                      <Input
+                        type="number"
+                        value={String(aiImportPreview[currentIndex].hourly_rate || '')}
+                        onChange={(e) => {
+                          const newData = [...aiImportPreview];
+                          newData[currentIndex] = { ...newData[currentIndex], hourly_rate: parseFloat(e.target.value) || 0 };
+                          setAiImportPreview(newData);
+                        }}
+                        placeholder="0"
+                        className="flex-1 bg-white"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700 w-24 shrink-0">是否在职：</span>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(aiImportPreview[currentIndex].is_active)}
+                          onChange={(e) => {
+                            const newData = [...aiImportPreview];
+                            newData[currentIndex] = { ...newData[currentIndex], is_active: e.target.checked };
+                            setAiImportPreview(newData);
+                          }}
+                          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-gray-600">是</span>
+                      </label>
+                    </div>
+                  </>
+                )}
+                
+                {selectedTable.name === 'venues' && aiImportPreview[currentIndex] && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700 w-24 shrink-0">场地名称：</span>
+                      <Input
+                        type="text"
+                        value={String(aiImportPreview[currentIndex].name || '')}
+                        onChange={(e) => {
+                          const newData = [...aiImportPreview];
+                          newData[currentIndex] = { ...newData[currentIndex], name: e.target.value };
+                          setAiImportPreview(newData);
+                        }}
+                        className="flex-1 bg-white"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700 w-24 shrink-0">地址：</span>
+                      <Input
+                        type="text"
+                        value={String(aiImportPreview[currentIndex].location || '')}
+                        onChange={(e) => {
+                          const newData = [...aiImportPreview];
+                          newData[currentIndex] = { ...newData[currentIndex], location: e.target.value };
+                          setAiImportPreview(newData);
+                        }}
+                        placeholder="未识别"
+                        className="flex-1 bg-white"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700 w-24 shrink-0">容纳人数：</span>
+                      <Input
+                        type="number"
+                        value={String(aiImportPreview[currentIndex].capacity || '')}
+                        onChange={(e) => {
+                          const newData = [...aiImportPreview];
+                          newData[currentIndex] = { ...newData[currentIndex], capacity: parseInt(e.target.value) || 0 };
+                          setAiImportPreview(newData);
+                        }}
+                        placeholder="0"
+                        className="flex-1 bg-white"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700 w-24 shrink-0">日租金(元)：</span>
+                      <Input
+                        type="number"
+                        value={String(aiImportPreview[currentIndex].daily_rate || '')}
+                        onChange={(e) => {
+                          const newData = [...aiImportPreview];
+                          newData[currentIndex] = { ...newData[currentIndex], daily_rate: parseFloat(e.target.value) || 0 };
+                          setAiImportPreview(newData);
+                        }}
+                        placeholder="0"
+                        className="flex-1 bg-white"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700 w-24 shrink-0">设施：</span>
+                      <Input
+                        type="text"
+                        value={String(aiImportPreview[currentIndex].facilities || '')}
+                        onChange={(e) => {
+                          const newData = [...aiImportPreview];
+                          newData[currentIndex] = { ...newData[currentIndex], facilities: e.target.value };
+                          setAiImportPreview(newData);
+                        }}
+                        placeholder="未识别"
+                        className="flex-1 bg-white"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700 w-24 shrink-0">是否可用：</span>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(aiImportPreview[currentIndex].is_active)}
+                          onChange={(e) => {
+                            const newData = [...aiImportPreview];
+                            newData[currentIndex] = { ...newData[currentIndex], is_active: e.target.checked };
+                            setAiImportPreview(newData);
+                          }}
+                          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-gray-600">是</span>
+                      </label>
+                    </div>
+                  </>
+                )}
+                
+                {selectedTable.name === 'course_templates' && aiImportPreview[currentIndex] && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700 w-24 shrink-0">课程名称：</span>
+                      <Input
+                        type="text"
+                        value={String(aiImportPreview[currentIndex].name || '')}
+                        onChange={(e) => {
+                          const newData = [...aiImportPreview];
+                          newData[currentIndex] = { ...newData[currentIndex], name: e.target.value };
+                          setAiImportPreview(newData);
+                        }}
+                        className="flex-1 bg-white"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700 w-24 shrink-0">类别：</span>
+                      <select
+                        value={String(aiImportPreview[currentIndex].category || '')}
+                        onChange={(e) => {
+                          const newData = [...aiImportPreview];
+                          newData[currentIndex] = { ...newData[currentIndex], category: e.target.value };
+                          setAiImportPreview(newData);
+                        }}
+                        className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">请选择</option>
+                        <option value="管理技能">管理技能</option>
+                        <option value="专业技能">专业技能</option>
+                        <option value="职业素养">职业素养</option>
+                        <option value="综合提升">综合提升</option>
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700 w-24 shrink-0">课时：</span>
+                      <Input
+                        type="number"
+                        value={String(aiImportPreview[currentIndex].duration || '')}
+                        onChange={(e) => {
+                          const newData = [...aiImportPreview];
+                          newData[currentIndex] = { ...newData[currentIndex], duration: parseFloat(e.target.value) || 0 };
+                          setAiImportPreview(newData);
+                        }}
+                        placeholder="0"
+                        className="flex-1 bg-white"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700 w-24 shrink-0">目标人群：</span>
+                      <Input
+                        type="text"
+                        value={String(aiImportPreview[currentIndex].target_audience || '')}
+                        onChange={(e) => {
+                          const newData = [...aiImportPreview];
+                          newData[currentIndex] = { ...newData[currentIndex], target_audience: e.target.value };
+                          setAiImportPreview(newData);
+                        }}
+                        placeholder="未识别"
+                        className="flex-1 bg-white"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700 w-24 shrink-0">难度：</span>
+                      <select
+                        value={String(aiImportPreview[currentIndex].difficulty || '')}
+                        onChange={(e) => {
+                          const newData = [...aiImportPreview];
+                          newData[currentIndex] = { ...newData[currentIndex], difficulty: e.target.value };
+                          setAiImportPreview(newData);
+                        }}
+                        className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">请选择</option>
+                        <option value="初级">初级</option>
+                        <option value="中级">中级</option>
+                        <option value="高级">高级</option>
+                      </select>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-700">课程描述：</span>
+                      <textarea
+                        className="mt-1 w-full p-2 bg-white border border-gray-300 rounded-md text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        rows={2}
+                        value={String(aiImportPreview[currentIndex].description || '')}
+                        onChange={(e) => {
+                          const newData = [...aiImportPreview];
+                          newData[currentIndex] = { ...newData[currentIndex], description: e.target.value };
+                          setAiImportPreview(newData);
+                        }}
+                        placeholder="未识别"
+                      />
+                    </div>
+                  </>
+                )}
+                
+                {selectedTable.name === 'normative_documents' && aiImportPreview[currentIndex] && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700 w-24 shrink-0">文件名称：</span>
+                      <Input
+                        type="text"
+                        value={String(aiImportPreview[currentIndex].name || '')}
+                        onChange={(e) => {
+                          const newData = [...aiImportPreview];
+                          newData[currentIndex] = { ...newData[currentIndex], name: e.target.value };
+                          setAiImportPreview(newData);
+                        }}
+                        className="flex-1 bg-white"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700 w-24 shrink-0">颁发部门：</span>
+                      <Input
+                        type="text"
+                        value={String(aiImportPreview[currentIndex].issuer || '')}
+                        onChange={(e) => {
+                          const newData = [...aiImportPreview];
+                          newData[currentIndex] = { ...newData[currentIndex], issuer: e.target.value };
+                          setAiImportPreview(newData);
+                        }}
+                        placeholder="未识别"
+                        className="flex-1 bg-white"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700 w-24 shrink-0">颁发时间：</span>
+                      <Input
+                        type="date"
+                        value={String(aiImportPreview[currentIndex].issue_date || '').substring(0, 10)}
+                        onChange={(e) => {
+                          const newData = [...aiImportPreview];
+                          newData[currentIndex] = { ...newData[currentIndex], issue_date: e.target.value };
+                          setAiImportPreview(newData);
+                        }}
+                        className="flex-1 bg-white"
+                      />
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-700">内容摘要：</span>
+                      <textarea
+                        className="mt-1 w-full p-2 bg-white border border-gray-300 rounded-md text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        rows={2}
+                        value={String(aiImportPreview[currentIndex].summary || '')}
+                        onChange={(e) => {
+                          const newData = [...aiImportPreview];
+                          newData[currentIndex] = { ...newData[currentIndex], summary: e.target.value };
+                          setAiImportPreview(newData);
+                        }}
+                        placeholder="未识别"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700 w-24 shrink-0">是否有效：</span>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(aiImportPreview[currentIndex].is_effective)}
+                          onChange={(e) => {
+                            const newData = [...aiImportPreview];
+                            newData[currentIndex] = { ...newData[currentIndex], is_effective: e.target.checked };
+                            setAiImportPreview(newData);
+                          }}
+                          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-gray-600">是</span>
+                      </label>
+                    </div>
+                  </>
+                )}
+                
+                {selectedTable.name === 'projects' && aiImportPreview[currentIndex] && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700 w-24 shrink-0">项目名称：</span>
+                      <Input
+                        type="text"
+                        value={String(aiImportPreview[currentIndex].name || '')}
+                        onChange={(e) => {
+                          const newData = [...aiImportPreview];
+                          newData[currentIndex] = { ...newData[currentIndex], name: e.target.value };
+                          setAiImportPreview(newData);
+                        }}
+                        className="flex-1 bg-white"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700 w-24 shrink-0">培训目标：</span>
+                      <Input
+                        type="text"
+                        value={String(aiImportPreview[currentIndex].training_target || '')}
+                        onChange={(e) => {
+                          const newData = [...aiImportPreview];
+                          newData[currentIndex] = { ...newData[currentIndex], training_target: e.target.value };
+                          setAiImportPreview(newData);
+                        }}
+                        placeholder="未识别"
+                        className="flex-1 bg-white"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700 w-24 shrink-0">目标人群：</span>
+                      <Input
+                        type="text"
+                        value={String(aiImportPreview[currentIndex].target_audience || '')}
+                        onChange={(e) => {
+                          const newData = [...aiImportPreview];
+                          newData[currentIndex] = { ...newData[currentIndex], target_audience: e.target.value };
+                          setAiImportPreview(newData);
+                        }}
+                        placeholder="未识别"
+                        className="flex-1 bg-white"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700 w-24 shrink-0">参训人数：</span>
+                      <Input
+                        type="number"
+                        value={String(aiImportPreview[currentIndex].participant_count || '')}
+                        onChange={(e) => {
+                          const newData = [...aiImportPreview];
+                          newData[currentIndex] = { ...newData[currentIndex], participant_count: parseInt(e.target.value) || 0 };
+                          setAiImportPreview(newData);
+                        }}
+                        placeholder="0"
+                        className="flex-1 bg-white"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700 w-24 shrink-0">培训天数：</span>
+                      <Input
+                        type="number"
+                        value={String(aiImportPreview[currentIndex].training_days || '')}
+                        onChange={(e) => {
+                          const newData = [...aiImportPreview];
+                          newData[currentIndex] = { ...newData[currentIndex], training_days: parseFloat(e.target.value) || 0 };
+                          setAiImportPreview(newData);
+                        }}
+                        placeholder="0"
+                        className="flex-1 bg-white"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700 w-24 shrink-0">总预算(元)：</span>
+                      <Input
+                        type="number"
+                        value={String(aiImportPreview[currentIndex].total_budget || '')}
+                        onChange={(e) => {
+                          const newData = [...aiImportPreview];
+                          newData[currentIndex] = { ...newData[currentIndex], total_budget: parseFloat(e.target.value) || 0 };
+                          setAiImportPreview(newData);
+                        }}
+                        placeholder="0"
+                        className="flex-1 bg-white"
+                      />
+                    </div>
+                  </>
+                )}
+                
+                {selectedTable.name === 'satisfaction_surveys' && aiImportPreview[currentIndex] && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700 w-24 shrink-0">总体评分：</span>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        min="1"
+                        max="5"
+                        value={String(aiImportPreview[currentIndex].overall_score || '')}
+                        onChange={(e) => {
+                          const newData = [...aiImportPreview];
+                          newData[currentIndex] = { ...newData[currentIndex], overall_score: parseFloat(e.target.value) || 0 };
+                          setAiImportPreview(newData);
+                        }}
+                        placeholder="1-5"
+                        className="flex-1 bg-white"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700 w-24 shrink-0">内容评分：</span>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        min="1"
+                        max="5"
+                        value={String(aiImportPreview[currentIndex].content_score || '')}
+                        onChange={(e) => {
+                          const newData = [...aiImportPreview];
+                          newData[currentIndex] = { ...newData[currentIndex], content_score: parseFloat(e.target.value) || 0 };
+                          setAiImportPreview(newData);
+                        }}
+                        placeholder="1-5"
+                        className="flex-1 bg-white"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700 w-24 shrink-0">讲师评分：</span>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        min="1"
+                        max="5"
+                        value={String(aiImportPreview[currentIndex].teacher_score || '')}
+                        onChange={(e) => {
+                          const newData = [...aiImportPreview];
+                          newData[currentIndex] = { ...newData[currentIndex], teacher_score: parseFloat(e.target.value) || 0 };
+                          setAiImportPreview(newData);
+                        }}
+                        placeholder="1-5"
+                        className="flex-1 bg-white"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700 w-24 shrink-0">场地评分：</span>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        min="1"
+                        max="5"
+                        value={String(aiImportPreview[currentIndex].venue_score || '')}
+                        onChange={(e) => {
+                          const newData = [...aiImportPreview];
+                          newData[currentIndex] = { ...newData[currentIndex], venue_score: parseFloat(e.target.value) || 0 };
+                          setAiImportPreview(newData);
+                        }}
+                        placeholder="1-5"
+                        className="flex-1 bg-white"
+                      />
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-700">建议：</span>
+                      <textarea
+                        className="mt-1 w-full p-2 bg-white border border-gray-300 rounded-md text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        rows={2}
+                        value={String(aiImportPreview[currentIndex].suggestions || '')}
+                        onChange={(e) => {
+                          const newData = [...aiImportPreview];
+                          newData[currentIndex] = { ...newData[currentIndex], suggestions: e.target.value };
+                          setAiImportPreview(newData);
+                        }}
+                        placeholder="未识别"
+                      />
+                    </div>
+                  </>
+                )}
               </div>
+              
               <div className="flex gap-2 mt-4">
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setAiImportPreview(null)}
+                  onClick={() => {
+                    setAiImportPreview(null);
+                    setCurrentIndex(0);
+                  }}
                 >
                   取消
                 </Button>
                 <Button
                   size="sm"
-                  onClick={confirmImportNormative}
+                  onClick={confirmImport}
                   disabled={aiImportConfirming}
                   className="bg-green-600 hover:bg-green-700"
                 >
@@ -1355,7 +1855,7 @@ export default function DataManagementPage() {
                   ) : (
                     <>
                       <CheckCircle className="w-4 h-4 mr-2" />
-                      确认导入
+                      确认导入{aiImportPreview.length > 1 ? `（${aiImportPreview.length}条）` : ''}
                     </>
                   )}
                 </Button>
