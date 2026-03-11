@@ -216,24 +216,26 @@ export async function POST(request: NextRequest) {
       const config = new Config();
       const client = new LLMClient(config, customHeaders);
 
-      const prompt = `你是一个规范性文件分析专家。请从以下文件内容中提取关键信息：
+      const prompt = `你是一个规范性文件分析专家。请阅读以下文件内容，分析并提取关键信息：
 
-文件名：${file.name}
+文件原始名称：${file.name}
+
 文件内容：
 ${extractedText.substring(0, 10000)}
 
-请提取以下信息并以 JSON 格式返回：
+请分析文件内容后，以 JSON 格式返回以下信息：
 {
-  "name": "文件名称（去掉扩展名，保留核心标题）",
-  "summary": "内容摘要（100字以内，突出文件的核心内容和适用范围）",
-  "issuer": "颁发部门",
-  "issueDate": "颁发时间（格式：YYYY-MM-DD，如果无法确定返回空字符串）"
+  "name": "文件标题（根据文件内容提炼一个简洁准确的标题，不超过30字，不要包含文件扩展名）",
+  "summary": "内容摘要（用一句话概括文件的核心内容，20字左右，不要直接摘抄原文）",
+  "issuer": "颁发部门（发文机关或发布单位）",
+  "issueDate": "颁发时间（格式：YYYY-MM-DD，如无法确定返回空字符串）"
 }
 
-注意：
-1. 只返回 JSON 数据，不要包含其他解释
-2. 如果某项信息无法从文件中提取，返回空字符串
-3. 摘要要简明扼要，突出文件的主要内容和适用对象`;
+要求：
+1. 标题要准确反映文件主题，简洁明了
+2. 摘要要高度概括，突出文件的核心要点和适用范围，20字左右
+3. 只返回 JSON，不要包含其他解释文字
+4. 如果某项信息无法从文件中提取，返回空字符串`;
 
       const response = await client.invoke([{ role: 'user', content: prompt }], { temperature: 0.3 });
 
@@ -248,16 +250,16 @@ ${extractedText.substring(0, 10000)}
         // 解析失败，使用基本信息
         result = {
           name: file.name.replace(/\.[^/.]+$/, ''),
-          summary: extractedText.substring(0, 200),
+          summary: '文件内容待人工补充摘要',
           issuer: '',
           issueDate: '',
         };
       }
     } else {
-      // 未配置 API Key，直接使用文件名和前200字作为摘要
+      // 未配置 API Key，提示需要配置
       result = {
         name: file.name.replace(/\.[^/.]+$/, ''),
-        summary: extractedText.substring(0, 200) || '待补充摘要',
+        summary: '请配置 API Key 后使用 AI 分析功能',
         issuer: '',
         issueDate: '',
       };
