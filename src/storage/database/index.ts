@@ -185,6 +185,15 @@ const createTablesSQL = `
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
   );
   CREATE INDEX IF NOT EXISTS project_documents_project_id_idx ON project_documents(project_id);
+  CREATE TABLE IF NOT EXISTS system_configs (
+    id TEXT PRIMARY KEY,
+    config_key TEXT NOT NULL UNIQUE,
+    config_value TEXT NOT NULL,
+    description TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT
+  );
+  CREATE INDEX IF NOT EXISTS system_configs_config_key_idx ON system_configs(config_key);
 `;
 
 // 保存数据库到文件
