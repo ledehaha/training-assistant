@@ -139,7 +139,36 @@ export async function POST(request: NextRequest) {
 
     // 构建规范性文件参考内容
     let normativeContext = '';
+    let titleLevelContext = ''; // 职称等级对照表内容
+    
     if (normativeDocsData && normativeDocsData.length > 0) {
+      // 查找职称等级对照表文件
+      const titleLevelDoc = normativeDocsData.find(d => 
+        d.name && (
+          d.name.includes('专业技术岗位') || 
+          d.name.includes('职称') || 
+          d.name.includes('等级对照') ||
+          d.name.includes('岗位名称')
+        )
+      );
+      
+      // 如果找到职称对照表文件，尝试读取内容
+      if (titleLevelDoc?.filePath) {
+        try {
+          const fs = await import('fs');
+          const path = await import('path');
+          const filePath = path.join(process.cwd(), titleLevelDoc.filePath);
+          
+          if (fs.existsSync(filePath)) {
+            const fileContent = fs.readFileSync(filePath, 'utf-8');
+            // 截取前5000字符作为参考
+            titleLevelContext = fileContent.substring(0, 5000);
+          }
+        } catch (e) {
+          console.error('读取职称对照表文件失败:', e);
+        }
+      }
+      
       const feeDocs = normativeDocsData.filter(d => 
         d.summary && (d.summary.includes('费') || d.summary.includes('标准') || d.summary.includes('讲师'))
       );
@@ -153,12 +182,27 @@ export async function POST(request: NextRequest) {
     }
 
     // 构建提示词
+    let titleLevelPrompt = '';
+    if (titleLevelContext) {
+      titleLevelPrompt = `
+## 职称等级对照表
+以下是各类专业技术岗位名称及等级对照表，请根据此表识别讲师的实际职称等级：
+
+${titleLevelContext}
+
+**职称等级映射规则**：
+- 根据上述对照表，将讲师的具体职称/岗位名称映射到标准等级：院士、正高、副高、中级、初级、其他
+- 然后根据映射后的等级确定课时费：院士1500元、正高1000元、副高500元、中级500元、初级500元、其他500元
+
+`;
+    }
+
     const prompt = `你是一个数据解析专家，负责从非结构化文本中提取结构化数据。
 
 ## 目标数据表
 ${TABLE_SCHEMA[table] || table}
 ${normativeContext ? `\n## 规范性文件参考\n${normativeContext}\n` : ''}
-
+${titleLevelPrompt}
 ## 输入文本
 ${text}
 
@@ -168,6 +212,7 @@ ${text}
 3. 对于缺失的可选字段，不要生成该字段
 4. 对于必填字段，如果缺失请根据上下文合理推断
 5. 对于枚举类型字段，确保值在可选范围内
+6. 对于讲师职称，请先根据职称等级对照表识别实际等级，再映射到标准职称和课时费
 
 ## 输出格式
 请以JSON格式返回提取的数据，格式如下：

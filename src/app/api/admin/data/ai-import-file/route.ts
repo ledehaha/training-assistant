@@ -245,19 +245,60 @@ export async function POST(request: NextRequest) {
       const normativeDocsData = db.select().from(normativeDocuments).where(sql`${normativeDocuments.isEffective} = 1`).all();
 
       let normativeContext = '';
+      let titleLevelContext = ''; // 职称等级对照表内容
+      
       if (normativeDocsData?.length > 0) {
+        // 查找职称等级对照表文件
+        const titleLevelDoc = normativeDocsData.find(d => 
+          d.name && (
+            d.name.includes('专业技术岗位') || 
+            d.name.includes('职称') || 
+            d.name.includes('等级对照') ||
+            d.name.includes('岗位名称')
+          )
+        );
+        
+        // 如果找到职称对照表文件，尝试读取内容
+        if (titleLevelDoc?.filePath) {
+          try {
+            const fs = await import('fs');
+            const path = await import('path');
+            const filePath = path.join(process.cwd(), titleLevelDoc.filePath);
+            
+            if (fs.existsSync(filePath)) {
+              const fileContent = fs.readFileSync(filePath, 'utf-8');
+              // 截取前5000字符作为参考
+              titleLevelContext = fileContent.substring(0, 5000);
+            }
+          } catch (e) {
+            console.error('读取职称对照表文件失败:', e);
+          }
+        }
+        
         const feeDocs = normativeDocsData.filter(d => d.summary?.includes('费') || d.summary?.includes('标准'));
         if (feeDocs.length > 0) {
           normativeContext = `\n规范性文件参考:\n${feeDocs.map(d => `- ${d.name}: ${d.summary}`).join('\n')}`;
         }
       }
 
+      // 构建职称等级对照提示
+      let titleLevelPrompt = '';
+      if (titleLevelContext) {
+        titleLevelPrompt = `
+职称等级对照表（请根据此表识别讲师的实际职称等级）:
+${titleLevelContext}
+
+职称等级映射规则：根据对照表将讲师的具体职称/岗位名称映射到标准等级（院士、正高、副高、中级、初级、其他），然后确定课时费：院士1500元、正高1000元、副高500元、中级500元、初级500元、其他500元
+`;
+      }
+
       const prompt = `你是一个数据解析专家。从以下文件内容中提取${TABLE_SCHEMA[table] || table}的数据。
 ${normativeContext}
-
+${titleLevelPrompt}
 重要提示：
 - 对于讲师信息，当识别出职称时，请根据职称自动推荐课时费：
   院士: 1500元、正高: 1000元、副高: 500元、中级: 500元、初级: 500元、其他: 500元
+- 如果提供了职称等级对照表，请先根据对照表识别实际等级，再映射到标准职称和课时费
 
 文件内容:
 ${extractedText.substring(0, 8000)}
