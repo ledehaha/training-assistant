@@ -509,15 +509,20 @@ export default function DataManagementPage() {
 
       const result = await res.json();
       if (result.success && result.data) {
-        // 自动填充表单
-        setFormData(prev => ({
-          ...prev,
-          name: result.data.name || prev.name,
-          summary: result.data.summary || prev.summary,
-          issuer: result.data.issuer || prev.issuer,
-          issue_date: result.data.issueDate || prev.issue_date,
-        }));
-        setMessage({ type: 'success', text: 'AI 分析完成，已自动填写表单' });
+        // 检查是否未配置 API Key（摘要和颁发部门都为空表示没有 AI 分析）
+        if (!result.data.summary && !result.data.issuer) {
+          setMessage({ type: 'error', text: '请先在设置页面配置 API Key，或手动填写信息后保存' });
+        } else {
+          // 自动填充表单
+          setFormData(prev => ({
+            ...prev,
+            name: result.data.name || prev.name,
+            summary: result.data.summary || prev.summary,
+            issuer: result.data.issuer || prev.issuer,
+            issue_date: result.data.issueDate || prev.issue_date,
+          }));
+          setMessage({ type: 'success', text: 'AI 分析完成，已自动填写表单' });
+        }
       } else {
         setMessage({ type: 'error', text: result.error || 'AI 分析失败' });
       }
@@ -927,14 +932,14 @@ export default function DataManagementPage() {
                       </div>
                     </label>
                   </div>
-                  {normativeFile && (
+                  <div className="flex gap-2 mt-2">
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
                       onClick={handleAiFillNormative}
-                      disabled={aiFillingLoading}
-                      className="w-full mt-2"
+                      disabled={!normativeFile || aiFillingLoading}
+                      className="flex-1"
                     >
                       {aiFillingLoading ? (
                         <>
@@ -948,6 +953,11 @@ export default function DataManagementPage() {
                         </>
                       )}
                     </Button>
+                  </div>
+                  {!normativeFile && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      💡 可手动填写下方信息后直接保存，无需上传文件
+                    </p>
                   )}
                 </div>
 

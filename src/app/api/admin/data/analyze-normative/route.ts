@@ -256,10 +256,10 @@ ${extractedText.substring(0, 10000)}
         };
       }
     } else {
-      // 未配置 API Key，提示需要配置
+      // 未配置 API Key，返回空字段让用户手动填写
       result = {
         name: file.name.replace(/\.[^/.]+$/, ''),
-        summary: '请配置 API Key 后使用 AI 分析功能',
+        summary: '',
         issuer: '',
         issueDate: '',
       };
