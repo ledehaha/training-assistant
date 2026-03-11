@@ -1274,16 +1274,63 @@ export default function DataManagementPage() {
             <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
               <div className="flex items-center gap-2 mb-3">
                 <CheckCircle className="w-5 h-5 text-blue-600" />
-                <span className="font-medium text-blue-700">AI 分析结果预览</span>
+                <span className="font-medium text-blue-700">AI 分析结果（可编辑）</span>
               </div>
-              <div className="space-y-2 text-sm">
-                <div><span className="font-medium text-gray-700">文件名称：</span>{String(aiImportPreview.name || '')}</div>
-                <div><span className="font-medium text-gray-700">颁发部门：</span>{String(aiImportPreview.issuer || '未识别')}</div>
-                <div><span className="font-medium text-gray-700">颁发时间：</span>{String(aiImportPreview.issue_date || '未识别')}</div>
-                <div><span className="font-medium text-gray-700">内容摘要：</span>
-                  <p className="mt-1 text-gray-600 bg-white p-2 rounded border">
-                    {String(aiImportPreview.summary || '未识别')}
-                  </p>
+              <div className="space-y-3 text-sm">
+                {/* 文件名称 */}
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-gray-700 w-20 shrink-0">文件名称：</span>
+                  <Input
+                    type="text"
+                    value={String(aiImportPreview.name || '')}
+                    onChange={(e) => setAiImportPreview({ ...aiImportPreview, name: e.target.value })}
+                    className="flex-1 bg-white"
+                  />
+                </div>
+                {/* 颁发部门 */}
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-gray-700 w-20 shrink-0">颁发部门：</span>
+                  <Input
+                    type="text"
+                    value={String(aiImportPreview.issuer || '')}
+                    onChange={(e) => setAiImportPreview({ ...aiImportPreview, issuer: e.target.value })}
+                    placeholder="未识别"
+                    className="flex-1 bg-white"
+                  />
+                </div>
+                {/* 颁发时间 */}
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-gray-700 w-20 shrink-0">颁发时间：</span>
+                  <Input
+                    type="date"
+                    value={String(aiImportPreview.issue_date || '').substring(0, 10)}
+                    onChange={(e) => setAiImportPreview({ ...aiImportPreview, issue_date: e.target.value })}
+                    className="flex-1 bg-white"
+                  />
+                </div>
+                {/* 内容摘要 */}
+                <div>
+                  <span className="font-medium text-gray-700">内容摘要：</span>
+                  <textarea
+                    className="mt-1 w-full p-2 bg-white border border-gray-300 rounded-md text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows={3}
+                    value={String(aiImportPreview.summary || '')}
+                    onChange={(e) => setAiImportPreview({ ...aiImportPreview, summary: e.target.value })}
+                    placeholder="未识别"
+                  />
+                </div>
+                {/* 是否有效 */}
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-gray-700 w-20 shrink-0">是否有效：</span>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(aiImportPreview.is_effective)}
+                      onChange={(e) => setAiImportPreview({ ...aiImportPreview, is_effective: e.target.checked })}
+                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                    />
+                    <span className="text-gray-600">是</span>
+                  </label>
                 </div>
               </div>
               <div className="flex gap-2 mt-4">
