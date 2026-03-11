@@ -234,22 +234,6 @@ export const projectDocuments = sqliteTable(
   ]
 );
 
-// 系统配置表
-export const systemConfigs = sqliteTable(
-  'system_configs',
-  {
-    id: text('id').primaryKey(),
-    configKey: text('config_key').notNull().unique(),
-    configValue: text('config_value').notNull(),
-    description: text('description'),
-    createdAt: text('created_at').default(sql`datetime('now')`).notNull(),
-    updatedAt: text('updated_at'),
-  },
-  (table) => [
-    index('system_configs_config_key_idx').on(table.configKey),
-  ]
-);
-
 // Zod schemas for validation
 export const insertProjectSchema = createInsertSchema(projects).pick({
   name: true,
@@ -306,4 +290,3 @@ export type SatisfactionSurvey = typeof satisfactionSurveys.$inferSelect;
 export type SurveyResponse = typeof surveyResponses.$inferSelect;
 export type ProjectDocument = typeof projectDocuments.$inferSelect;
 export type NormativeDocument = typeof normativeDocuments.$inferSelect;
-export type SystemConfig = typeof systemConfigs.$inferSelect;
