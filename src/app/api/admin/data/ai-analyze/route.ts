@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
-import { ensureDatabaseReady } from '@/storage/database';
+import { ensureDatabaseReady, db, normativeDocuments, sql } from '@/storage/database';
 import { getApiKey } from '@/lib/api-key';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { writeFile, unlink } from 'fs/promises';
+import { writeFile, unlink, readFile } from 'fs/promises';
 import path from 'path';
 
 const execAsync = promisify(exec);
@@ -183,24 +183,34 @@ const TABLE_PROMPTS: Record<string, { schema: string; prompt: string }> = {
 [
   {
     "name": "讲师姓名（必填）",
-    "title": "职称（如：教授、副教授、高级工程师等）",
+    "title": "职称（标准值：院士/正高/副高/中级/初级/其他）",
     "expertise": "专业领域（多个领域用逗号分隔）",
     "organization": "所属单位/机构",
     "bio": "个人简介",
-    "hourly_rate": 课时费（数字，单位元）,
+    "hourly_rate": 课时费（数字，单位元，必须根据职称自动计算）,
     "rating": 评分（1-5分，默认4.5）,
     "teaching_count": 授课次数（默认0）,
     "is_active": true
   }
 ]
 
+**课时费自动计算规则（必须执行）**：
+识别职称后，必须按照以下标准自动计算hourly_rate：
+- 院士 → hourly_rate: 1500
+- 正高/教授/研究员 → hourly_rate: 1000
+- 副高/副教授/副研究员/高级工程师 → hourly_rate: 500
+- 中级/讲师/工程师 → hourly_rate: 500
+- 初级/助教/助理工程师 → hourly_rate: 500
+- 其他 → hourly_rate: 500
+
 要求：
 1. name 是必填字段
 2. 如果内容中提到多个讲师，返回数组
 3. 如果只有一个讲师，返回只包含一个元素的数组
 4. 数值类型字段必须是数字，不能是字符串
-5. 只返回 JSON，不要包含其他解释文字
-6. 如果某项信息无法提取，使用合理的默认值或不填`
+5. **hourly_rate 必须根据职称自动计算，不能为0或空**
+6. 只返回 JSON，不要包含其他解释文字
+7. 如果某项信息无法提取，使用合理的默认值或不填`
   },
   venues: {
     schema: '场地信息表',
@@ -383,6 +393,39 @@ export async function POST(request: NextRequest) {
       process.env.LLM_API_KEY = apiKey;
       process.env.COZE_API_KEY = apiKey;
 
+      // 查询职称等级对照表（仅对讲师信息）
+      let titleLevelContext = '';
+      if (table === 'teachers') {
+        try {
+          const normativeDocsData = db
+            .select()
+            .from(normativeDocuments)
+            .where(sql`${normativeDocuments.isEffective} = 1`)
+            .all();
+
+          const titleLevelDoc = normativeDocsData?.find(d => 
+            d.name && (
+              d.name.includes('专业技术岗位') || 
+              d.name.includes('职称') || 
+              d.name.includes('等级对照') ||
+              d.name.includes('岗位名称')
+            )
+          );
+
+          if (titleLevelDoc?.filePath) {
+            const filePath = path.join(process.cwd(), titleLevelDoc.filePath);
+            try {
+              const fileContent = await readFile(filePath, 'utf-8');
+              titleLevelContext = `\n\n**职称等级对照表参考**：\n${fileContent.substring(0, 5000)}\n\n请根据上述对照表将讲师的具体职称映射到标准等级（院士/正高/副高/中级/初级/其他），然后计算课时费。`;
+            } catch (e) {
+              console.error('读取职称对照表文件失败:', e);
+            }
+          }
+        } catch (e) {
+          console.error('查询规范性文件失败:', e);
+        }
+      }
+
       // AI 解析
       const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
       const config = new Config();
@@ -391,7 +434,7 @@ export async function POST(request: NextRequest) {
       const promptTemplate = TABLE_PROMPTS[table].prompt;
       const prompt = promptTemplate
         .replace('{fileName}', file?.name || '用户输入')
-        .replace('{content}', extractedText.substring(0, 12000));
+        .replace('{content}', extractedText.substring(0, 12000)) + titleLevelContext;
 
       const response = await client.invoke([{ role: 'user', content: prompt }], { temperature: 0.3 });
 
