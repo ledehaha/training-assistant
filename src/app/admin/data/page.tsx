@@ -57,10 +57,10 @@ const TABLES_CONFIG = [
       { key: 'expertise', label: '专业领域', type: 'text', editable: true },
       { key: 'organization', label: '所属单位', type: 'text', editable: true },
       { key: 'bio', label: '简介', type: 'textarea', editable: true },
-      { key: 'hourly_rate', label: '课时费(元)', type: 'number', editable: true },
+      { key: 'hourlyRate', label: '课时费(元)', type: 'number', editable: true },
       { key: 'rating', label: '评分', type: 'number', editable: true },
-      { key: 'teaching_count', label: '授课次数', type: 'number', editable: true },
-      { key: 'is_active', label: '状态', type: 'boolean', editable: true },
+      { key: 'teachingCount', label: '授课次数', type: 'number', editable: true },
+      { key: 'isActive', label: '状态', type: 'boolean', editable: true },
     ]
   },
   { 
@@ -72,11 +72,11 @@ const TABLES_CONFIG = [
       { key: 'name', label: '名称', type: 'text', editable: true, required: true },
       { key: 'location', label: '地址', type: 'text', editable: true },
       { key: 'capacity', label: '容纳人数', type: 'number', editable: true },
-      { key: 'daily_rate', label: '日租金(元)', type: 'number', editable: true },
+      { key: 'dailyRate', label: '日租金(元)', type: 'number', editable: true },
       { key: 'facilities', label: '设施', type: 'text', editable: true },
       { key: 'rating', label: '评分', type: 'number', editable: true },
-      { key: 'usage_count', label: '使用次数', type: 'number', editable: true },
-      { key: 'is_active', label: '状态', type: 'boolean', editable: true },
+      { key: 'usageCount', label: '使用次数', type: 'number', editable: true },
+      { key: 'isActive', label: '状态', type: 'boolean', editable: true },
     ]
   },
   { 
@@ -88,11 +88,11 @@ const TABLES_CONFIG = [
       { key: 'name', label: '课程名称', type: 'text', editable: true, required: true },
       { key: 'category', label: '类别', type: 'select', options: ['管理技能', '专业技能', '职业素养', '综合提升'], editable: true },
       { key: 'duration', label: '课时', type: 'number', editable: true },
-      { key: 'target_audience', label: '目标人群', type: 'text', editable: true },
+      { key: 'targetAudience', label: '目标人群', type: 'text', editable: true },
       { key: 'difficulty', label: '难度', type: 'select', options: ['初级', '中级', '高级'], editable: true },
       { key: 'description', label: '描述', type: 'textarea', editable: true },
-      { key: 'usage_count', label: '使用次数', type: 'number', editable: true },
-      { key: 'avg_rating', label: '平均评分', type: 'number', editable: true },
+      { key: 'usageCount', label: '使用次数', type: 'number', editable: true },
+      { key: 'avgRating', label: '平均评分', type: 'number', editable: true },
     ]
   },
   { 
@@ -104,9 +104,9 @@ const TABLES_CONFIG = [
       { key: 'name', label: '文件名称', type: 'text', editable: true, required: true },
       { key: 'summary', label: '内容摘要', type: 'textarea', editable: true },
       { key: 'issuer', label: '颁发部门', type: 'text', editable: true },
-      { key: 'issue_date', label: '颁发时间', type: 'date', editable: true },
-      { key: 'file_url', label: '文件链接', type: 'text', editable: true },
-      { key: 'is_effective', label: '是否有效', type: 'boolean', editable: true },
+      { key: 'issueDate', label: '颁发时间', type: 'date', editable: true },
+      { key: 'fileUrl', label: '文件链接', type: 'text', editable: true },
+      { key: 'isEffective', label: '是否有效', type: 'boolean', editable: true },
     ]
   },
   { 
@@ -117,11 +117,11 @@ const TABLES_CONFIG = [
       { key: 'id', label: 'ID', type: 'uuid', editable: false },
       { key: 'name', label: '项目名称', type: 'text', editable: true, required: true },
       { key: 'status', label: '状态', type: 'select', options: ['draft', 'designing', 'executing', 'completed', 'archived'], editable: true },
-      { key: 'training_target', label: '培训目标', type: 'text', editable: true },
-      { key: 'target_audience', label: '目标人群', type: 'text', editable: true },
-      { key: 'participant_count', label: '参训人数', type: 'number', editable: true },
-      { key: 'training_days', label: '培训天数', type: 'number', editable: true },
-      { key: 'total_budget', label: '总预算', type: 'number', editable: true },
+      { key: 'trainingTarget', label: '培训目标', type: 'text', editable: true },
+      { key: 'targetAudience', label: '目标人群', type: 'text', editable: true },
+      { key: 'participantCount', label: '参训人数', type: 'number', editable: true },
+      { key: 'trainingDays', label: '培训天数', type: 'number', editable: true },
+      { key: 'totalBudget', label: '总预算', type: 'number', editable: true },
     ]
   },
   { 
@@ -130,10 +130,10 @@ const TABLES_CONFIG = [
     icon: '📖',
     columns: [
       { key: 'id', label: 'ID', type: 'uuid', editable: false },
-      { key: 'project_id', label: '项目ID', type: 'uuid', editable: true, required: true },
-      { key: 'course_name', label: '课程名称', type: 'text', editable: true },
-      { key: 'teacher_id', label: '讲师ID', type: 'uuid', editable: true },
-      { key: 'venue_id', label: '场地ID', type: 'uuid', editable: true },
+      { key: 'projectId', label: '项目ID', type: 'uuid', editable: true, required: true },
+      { key: 'courseName', label: '课程名称', type: 'text', editable: true },
+      { key: 'teacherId', label: '讲师ID', type: 'uuid', editable: true },
+      { key: 'venueId', label: '场地ID', type: 'uuid', editable: true },
       { key: 'duration', label: '课时', type: 'number', editable: true },
       { key: 'sequence', label: '顺序', type: 'number', editable: true },
     ]
@@ -144,11 +144,11 @@ const TABLES_CONFIG = [
     icon: '⭐',
     columns: [
       { key: 'id', label: 'ID', type: 'uuid', editable: false },
-      { key: 'project_id', label: '项目ID', type: 'uuid', editable: true },
-      { key: 'overall_score', label: '总体评分', type: 'number', editable: true },
-      { key: 'content_score', label: '内容评分', type: 'number', editable: true },
-      { key: 'teacher_score', label: '讲师评分', type: 'number', editable: true },
-      { key: 'venue_score', label: '场地评分', type: 'number', editable: true },
+      { key: 'projectId', label: '项目ID', type: 'uuid', editable: true },
+      { key: 'overallScore', label: '总体评分', type: 'number', editable: true },
+      { key: 'contentScore', label: '内容评分', type: 'number', editable: true },
+      { key: 'teacherScore', label: '讲师评分', type: 'number', editable: true },
+      { key: 'venueScore', label: '场地评分', type: 'number', editable: true },
       { key: 'suggestions', label: '建议', type: 'textarea', editable: true },
     ]
   },
@@ -859,7 +859,7 @@ export default function DataManagementPage() {
     if (value === null || value === undefined) return '-';
 
     // 特殊处理文件链接字段
-    if (col.key === 'file_url' && value) {
+    if (col.key === 'fileUrl' && value) {
       const url = String(value);
       return (
         <a
@@ -1323,8 +1323,8 @@ export default function DataManagementPage() {
 
       {/* AI 智能导入对话框 */}
       <Dialog open={aiImportDialogOpen} onOpenChange={setAiImportDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
+        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+          <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-purple-500" />
               AI 智能导入
@@ -1333,7 +1333,7 @@ export default function DataManagementPage() {
               AI 将自动解析内容并导入到「{selectedTable.label}」表
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 overflow-y-auto flex-1">
             {/* 文件上传区域（支持拖拽） */}
             <div
               className={`border-2 border-dashed rounded-lg p-6 transition-colors ${
@@ -2115,22 +2115,24 @@ export default function DataManagementPage() {
             </div>
           )}
           
-          <DialogFooter>
+          <DialogFooter className="shrink-0 border-t pt-4 mt-2">
             <Button variant="outline" onClick={() => {
               setAiImportDialogOpen(false);
               setUploadFile(null);
               setAiImportText('');
               setAiImportPreview(null);
+              setDuplicates([]);
+              setImportDecisions({});
             }}>
               取消
             </Button>
             {!aiImportPreview && (
               <Button 
                 onClick={uploadFile ? handleFileImport : handleAiImport} 
-                disabled={(!uploadFile && !aiImportText.trim()) || aiImportLoading || fileImportLoading}
+                disabled={(!uploadFile && !aiImportText.trim()) || aiImportLoading || fileImportLoading || duplicateCheckLoading}
                 className="bg-purple-600 hover:bg-purple-700"
               >
-                {(aiImportLoading || fileImportLoading) ? (
+                {(aiImportLoading || fileImportLoading || duplicateCheckLoading) ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     AI 解析中...
