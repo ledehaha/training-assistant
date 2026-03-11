@@ -9,6 +9,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -642,13 +650,11 @@ export default function DesignPage() {
   const handleNextToScheme = async () => {
     setActiveTab('scheme');
     
-    // 如果没有课程，自动提示生成方案
+    // 如果没有课程，自动生成方案（无需用户确认）
     if (courses.length === 0 && formData.name) {
       // 延迟一下，让 tab 切换完成
       setTimeout(() => {
-        if (confirm('是否使用 AI 智能生成培训方案？')) {
-          handleGenerateScheme();
-        }
+        handleGenerateScheme();
       }, 300);
     }
   };
@@ -964,7 +970,12 @@ export default function DesignPage() {
                 <CardDescription>设计培训课程安排，可使用 AI 智能生成</CardDescription>
               </CardHeader>
               <CardContent>
-                {courses.length === 0 ? (
+                {generateLoading ? (
+                  <div className="text-center py-12">
+                    <Loader2 className="h-12 w-12 mx-auto text-primary animate-spin mb-4" />
+                    <p className="text-muted-foreground">正在智能生成培训方案...</p>
+                  </div>
+                ) : courses.length === 0 ? (
                   <div className="text-center py-8">
                     <BookOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                     <p className="text-muted-foreground mb-4">暂无课程安排</p>
@@ -982,30 +993,37 @@ export default function DesignPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    {courses.map((course, index) => (
-                      <Card key={course.id || index}>
-                        <CardContent className="p-4">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <h4 className="font-medium">{course.name}</h4>
-                              <p className="text-sm text-muted-foreground">
-                                第{course.day}天 · {course.duration}课时
-                              </p>
-                              {course.teacherTitle && (
-                                <p className="text-sm text-muted-foreground">
-                                  建议讲师职称：{course.teacherTitle}
-                                </p>
-                              )}
-                              {course.description && (
-                                <p className="text-sm mt-2">{course.description}</p>
-                              )}
-                            </div>
-                            <Badge>{course.category}</Badge>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-16 text-center">序号</TableHead>
+                          <TableHead className="w-20 text-center">天数</TableHead>
+                          <TableHead>课程名称</TableHead>
+                          <TableHead className="w-20 text-center">课时</TableHead>
+                          <TableHead className="w-32">课程类别</TableHead>
+                          <TableHead className="w-32">建议讲师职称</TableHead>
+                          <TableHead>课程描述</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {courses.map((course, index) => (
+                          <TableRow key={course.id || index}>
+                            <TableCell className="text-center">{index + 1}</TableCell>
+                            <TableCell className="text-center">第{course.day}天</TableCell>
+                            <TableCell className="font-medium">{course.name}</TableCell>
+                            <TableCell className="text-center">{course.duration}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{course.category}</Badge>
+                            </TableCell>
+                            <TableCell>{course.teacherTitle || '-'}</TableCell>
+                            <TableCell className="text-muted-foreground text-sm">
+                              {course.description || '-'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
                   </div>
                 )}
               </CardContent>
