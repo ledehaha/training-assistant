@@ -188,7 +188,6 @@ export default function DataManagementPage() {
   const [isDragging, setIsDragging] = useState(false);
   // 规范性文件专用状态
   const [normativeFile, setNormativeFile] = useState<File | null>(null);
-  const [normativeFileLoading, setNormativeFileLoading] = useState(false);
   const [aiFillingLoading, setAiFillingLoading] = useState(false);
   const [isDraggingNormative, setIsDraggingNormative] = useState(false);
   // API Key 检查对话框状态
@@ -310,32 +309,6 @@ export default function DataManagementPage() {
   // 保存数据
   const handleSave = async () => {
     try {
-      // 如果是规范性文件且有上传文件，先上传文件
-      if (selectedTable.name === 'normative_documents' && normativeFile) {
-        setNormativeFileLoading(true);
-        const formDataObj = new FormData();
-        formDataObj.append('file', normativeFile);
-        formDataObj.append('table', 'normative_documents');
-
-        const uploadRes = await fetch('/api/admin/data/ai-import-file', {
-          method: 'POST',
-          body: formDataObj,
-        });
-
-        const uploadResult = await uploadRes.json();
-        if (uploadResult.success) {
-          setMessage({ type: 'success', text: '文件上传成功，已导入数据' });
-          setEditDialogOpen(false);
-          setNormativeFile(null);
-          loadData();
-          return;
-        } else {
-          setMessage({ type: 'error', text: uploadResult.error || '文件上传失败' });
-          setNormativeFileLoading(false);
-          return;
-        }
-      }
-
       const url = '/api/admin/data';
       const method = currentItem ? 'PUT' : 'POST';
       const body = {
@@ -354,6 +327,7 @@ export default function DataManagementPage() {
       if (result.success) {
         setMessage({ type: 'success', text: currentItem ? '修改成功' : '添加成功' });
         setEditDialogOpen(false);
+        setNormativeFile(null); // 清空文件
         loadData();
       } else {
         setMessage({ type: 'error', text: result.error || '操作失败' });
@@ -1088,18 +1062,8 @@ export default function DataManagementPage() {
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
               取消
             </Button>
-            <Button 
-              onClick={handleSave}
-              disabled={normativeFileLoading}
-            >
-              {normativeFileLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  上传中...
-                </>
-              ) : (
-                '保存'
-              )}
+            <Button onClick={handleSave}>
+              保存
             </Button>
           </DialogFooter>
         </DialogContent>
