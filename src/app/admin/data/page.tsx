@@ -41,6 +41,7 @@ import {
   X,
   ExternalLink,
 } from 'lucide-react';
+import ApiKeyCheckDialog, { checkApiKeyConfigured } from '@/components/api-key-check-dialog';
 
 // 数据表配置
 const TABLES_CONFIG = [
@@ -190,6 +191,14 @@ export default function DataManagementPage() {
   const [normativeFileLoading, setNormativeFileLoading] = useState(false);
   const [aiFillingLoading, setAiFillingLoading] = useState(false);
   const [isDraggingNormative, setIsDraggingNormative] = useState(false);
+  // API Key 检查对话框状态
+  const [apiKeyCheckOpen, setApiKeyCheckOpen] = useState(false);
+  const [apiKeyConfigured, setApiKeyConfigured] = useState<boolean | null>(null);
+
+  // 初始化时检查 API Key 状态
+  useEffect(() => {
+    checkApiKeyConfigured().then(setApiKeyConfigured);
+  }, []);
 
   // 根据表类型获取导入提示词
   const getImportPlaceholder = () => {
@@ -427,6 +436,17 @@ export default function DataManagementPage() {
       return;
     }
 
+    // 检查 API Key
+    if (apiKeyConfigured === false) {
+      setApiKeyCheckOpen(true);
+      return;
+    }
+
+    await doAiImport();
+  };
+
+  // 实际执行 AI 导入
+  const doAiImport = async () => {
     setAiImportLoading(true);
     try {
       const res = await fetch('/api/admin/data/ai-import', {
@@ -462,10 +482,21 @@ export default function DataManagementPage() {
       return;
     }
 
+    // 检查 API Key（规范性文件可以不需要 API Key）
+    if (apiKeyConfigured === false && selectedTable.name !== 'normative_documents') {
+      setApiKeyCheckOpen(true);
+      return;
+    }
+
+    await doFileImport();
+  };
+
+  // 实际执行文件导入
+  const doFileImport = async () => {
     setFileImportLoading(true);
     try {
       const formDataObj = new FormData();
-      formDataObj.append('file', uploadFile);
+      formDataObj.append('file', uploadFile!);
       formDataObj.append('table', selectedTable.name);
 
       const res = await fetch('/api/admin/data/ai-import-file', {
@@ -497,10 +528,21 @@ export default function DataManagementPage() {
       return;
     }
 
+    // 检查 API Key
+    if (apiKeyConfigured === false) {
+      setApiKeyCheckOpen(true);
+      return;
+    }
+
+    await doAiFillNormative();
+  };
+
+  // 实际执行 AI 填写
+  const doAiFillNormative = async () => {
     setAiFillingLoading(true);
     try {
       const formDataObj = new FormData();
-      formDataObj.append('file', normativeFile);
+      formDataObj.append('file', normativeFile!);
 
       const res = await fetch('/api/admin/data/analyze-normative', {
         method: 'POST',
@@ -509,19 +551,18 @@ export default function DataManagementPage() {
 
       const result = await res.json();
       if (result.success && result.data) {
-        // 检查是否未配置 API Key（摘要和颁发部门都为空表示没有 AI 分析）
-        if (!result.data.summary && !result.data.issuer) {
-          setMessage({ type: 'error', text: '请先在设置页面配置 API Key，或手动填写信息后保存' });
-        } else {
-          // 自动填充表单
-          setFormData(prev => ({
-            ...prev,
-            name: result.data.name || prev.name,
-            summary: result.data.summary || prev.summary,
-            issuer: result.data.issuer || prev.issuer,
-            issue_date: result.data.issueDate || prev.issue_date,
-          }));
+        // 自动填充表单
+        setFormData(prev => ({
+          ...prev,
+          name: result.data.name || prev.name,
+          summary: result.data.summary || prev.summary,
+          issuer: result.data.issuer || prev.issuer,
+          issue_date: result.data.issueDate || prev.issue_date,
+        }));
+        if (result.data.summary || result.data.issuer) {
           setMessage({ type: 'success', text: 'AI 分析完成，已自动填写表单' });
+        } else {
+          setMessage({ type: 'success', text: '已填充文件名，请手动填写其他信息' });
         }
       } else {
         setMessage({ type: 'error', text: result.error || 'AI 分析失败' });
@@ -532,6 +573,11 @@ export default function DataManagementPage() {
     } finally {
       setAiFillingLoading(false);
     }
+  };
+
+  // API Key 检查对话框跳过回调
+  const handleApiKeyCheckSkip = () => {
+    // 用户选择跳过，不做任何事（让用户手动填写）
   };
 
   // 渲染表单字段
@@ -1222,6 +1268,13 @@ export default function DataManagementPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* API Key 检查对话框 */}
+      <ApiKeyCheckDialog
+        open={apiKeyCheckOpen}
+        onOpenChange={setApiKeyCheckOpen}
+        onConfirm={handleApiKeyCheckSkip}
+      />
     </MainLayout>
   );
 }

@@ -26,6 +26,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Loader2, Sparkles, Save, ArrowRight, User, MapPin, BookOpen, DollarSign, X, FolderOpen, Plus, Clock, Check, AlertCircle } from 'lucide-react';
+import ApiKeyCheckDialog, { checkApiKeyConfigured } from '@/components/api-key-check-dialog';
 
 interface ProjectFormData {
   name: string;
@@ -161,6 +162,11 @@ export default function DesignPage() {
     progress?: string;
   }>>([]);
   const [showDraftList, setShowDraftList] = useState(false);
+  
+  // API Key 检查
+  const [apiKeyCheckOpen, setApiKeyCheckOpen] = useState(false);
+  const [apiKeyConfigured, setApiKeyConfigured] = useState<boolean | null>(null);
+  const [pendingAiAction, setPendingAiAction] = useState<(() => void) | null>(null);
   
   // ===== 优化：保存状态管理 =====
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
@@ -324,6 +330,8 @@ export default function DesignPage() {
     };
     loadResources();
     loadDraftProjects();
+    // 检查 API Key 状态
+    checkApiKeyConfigured().then(setApiKeyConfigured);
   }, []);
 
   // 加载草稿项目列表（只在初始化和用户手动操作时调用）
@@ -498,6 +506,18 @@ export default function DesignPage() {
       return;
     }
     
+    // 检查 API Key
+    if (apiKeyConfigured === false) {
+      setPendingAiAction(() => doSmartRequirementAnalysis);
+      setApiKeyCheckOpen(true);
+      return;
+    }
+    
+    await doSmartRequirementAnalysis();
+  };
+
+  // 实际执行智能需求分析
+  const doSmartRequirementAnalysis = async () => {
     setAnalyzingRequirement(true);
     try {
       let requirementContent = smartRequirementText;
@@ -1023,6 +1043,20 @@ export default function DesignPage() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* API Key 检查对话框 */}
+        <ApiKeyCheckDialog
+          open={apiKeyCheckOpen}
+          onOpenChange={setApiKeyCheckOpen}
+          onConfirm={() => {
+            if (pendingAiAction) {
+              pendingAiAction();
+              setPendingAiAction(null);
+            }
+          }}
+          title="需要配置 API Key"
+          description="智能分析功能需要配置 AI API Key。您可以前往设置页面配置，或手动填写信息。"
+        />
       </div>
     </MainLayout>
   );
