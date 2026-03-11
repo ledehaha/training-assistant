@@ -45,14 +45,15 @@ export async function POST(request: NextRequest) {
           .limit(20)
           .all();
         
-        contextData = `现有课程模板数据：\n${JSON.stringify(courseTemplatesData, null, 2)}`;
+        contextData = `现有课程模板数据（仅供参考，需根据培训主题调整）：\n${JSON.stringify(courseTemplatesData, null, 2)}`;
         const budgetStr = projectData.noBudgetLimit || (!projectData.budgetMin && !projectData.budgetMax)
           ? '无预算限制'
           : `${projectData.budgetMin || 0} - ${projectData.budgetMax || 0}万元`;
         
-        prompt = `你是一个专业的培训方案设计专家。请根据以下培训需求，推荐合适的课程安排：
+        prompt = `你是一个专业的培训方案设计专家。请根据以下培训需求，设计专业对口的课程安排：
 
-培训对象：${projectData.trainingTarget || '未指定'}
+## 培训需求
+培训类型/主题：${projectData.trainingTarget || '未指定'}
 目标人群：${projectData.targetAudience || '未指定'}
 参训人数：${projectData.participantCount || '未指定'}人
 培训天数：${projectData.trainingDays || '未指定'}天
@@ -62,10 +63,22 @@ export async function POST(request: NextRequest) {
 
 ${contextData}
 
-请推荐课程安排，要求：
-1. 课程类别分布：职业素养类30%、管理技能类30%、专业技能类20%、综合提升类20%
-2. 每门课程需要包含：课程名称、课时、简要描述、建议讲师职称要求
-3. 按天安排课程，说明每天的课程安排
+## 重要规则
+1. **课程必须与培训类型高度相关**：所有课程内容必须紧扣"${projectData.trainingTarget || '培训主题'}"这个核心主题
+   - 如果是"人工智能"培训，课程应包括：机器学习、深度学习、AI应用、AI伦理等
+   - 如果是"安全生产"培训，课程应包括：安全法规、风险识别、应急处理等
+   - 如果是"管理培训"培训，课程才包括：领导力、沟通技巧、团队管理等
+   - 绝对禁止生成与培训主题无关的课程！
+
+2. **课程类别分布**（可根据专业需求调整）：
+   - 专业技能类 40%（核心专业课程）
+   - 实操应用类 30%（案例分析、实践演练）
+   - 职业素养类 20%（通用能力）
+   - 综合提升类 10%
+
+3. **每门课程包含**：课程名称、课时、简要描述、建议讲师职称要求
+
+4. **按天安排课程**：合理分配每天的课程内容
 
 请以JSON格式返回课程列表，格式如下：
 {
@@ -108,10 +121,11 @@ ${JSON.stringify(projectData.currentCourses, null, 2)}
 ${projectData.modifySuggestion}
 
 ## 调整要求
-1. 根据用户的修改意见调整课程方案
-2. 保持课程类别分布：职业素养类30%、管理技能类30%、专业技能类20%、综合提升类20%
-3. 总课时必须等于 ${projectData.trainingHours || 32} 课时
-4. 天数范围：第1天到第${projectData.trainingDays || 4}天
+1. **课程必须与培训类型高度相关**：调整后的课程仍需紧扣"${projectData.trainingTarget || '培训主题'}"核心主题
+2. 根据用户的修改意见调整课程方案
+3. 课程类别分布：专业技能类40%、实操应用类30%、职业素养类20%、综合提升类10%
+4. 总课时必须等于 ${projectData.trainingHours || 32} 课时
+5. 天数范围：第1天到第${projectData.trainingDays || 4}天
 
 请以JSON格式返回调整后的课程列表，格式如下：
 {
@@ -122,8 +136,7 @@ ${projectData.modifySuggestion}
       "duration": 4,
       "description": "课程描述",
       "category": "课程类别",
-      "teacherTitle": "建议讲师职称",
-      "location": "建议上课地点"
+      "teacherTitle": "建议讲师职称"
     }
   ],
   "summary": "调整说明"
