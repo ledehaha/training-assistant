@@ -218,6 +218,27 @@ export default function DataManagementPage() {
     checkApiKeyConfigured().then(setApiKeyConfigured);
   }, []);
 
+  // 清理 AI 导入相关状态
+  const clearAiImportState = useCallback(() => {
+    setAiImportText('');
+    setUploadFile(null);
+    setAiImportPreview(null);
+    setAiImportLoading(false);
+    setFileImportLoading(false);
+    setCurrentIndex(0);
+    setDuplicates([]);
+    setImportDecisions({});
+    setDuplicateCheckLoading(false);
+    setNormativeFile(null);
+    setIsDragging(false);
+  }, []);
+
+  // 切换数据表时清理状态
+  useEffect(() => {
+    clearAiImportState();
+    setSelectedIds(new Set());
+  }, [selectedTable.name, clearAiImportState]);
+
   // 根据表类型获取导入提示词
   const getImportPlaceholder = () => {
     const placeholders: Record<string, string> = {
@@ -782,12 +803,7 @@ export default function DataManagementPage() {
           type: 'success', 
           text: messages.join('，')
         });
-        setAiImportDialogOpen(false);
-        setUploadFile(null);
-        setAiImportPreview(null);
-        setCurrentIndex(0);
-        setDuplicates([]);
-        setImportDecisions({});
+        setAiImportDialogOpen(false); // 关闭对话框会自动清理状态
         loadData();
       } else {
         setMessage({ type: 'error', text: '导入失败' });
@@ -1077,7 +1093,10 @@ export default function DataManagementPage() {
                       </Button>
                     </>
                   )}
-                  <Button variant="outline" size="sm" onClick={() => setAiImportDialogOpen(true)}>
+                  <Button variant="outline" size="sm" onClick={() => {
+                    clearAiImportState();
+                    setAiImportDialogOpen(true);
+                  }}>
                     <Sparkles className="w-4 h-4 mr-1" />
                     AI导入
                   </Button>
@@ -1513,7 +1532,13 @@ export default function DataManagementPage() {
       </Dialog>
 
       {/* AI 智能导入对话框 */}
-      <Dialog open={aiImportDialogOpen} onOpenChange={setAiImportDialogOpen}>
+      <Dialog open={aiImportDialogOpen} onOpenChange={(open) => {
+        setAiImportDialogOpen(open);
+        if (!open) {
+          // 关闭对话框时清理状态
+          clearAiImportState();
+        }
+      }}>
         <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
           <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2">
@@ -2307,14 +2332,7 @@ export default function DataManagementPage() {
           </div>
           
           <DialogFooter className="shrink-0 border-t pt-4 mt-2">
-            <Button variant="outline" onClick={() => {
-              setAiImportDialogOpen(false);
-              setUploadFile(null);
-              setAiImportText('');
-              setAiImportPreview(null);
-              setDuplicates([]);
-              setImportDecisions({});
-            }}>
+            <Button variant="outline" onClick={() => setAiImportDialogOpen(false)}>
               取消
             </Button>
             {!aiImportPreview && (
