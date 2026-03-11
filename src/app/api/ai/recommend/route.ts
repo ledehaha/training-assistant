@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 import { 
-  db, teachers, venues, courseTemplates, normativeDocuments, 
+  db, teachers, venues, courseTemplates, normativeDocuments, userProfiles,
   eq, desc, sql, ensureDatabaseReady 
 } from '@/storage/database';
 import { getApiKey } from '@/lib/api-key';
@@ -53,6 +53,58 @@ export async function POST(request: NextRequest) {
             })), null, 2)}`
           : '';
         
+        // 获取用户特征库数据（用于个性化推荐）
+        const userProfilesData = db
+          .select()
+          .from(userProfiles)
+          .where(eq(userProfiles.isActive, true))
+          .limit(50)
+          .all();
+        
+        // 分析目标人群的用户特征
+        let userProfileContext = '';
+        if (userProfilesData.length > 0 && projectData.targetAudience) {
+          // 筛选与目标人群匹配的用户
+          const matchingUsers = userProfilesData.filter((u: Record<string, unknown>) => {
+            const dept = (u.department as string) || '';
+            const position = (u.position as string) || '';
+            const target = (projectData.targetAudience as string) || '';
+            return dept.includes(target) || position.includes(target) || target.includes(dept) || target.includes(position);
+          });
+          
+          if (matchingUsers.length > 0) {
+            // 统计用户偏好
+            const preferences: Record<string, number> = {};
+            const styles: Record<string, number> = {};
+            matchingUsers.forEach((u: Record<string, unknown>) => {
+              if (u.preferredTrainingTypes) {
+                try {
+                  const types = JSON.parse(u.preferredTrainingTypes as string);
+                  types.forEach((t: string) => {
+                    preferences[t] = (preferences[t] || 0) + 1;
+                  });
+                } catch {
+                  // 忽略解析错误
+                }
+              }
+              if (u.learningStyle) {
+                styles[u.learningStyle as string] = (styles[u.learningStyle as string] || 0) + 1;
+              }
+            });
+            
+            // 计算平均满意度
+            const avgSatisfaction = matchingUsers
+              .filter((u: Record<string, unknown>) => u.avgSatisfactionScore)
+              .reduce((sum: number, u: Record<string, unknown>) => sum + (u.avgSatisfactionScore as number), 0) / 
+              matchingUsers.filter((u: Record<string, unknown>) => u.avgSatisfactionScore).length || 0;
+            
+            userProfileContext = `\n\n目标人群特征分析（基于${matchingUsers.length}名用户数据）：` +
+              `\n- 偏好培训类型：${Object.entries(preferences).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, v]) => `${k}(${v}人)`).join('、') || '暂无数据'}` +
+              `\n- 学习风格分布：${Object.entries(styles).map(([k, v]) => `${k}(${v}人)`).join('、') || '暂无数据'}` +
+              `\n- 历史平均满意度：${avgSatisfaction > 0 ? avgSatisfaction.toFixed(1) + '分' : '暂无数据'}`;
+          }
+        }
+        
         const budgetStr = projectData.noBudgetLimit || (!projectData.budgetMin && !projectData.budgetMax)
           ? '无预算限制'
           : `${projectData.budgetMin || 0} - ${projectData.budgetMax || 0}万元`;
@@ -67,13 +119,14 @@ export async function POST(request: NextRequest) {
 总课时：${projectData.trainingHours || 0}课时
 预算：${budgetStr}
 特殊要求：${projectData.specialRequirements || '无'}
-${contextData}
+${contextData}${userProfileContext}
 
 要求：
 1. 所有课程必须紧扣培训主题，不要生成无关课程
 2. 合理分配课时，总课时等于${projectData.trainingHours || 32}课时
 3. 按天安排课程
 4. 每门课程标注建议讲师职称
+5. 考虑目标人群的特征偏好进行个性化设计
 
 返回JSON格式：
 {

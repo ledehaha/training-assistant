@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import { 
   db, teachers, venues, courseTemplates, normativeDocuments, 
-  projects, projectCourses, satisfactionSurveys, desc, sql 
+  projects, projectCourses, satisfactionSurveys, userProfiles, userTrainingRecords, desc, sql 
 } from '@/storage/database';
 
 // 允许操作的表（白名单）
@@ -14,6 +14,8 @@ const ALLOWED_TABLES = [
   'projects',
   'project_courses',
   'satisfaction_surveys',
+  'user_profiles',
+  'user_training_records',
 ] as const;
 
 // 表映射
@@ -25,6 +27,8 @@ const tableMap = {
   projects,
   project_courses: projectCourses,
   satisfaction_surveys: satisfactionSurveys,
+  user_profiles: userProfiles,
+  user_training_records: userTrainingRecords,
 };
 
 // 表配置
@@ -108,6 +112,38 @@ const TABLE_CONFIG: Record<string, { label: string; columns: { key: string; labe
       { key: 'title', label: '标题' },
       { key: 'status', label: '状态' },
       { key: 'responseCount', label: '响应数' },
+    ],
+  },
+  user_profiles: {
+    label: '用户特征',
+    columns: [
+      { key: 'name', label: '姓名' },
+      { key: 'department', label: '部门' },
+      { key: 'position', label: '职位' },
+      { key: 'employeeId', label: '工号' },
+      { key: 'email', label: '邮箱' },
+      { key: 'phone', label: '电话' },
+      { key: 'completedTrainings', label: '已完成培训数' },
+      { key: 'totalTrainingHours', label: '累计培训学时' },
+      { key: 'avgSatisfactionScore', label: '平均满意度' },
+      { key: 'lastTrainingDate', label: '最近培训日期' },
+      { key: 'learningStyle', label: '学习风格' },
+      { key: 'isActive', label: '是否启用' },
+      { key: 'notes', label: '备注' },
+    ],
+  },
+  user_training_records: {
+    label: '用户培训记录',
+    columns: [
+      { key: 'userProfileId', label: '用户ID' },
+      { key: 'projectId', label: '项目ID' },
+      { key: 'trainingName', label: '培训名称' },
+      { key: 'trainingTarget', label: '培训目标' },
+      { key: 'trainingDays', label: '培训天数' },
+      { key: 'trainingHours', label: '培训学时' },
+      { key: 'completionDate', label: '完成日期' },
+      { key: 'satisfactionScore', label: '满意度评分' },
+      { key: 'feedback', label: '反馈' },
     ],
   },
 };

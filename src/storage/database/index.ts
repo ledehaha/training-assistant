@@ -185,6 +185,50 @@ const createTablesSQL = `
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
   );
   CREATE INDEX IF NOT EXISTS project_documents_project_id_idx ON project_documents(project_id);
+  CREATE TABLE IF NOT EXISTS user_profiles (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    department TEXT,
+    position TEXT,
+    employee_id TEXT,
+    email TEXT,
+    phone TEXT,
+    preferred_training_types TEXT,
+    preferred_time_slots TEXT,
+    learning_style TEXT,
+    skill_levels TEXT,
+    competency_gaps TEXT,
+    recommended_courses TEXT,
+    completed_trainings INTEGER DEFAULT 0,
+    total_training_hours INTEGER DEFAULT 0,
+    avg_satisfaction_score REAL,
+    last_training_date TEXT,
+    is_active INTEGER DEFAULT 1,
+    notes TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT
+  );
+  CREATE INDEX IF NOT EXISTS user_profiles_name_idx ON user_profiles(name);
+  CREATE INDEX IF NOT EXISTS user_profiles_department_idx ON user_profiles(department);
+  CREATE INDEX IF NOT EXISTS user_profiles_employee_id_idx ON user_profiles(employee_id);
+  CREATE TABLE IF NOT EXISTS user_training_records (
+    id TEXT PRIMARY KEY,
+    user_profile_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    training_name TEXT NOT NULL,
+    training_target TEXT,
+    training_days INTEGER,
+    training_hours INTEGER,
+    completion_date TEXT,
+    satisfaction_score REAL,
+    feedback TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (user_profile_id) REFERENCES user_profiles(id) ON DELETE CASCADE,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS user_training_records_user_profile_id_idx ON user_training_records(user_profile_id);
+  CREATE INDEX IF NOT EXISTS user_training_records_project_id_idx ON user_training_records(project_id);
+  CREATE INDEX IF NOT EXISTS user_training_records_completion_date_idx ON user_training_records(completion_date);
 `;
 
 // 保存数据库到文件

@@ -253,6 +253,46 @@ const TABLES_CONFIG = [
       { key: 'suggestions', label: '建议', type: 'textarea', editable: true },
     ]
   },
+  { 
+    name: 'user_profiles', 
+    label: '用户特征', 
+    icon: '👥',
+    columns: [
+      { key: 'id', label: 'ID', type: 'uuid', editable: false },
+      { key: 'name', label: '姓名', type: 'text', editable: true, required: true },
+      { key: 'department', label: '部门', type: 'text', editable: true },
+      { key: 'position', label: '职位', type: 'text', editable: true },
+      { key: 'employeeId', label: '工号', type: 'text', editable: true },
+      { key: 'email', label: '邮箱', type: 'text', editable: true },
+      { key: 'phone', label: '电话', type: 'text', editable: true },
+      { key: 'preferredTrainingTypes', label: '偏好培训类型', type: 'textarea', editable: true },
+      { key: 'preferredTimeSlots', label: '偏好时间段', type: 'text', editable: true },
+      { key: 'learningStyle', label: '学习风格', type: 'select', options: ['视觉型', '听觉型', '动觉型', '阅读型', '混合型'], editable: true },
+      { key: 'completedTrainings', label: '已完成培训数', type: 'number', editable: false },
+      { key: 'totalTrainingHours', label: '累计培训学时', type: 'number', editable: false },
+      { key: 'avgSatisfactionScore', label: '平均满意度', type: 'number', editable: false },
+      { key: 'lastTrainingDate', label: '最近培训日期', type: 'date', editable: false },
+      { key: 'isActive', label: '是否启用', type: 'boolean', editable: true },
+      { key: 'notes', label: '备注', type: 'textarea', editable: true },
+    ]
+  },
+  { 
+    name: 'user_training_records', 
+    label: '用户培训记录', 
+    icon: '📝',
+    columns: [
+      { key: 'id', label: 'ID', type: 'uuid', editable: false },
+      { key: 'userProfileId', label: '用户ID', type: 'uuid', editable: true, required: true },
+      { key: 'projectId', label: '项目ID', type: 'uuid', editable: true, required: true },
+      { key: 'trainingName', label: '培训名称', type: 'text', editable: true, required: true },
+      { key: 'trainingTarget', label: '培训目标', type: 'text', editable: true },
+      { key: 'trainingDays', label: '培训天数', type: 'number', editable: true },
+      { key: 'trainingHours', label: '培训学时', type: 'number', editable: true },
+      { key: 'completionDate', label: '完成日期', type: 'date', editable: true },
+      { key: 'satisfactionScore', label: '满意度评分', type: 'number', editable: true },
+      { key: 'feedback', label: '反馈', type: 'textarea', editable: true },
+    ]
+  },
 ];
 
 interface TableConfig {
@@ -349,7 +389,9 @@ export default function DataManagementPage() {
       normative_documents: '请输入规范性文件信息...\n\n例如：培训费用管理办法，上海市人力资源和社会保障局，2024年1月颁布\n\n提示：上传文件后AI将自动提取摘要',
       projects: '请输入培训项目信息...\n\n例如：2024年班组长能力提升培训，目标人群班组长，参训人数50人，培训4天',
       project_courses: '请输入项目课程信息...\n\n例如：第一天上午，管理基础，张明教授授课，4课时',
-      satisfaction_surveys: '请输入满意度调查数据...\n\n例如：总体评分4.8分，内容评分4.7分，讲师评分4.9分'
+      satisfaction_surveys: '请输入满意度调查数据...\n\n例如：总体评分4.8分，内容评分4.7分，讲师评分4.9分',
+      user_profiles: '请输入用户特征信息...\n\n例如：张三，研发部，高级工程师，工号A001，偏好技术培训和项目管理类课程，学习风格为视觉型',
+      user_training_records: '请输入用户培训记录...\n\n例如：张三参加了人工智能培训，2024年3月完成，4天共24学时，满意度4.8分'
     };
     return placeholders[selectedTable.name] || '请输入要导入的数据描述...';
   };

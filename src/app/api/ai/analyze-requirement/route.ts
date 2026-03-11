@@ -29,39 +29,26 @@ export async function POST(request: NextRequest) {
     const config = new Config();
     const client = new LLMClient(config, customHeaders);
 
-    const prompt = `你是一个培训需求分析专家。请分析以下培训需求描述，提取关键信息。
+    const prompt = `分析以下培训需求，提取关键信息。
 
-## 需求描述
+需求描述：
 ${requirementText}
 
-## 需要提取的信息
-1. 项目名称（name）：培训项目的名称
-2. 培训类型（trainingTarget）：企业内训/技能培训/管理培训/安全生产培训/新员工培训/专项培训/其他
-3. 目标人群（targetAudience）：班组长/中层管理/高层管理/新员工/技术骨干/全员/其他
-4. 参训人数（participantCount）：参加培训的人数
-5. 培训天数（trainingDays）：培训持续天数
-6. 培训课时（trainingHours）：总课时数（通常每天8课时）
-7. 培训周期（trainingPeriod）：周末/工作日/连续/分期/其他
-8. 培训地点（location）：培训举办的地点
-9. 特殊要求（specialRequirements）：其他特殊需求
+提取字段：
+- name: 项目名称
+- trainingTarget: 培训类型（企业内训/技能培训/管理培训/安全生产培训/新员工培训/专项培训）
+- targetAudience: 目标人群（班组长/中层管理/高层管理/新员工/技术骨干/全员）
+- participantCount: 参训人数（数字）
+- trainingDays: 培训天数（数字）
+- trainingHours: 培训课时（数字，每天约8课时）
+- trainingPeriod: 培训周期（周末/工作日/连续/分期）
+- location: 培训地点
+- specialRequirements: 特殊要求
 
-请以JSON格式返回分析结果，格式如下：
-{
-  "name": "项目名称",
-  "trainingTarget": "培训类型",
-  "targetAudience": "目标人群",
-  "participantCount": 人数,
-  "trainingDays": 天数,
-  "trainingHours": 课时数,
-  "trainingPeriod": "培训周期",
-  "location": "培训地点",
-  "specialRequirements": "特殊要求"
-}
+返回JSON格式：
+{"name": "", "trainingTarget": "", "targetAudience": "", "participantCount": 0, "trainingDays": 0, "trainingHours": 0, "trainingPeriod": "", "location": "", "specialRequirements": ""}
 
-注意：
-1. 只返回JSON数据，不要包含任何解释
-2. 如果某项信息无法从描述中提取，返回null
-3. 数字类型直接返回数字，不要加引号`;
+无法提取的字段返回null，数字不加引号。只返回JSON。`;
 
     const response = await client.invoke([
       { role: 'user', content: prompt }
@@ -70,6 +57,11 @@ ${requirementText}
     let result;
     try {
       let content = response.content || '';
+      
+      // 移除 AI 思考过程
+      content = content.replace(/<[\/]?think>/g, '');
+      content = content.replace(/◁[\/]?think▷/g, '');
+      content = content.replace(/◁think▷[\s\S]*?◁\/think▷/g, '');
       
       // 尝试提取JSON
       const jsonBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);

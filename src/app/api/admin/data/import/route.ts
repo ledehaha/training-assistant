@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { 
   db, teachers, venues, courseTemplates, normativeDocuments, 
-  projects, projectCourses, satisfactionSurveys,
+  projects, projectCourses, satisfactionSurveys, userProfiles, userTrainingRecords,
   saveDatabaseImmediate, ensureDatabaseReady
 } from '@/storage/database';
 import { generateId, getTimestamp } from '@/storage/database';
@@ -15,6 +15,8 @@ const ALLOWED_TABLES = [
   'projects',
   'project_courses',
   'satisfaction_surveys',
+  'user_profiles',
+  'user_training_records',
 ] as const;
 
 // 表映射
@@ -26,6 +28,8 @@ const tableMap = {
   projects,
   project_courses: projectCourses,
   satisfaction_surveys: satisfactionSurveys,
+  user_profiles: userProfiles,
+  user_training_records: userTrainingRecords,
 };
 
 // POST /api/admin/data/import - 批量导入数据
