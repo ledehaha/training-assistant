@@ -25,7 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Loader2, Sparkles, Save, ArrowRight, User, MapPin, BookOpen, DollarSign, X, FolderOpen, Plus, Clock, Check, AlertCircle } from 'lucide-react';
+import { Loader2, Sparkles, Save, ArrowRight, User, MapPin, BookOpen, DollarSign, X, FolderOpen, Plus, Clock, Check, AlertCircle, Wand2, RefreshCw } from 'lucide-react';
 import ApiKeyCheckDialog, { checkApiKeyConfigured } from '@/components/api-key-check-dialog';
 
 interface ProjectFormData {
@@ -582,6 +582,77 @@ export default function DesignPage() {
     }
   };
 
+  // AI 智能生成培训方案
+  const handleGenerateScheme = async () => {
+    // 检查 API Key
+    if (apiKeyConfigured === false) {
+      setPendingAiAction(() => doGenerateScheme);
+      setApiKeyCheckOpen(true);
+      return;
+    }
+    
+    await doGenerateScheme();
+  };
+
+  // 实际执行生成方案
+  const doGenerateScheme = async () => {
+    setGenerateLoading(true);
+    try {
+      const res = await fetch('/api/ai/recommend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'courses',
+          projectData: {
+            ...formData,
+            budgetMin: noBudgetLimit ? null : formData.budgetMin,
+            budgetMax: noBudgetLimit ? null : formData.budgetMax,
+            trainingPeriod: formData.trainingPeriod === '其他' ? otherTrainingPeriod : formData.trainingPeriod,
+            noBudgetLimit,
+          },
+        }),
+      });
+      
+      const data = await res.json();
+      
+      if (data.data?.courses) {
+        const generatedCourses: Course[] = data.data.courses.map((c: Record<string, unknown>, index: number) => ({
+          id: `course-${Date.now()}-${index}`,
+          name: c.name as string || `课程${index + 1}`,
+          day: c.day as number || Math.floor(index / 2) + 1,
+          duration: c.duration as number || 4,
+          description: c.description as string || '',
+          category: c.category as string || '综合提升类',
+          teacherTitle: c.teacherTitle as string,
+        }));
+        
+        setCourses(generatedCourses);
+      } else if (data.error) {
+        alert(data.error);
+      }
+    } catch (error) {
+      console.error('Generate scheme error:', error);
+      alert('生成方案失败，请重试');
+    } finally {
+      setGenerateLoading(false);
+    }
+  };
+
+  // 处理"下一步：方案设计"按钮点击
+  const handleNextToScheme = async () => {
+    setActiveTab('scheme');
+    
+    // 如果没有课程，自动提示生成方案
+    if (courses.length === 0 && formData.name) {
+      // 延迟一下，让 tab 切换完成
+      setTimeout(() => {
+        if (confirm('是否使用 AI 智能生成培训方案？')) {
+          handleGenerateScheme();
+        }
+      }, 300);
+    }
+  };
+
   // 更新单个表单字段（优化：使用函数式更新）
   const updateFormField = <K extends keyof ProjectFormData>(
     field: K,
@@ -849,7 +920,7 @@ export default function DesignPage() {
 
                 <div className="flex justify-end">
                   <Button 
-                    onClick={() => setActiveTab('scheme')}
+                    onClick={handleNextToScheme}
                     disabled={!formData.name}
                   >
                     下一步：方案设计
@@ -864,16 +935,51 @@ export default function DesignPage() {
           <TabsContent value="scheme" className="mt-6">
             <Card>
               <CardHeader>
-                <CardTitle>培训方案</CardTitle>
-                <CardDescription>设计培训课程安排</CardDescription>
+                <CardTitle className="flex items-center justify-between">
+                  <span>培训方案</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleGenerateScheme}
+                    disabled={generateLoading || !formData.name}
+                  >
+                    {generateLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        生成中...
+                      </>
+                    ) : courses.length === 0 ? (
+                      <>
+                        <Wand2 className="h-4 w-4 mr-2" />
+                        智能生成方案
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        重新生成
+                      </>
+                    )}
+                  </Button>
+                </CardTitle>
+                <CardDescription>设计培训课程安排，可使用 AI 智能生成</CardDescription>
               </CardHeader>
               <CardContent>
                 {courses.length === 0 ? (
                   <div className="text-center py-8">
+                    <BookOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                     <p className="text-muted-foreground mb-4">暂无课程安排</p>
-                    <Button onClick={() => setActiveTab('requirement')}>
-                      返回填写需求
-                    </Button>
+                    <div className="flex justify-center gap-2">
+                      <Button variant="outline" onClick={() => setActiveTab('requirement')}>
+                        返回填写需求
+                      </Button>
+                      <Button 
+                        onClick={handleGenerateScheme}
+                        disabled={generateLoading || !formData.name}
+                      >
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        智能生成方案
+                      </Button>
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -886,10 +992,13 @@ export default function DesignPage() {
                               <p className="text-sm text-muted-foreground">
                                 第{course.day}天 · {course.duration}课时
                               </p>
-                              {course.teacherName && (
-                                <p className="text-sm">
-                                  讲师：{course.teacherName} ({course.teacherTitle})
+                              {course.teacherTitle && (
+                                <p className="text-sm text-muted-foreground">
+                                  建议讲师职称：{course.teacherTitle}
                                 </p>
+                              )}
+                              {course.description && (
+                                <p className="text-sm mt-2">{course.description}</p>
                               )}
                             </div>
                             <Badge>{course.category}</Badge>
