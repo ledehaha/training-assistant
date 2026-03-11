@@ -185,7 +185,9 @@ const tableMap = {
 
 // 表结构描述
 const TABLE_SCHEMA: Record<string, string> = {
-  teachers: `讲师信息表: name(必填), title(职称:院士/正高/副高/中级/初级/其他), expertise, organization, bio, hourlyRate(课时费标准:院士1500/正高1000/副高500/中级500/初级500/其他500), rating, teachingCount, isActive`,
+  teachers: `讲师信息表: name(必填), title(职称:院士/正高/副高/中级/初级/其他), expertise, organization, bio, hourlyRate(课时费:院士1500/正高1000/副高500/中级500/初级500/其他500), rating, teachingCount, isActive
+
+**重要**：识别职称后必须自动计算hourlyRate字段！教授=正高(1000元)，副教授=副高(500元)`,
   venues: '场地信息表: name(必填), location, capacity, dailyRate, facilities, rating, usageCount, isActive',
   course_templates: '课程模板表: name(必填), category, duration, targetAudience, difficulty, description, usageCount, avgRating',
   normative_documents: '规范性文件表: name(必填), summary, issuer, issueDate, filePath, isEffective',
@@ -295,10 +297,17 @@ ${titleLevelContext}
       const prompt = `你是一个数据解析专家。从以下文件内容中提取${TABLE_SCHEMA[table] || table}的数据。
 ${normativeContext}
 ${titleLevelPrompt}
-重要提示：
-- 对于讲师信息，当识别出职称时，请根据职称自动推荐课时费：
-  院士: 1500元、正高: 1000元、副高: 500元、中级: 500元、初级: 500元、其他: 500元
-- 如果提供了职称等级对照表，请先根据对照表识别实际等级，再映射到标准职称和课时费
+
+**关键要求（必须执行）**：
+对于讲师信息，识别职称后**必须**返回hourlyRate字段，计算规则如下：
+- 院士 → hourlyRate: 1500
+- 正高/教授 → hourlyRate: 1000  
+- 副高/副教授 → hourlyRate: 500
+- 中级/讲师 → hourlyRate: 500
+- 初级/助教 → hourlyRate: 500
+- 其他 → hourlyRate: 500
+
+**注意**：即使原文没有提到课时费，也必须根据职称自动计算并返回hourlyRate字段！
 
 文件内容:
 ${extractedText.substring(0, 8000)}

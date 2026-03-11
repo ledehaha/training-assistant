@@ -1807,10 +1807,10 @@ export default function DataManagementPage() {
                       <span className="font-medium text-gray-700 w-24 shrink-0">课时费(元)：</span>
                       <Input
                         type="number"
-                        value={String(aiImportPreview[currentIndex].hourly_rate || '')}
+                        value={String(aiImportPreview[currentIndex].hourly_rate || aiImportPreview[currentIndex].hourlyRate || '')}
                         onChange={(e) => {
                           const newData = [...aiImportPreview];
-                          newData[currentIndex] = { ...newData[currentIndex], hourly_rate: parseFloat(e.target.value) || 0 };
+                          newData[currentIndex] = { ...newData[currentIndex], hourly_rate: parseFloat(e.target.value) || 0, hourlyRate: parseFloat(e.target.value) || 0 };
                           setAiImportPreview(newData);
                         }}
                         placeholder="0"
