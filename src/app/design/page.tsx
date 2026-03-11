@@ -1054,6 +1054,7 @@ export default function DesignPage() {
               setPendingAiAction(null);
             }
           }}
+          onGoToSettings={() => router.push('/settings')}
           title="需要配置 API Key"
           description="智能分析功能需要配置 AI API Key。您可以前往设置页面配置，或手动填写信息。"
         />

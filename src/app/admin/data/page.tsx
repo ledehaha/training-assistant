@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import MainLayout from '@/components/layout/main-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -170,6 +171,7 @@ interface ColumnConfig {
 }
 
 export default function DataManagementPage() {
+  const router = useRouter();
   const [selectedTable, setSelectedTable] = useState<TableConfig>(TABLES_CONFIG[0]);
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [tableCounts, setTableCounts] = useState<Record<string, number>>({});
@@ -1238,6 +1240,7 @@ export default function DataManagementPage() {
         open={apiKeyCheckOpen}
         onOpenChange={setApiKeyCheckOpen}
         onConfirm={handleApiKeyCheckSkip}
+        onGoToSettings={() => router.push('/settings')}
       />
     </MainLayout>
   );

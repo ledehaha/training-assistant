@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -17,6 +16,7 @@ interface ApiKeyCheckDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void; // 用户选择跳过时执行
+  onGoToSettings: () => void; // 用户选择去配置时执行
   title?: string;
   description?: string;
 }
@@ -36,19 +36,18 @@ export default function ApiKeyCheckDialog({
   open,
   onOpenChange,
   onConfirm,
+  onGoToSettings,
   title = '需要配置 API Key',
   description = '此功能需要配置 AI API Key 才能使用。您可以选择前往设置页面配置，或者手动填写信息。',
 }: ApiKeyCheckDialogProps) {
-  const router = useRouter();
-
-  const handleGoToSettings = () => {
-    onOpenChange(false);
-    router.push('/settings');
-  };
-
   const handleSkip = () => {
     onOpenChange(false);
     onConfirm();
+  };
+
+  const handleGoToSettings = () => {
+    onOpenChange(false);
+    onGoToSettings();
   };
 
   return (
@@ -96,11 +95,6 @@ export function useApiKeyCheck() {
   const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
   const [pendingCallback, setPendingCallback] = useState<(() => void) | null>(null);
 
-  useEffect(() => {
-    // 初始化时检查 API Key 状态
-    checkApiKeyConfigured().then(setIsConfigured);
-  }, []);
-
   // 执行需要 API Key 的操作
   const executeWithApiKeyCheck = (callback: () => void) => {
     if (isConfigured === false) {
@@ -123,6 +117,7 @@ export function useApiKeyCheck() {
 
   return {
     isConfigured,
+    setIsConfigured,
     dialogOpen,
     setDialogOpen,
     executeWithApiKeyCheck,
