@@ -852,14 +852,18 @@ export default function DataManagementPage() {
                     }`}
                     onDragOver={(e) => {
                       e.preventDefault();
+                      e.stopPropagation();
+                      e.dataTransfer.dropEffect = 'copy';
                       setIsDraggingNormative(true);
                     }}
                     onDragLeave={(e) => {
                       e.preventDefault();
+                      e.stopPropagation();
                       setIsDraggingNormative(false);
                     }}
                     onDrop={(e) => {
                       e.preventDefault();
+                      e.stopPropagation();
                       setIsDraggingNormative(false);
                       const file = e.dataTransfer.files?.[0];
                       if (file) {
@@ -1087,14 +1091,18 @@ export default function DataManagementPage() {
               }`}
               onDragOver={(e) => {
                 e.preventDefault();
+                e.stopPropagation();
+                e.dataTransfer.dropEffect = 'copy';
                 setIsDragging(true);
               }}
               onDragLeave={(e) => {
                 e.preventDefault();
+                e.stopPropagation();
                 setIsDragging(false);
               }}
               onDrop={(e) => {
                 e.preventDefault();
+                e.stopPropagation();
                 setIsDragging(false);
                 const file = e.dataTransfer.files?.[0];
                 if (file) {
