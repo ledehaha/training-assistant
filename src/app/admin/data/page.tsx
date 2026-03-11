@@ -502,6 +502,82 @@ export default function DataManagementPage() {
     }
   };
 
+  // 字段名映射：将下划线命名转换为驼峰命名（匹配 Schema 定义）
+  const fieldNameMap: Record<string, Record<string, string>> = {
+    teachers: {
+      hourly_rate: 'hourlyRate',
+      teaching_count: 'teachingCount',
+      is_active: 'isActive',
+    },
+    venues: {
+      daily_rate: 'dailyRate',
+      usage_count: 'usageCount',
+      is_active: 'isActive',
+    },
+    course_templates: {
+      target_audience: 'targetAudience',
+      usage_count: 'usageCount',
+      avg_rating: 'avgRating',
+    },
+    normative_documents: {
+      issue_date: 'issueDate',
+      file_url: 'fileUrl',
+      is_effective: 'isEffective',
+    },
+    projects: {
+      training_target: 'trainingTarget',
+      target_audience: 'targetAudience',
+      participant_count: 'participantCount',
+      training_days: 'trainingDays',
+      training_hours: 'trainingHours',
+      training_period: 'trainingPeriod',
+      budget_min: 'budgetMin',
+      budget_max: 'budgetMax',
+      special_requirements: 'specialRequirements',
+      start_date: 'startDate',
+      end_date: 'endDate',
+      venue_id: 'venueId',
+      teacher_fee: 'teacherFee',
+      venue_fee: 'venueFee',
+      catering_fee: 'cateringFee',
+      tea_break_fee: 'teaBreakFee',
+      material_fee: 'materialFee',
+      labor_fee: 'laborFee',
+      other_fee: 'otherFee',
+      management_fee: 'managementFee',
+      total_budget: 'totalBudget',
+      actual_cost: 'actualCost',
+      avg_satisfaction: 'avgSatisfaction',
+      survey_response_rate: 'surveyResponseRate',
+    },
+    project_courses: {
+      project_id: 'projectId',
+      course_name: 'courseName',
+      teacher_id: 'teacherId',
+      venue_id: 'venueId',
+    },
+    satisfaction_surveys: {
+      project_id: 'projectId',
+      overall_score: 'overallScore',
+      content_score: 'contentScore',
+      teacher_score: 'teacherScore',
+      venue_score: 'venueScore',
+    },
+  };
+
+  // 转换字段名（下划线 -> 驼峰）
+  const convertFieldNames = (tableName: string, data: Record<string, unknown>): Record<string, unknown> => {
+    const mapping = fieldNameMap[tableName] || {};
+    const result: Record<string, unknown> = {};
+    
+    for (const [key, value] of Object.entries(data)) {
+      const newKey = mapping[key] || key;
+      result[newKey] = value;
+    }
+    
+    return result;
+  };
+
   // 确认导入数据
   const confirmImport = async () => {
     if (!aiImportPreview || aiImportPreview.length === 0) return;
@@ -514,12 +590,15 @@ export default function DataManagementPage() {
       // 批量导入数据
       for (const item of aiImportPreview) {
         try {
+          // 转换字段名
+          const convertedData = convertFieldNames(selectedTable.name, item);
+          
           const res = await fetch('/api/admin/data', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               table: selectedTable.name,
-              data: item,
+              data: convertedData,
             }),
           });
 
