@@ -597,8 +597,17 @@ export default function DesignPage() {
 
   // AI 智能生成培训方案
   const handleGenerateScheme = async () => {
-    // 检查 API Key
-    if (apiKeyConfigured === false) {
+    // 检查 API Key（null 表示还在检查中，false 表示未配置）
+    if (apiKeyConfigured === null) {
+      // 先检查 API Key 配置状态
+      const configured = await checkApiKeyConfigured();
+      setApiKeyConfigured(configured);
+      if (!configured) {
+        setPendingAiAction(() => doGenerateScheme);
+        setApiKeyCheckOpen(true);
+        return;
+      }
+    } else if (apiKeyConfigured === false) {
       setPendingAiAction(() => doGenerateScheme);
       setApiKeyCheckOpen(true);
       return;
@@ -658,8 +667,16 @@ export default function DesignPage() {
       return;
     }
     
-    // 检查 API Key
-    if (apiKeyConfigured === false) {
+    // 检查 API Key（null 表示还在检查中，false 表示未配置）
+    if (apiKeyConfigured === null) {
+      const configured = await checkApiKeyConfigured();
+      setApiKeyConfigured(configured);
+      if (!configured) {
+        setPendingAiAction(() => doModifyScheme);
+        setApiKeyCheckOpen(true);
+        return;
+      }
+    } else if (apiKeyConfigured === false) {
       setPendingAiAction(() => doModifyScheme);
       setApiKeyCheckOpen(true);
       return;
