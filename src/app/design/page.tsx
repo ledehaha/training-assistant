@@ -154,6 +154,11 @@ export default function DesignPage() {
   // 方案修改意见
   const [modifySuggestion, setModifySuggestion] = useState('');
   
+  // 课程编辑
+  const [editingCourse, setEditingCourse] = useState<Course | null>(null);
+  const [editingCourseIndex, setEditingCourseIndex] = useState<number | null>(null);
+  const [showEditCourseDialog, setShowEditCourseDialog] = useState(false);
+  
   // 智能需求分析
   const [smartRequirementText, setSmartRequirementText] = useState('');
   const [smartRequirementFile, setSmartRequirementFile] = useState<File | null>(null);
@@ -646,6 +651,96 @@ export default function DesignPage() {
     }
   };
 
+  // 根据修改意见重新生成方案
+  const handleModifyScheme = async () => {
+    if (!modifySuggestion.trim()) {
+      alert('请输入修改意见');
+      return;
+    }
+    
+    // 检查 API Key
+    if (apiKeyConfigured === false) {
+      setPendingAiAction(() => doModifyScheme);
+      setApiKeyCheckOpen(true);
+      return;
+    }
+    
+    await doModifyScheme();
+  };
+
+  const doModifyScheme = async () => {
+    setGenerateLoading(true);
+    try {
+      const res = await fetch('/api/ai/recommend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'modify-courses',
+          projectData: {
+            ...formData,
+            budgetMin: noBudgetLimit ? null : formData.budgetMin,
+            budgetMax: noBudgetLimit ? null : formData.budgetMax,
+            trainingPeriod: formData.trainingPeriod === '其他' ? otherTrainingPeriod : formData.trainingPeriod,
+            noBudgetLimit,
+            currentCourses: courses,
+            modifySuggestion,
+          },
+        }),
+      });
+      
+      const data = await res.json();
+      
+      if (data.data?.courses) {
+        const generatedCourses: Course[] = data.data.courses.map((c: Record<string, unknown>, index: number) => ({
+          id: `course-${Date.now()}-${index}`,
+          name: c.name as string || `课程${index + 1}`,
+          day: c.day as number || Math.floor(index / 2) + 1,
+          duration: c.duration as number || 4,
+          description: c.description as string || '',
+          category: c.category as string || '综合提升类',
+          teacherTitle: c.teacherTitle as string,
+        }));
+        
+        setCourses(generatedCourses);
+        setModifySuggestion(''); // 清空修改意见
+      } else if (data.error) {
+        alert(data.error);
+      }
+    } catch (error) {
+      console.error('Modify scheme error:', error);
+      alert('修改方案失败，请重试');
+    } finally {
+      setGenerateLoading(false);
+    }
+  };
+
+  // 打开编辑课程对话框
+  const handleEditCourse = (course: Course, index: number) => {
+    setEditingCourse({ ...course });
+    setEditingCourseIndex(index);
+    setShowEditCourseDialog(true);
+  };
+
+  // 保存编辑的课程
+  const handleSaveEditedCourse = () => {
+    if (editingCourse && editingCourseIndex !== null) {
+      const newCourses = [...courses];
+      newCourses[editingCourseIndex] = editingCourse;
+      setCourses(newCourses);
+      setShowEditCourseDialog(false);
+      setEditingCourse(null);
+      setEditingCourseIndex(null);
+    }
+  };
+
+  // 删除课程
+  const handleDeleteCourse = (index: number) => {
+    if (confirm('确定要删除这门课程吗？')) {
+      const newCourses = courses.filter((_, i) => i !== index);
+      setCourses(newCourses);
+    }
+  };
+
   // 处理"下一步：方案设计"按钮点击
   const handleNextToScheme = async () => {
     setActiveTab('scheme');
@@ -993,37 +1088,84 @@ export default function DesignPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-16 text-center">序号</TableHead>
-                          <TableHead className="w-20 text-center">天数</TableHead>
-                          <TableHead>课程名称</TableHead>
-                          <TableHead className="w-20 text-center">课时</TableHead>
-                          <TableHead className="w-32">课程类别</TableHead>
-                          <TableHead className="w-32">建议讲师职称</TableHead>
-                          <TableHead>课程描述</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {courses.map((course, index) => (
-                          <TableRow key={course.id || index}>
-                            <TableCell className="text-center">{index + 1}</TableCell>
-                            <TableCell className="text-center">第{course.day}天</TableCell>
-                            <TableCell className="font-medium">{course.name}</TableCell>
-                            <TableCell className="text-center">{course.duration}</TableCell>
-                            <TableCell>
-                              <Badge variant="outline">{course.category}</Badge>
-                            </TableCell>
-                            <TableCell>{course.teacherTitle || '-'}</TableCell>
-                            <TableCell className="text-muted-foreground text-sm">
-                              {course.description || '-'}
-                            </TableCell>
+                  <div className="space-y-4">
+                    <div className="rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-16 text-center">序号</TableHead>
+                            <TableHead className="w-20 text-center">天数</TableHead>
+                            <TableHead>课程名称</TableHead>
+                            <TableHead className="w-20 text-center">课时</TableHead>
+                            <TableHead className="w-32">建议讲师职称</TableHead>
+                            <TableHead>课程描述</TableHead>
+                            <TableHead className="w-20 text-center">操作</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {courses.map((course, index) => (
+                            <TableRow 
+                              key={course.id || index}
+                              className="cursor-pointer hover:bg-muted/50"
+                              onClick={() => handleEditCourse(course, index)}
+                            >
+                              <TableCell className="text-center">{index + 1}</TableCell>
+                              <TableCell className="text-center">第{course.day}天</TableCell>
+                              <TableCell className="font-medium">{course.name}</TableCell>
+                              <TableCell className="text-center">{course.duration}</TableCell>
+                              <TableCell>{course.teacherTitle || '-'}</TableCell>
+                              <TableCell className="text-muted-foreground text-sm">
+                                {course.description || '-'}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteCourse(index);
+                                  }}
+                                  className="text-destructive hover:text-destructive"
+                                >
+                                  删除
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                    
+                    {/* 修改意见输入框 */}
+                    <div className="border-t pt-4">
+                      <Label className="mb-2 block">修改意见</Label>
+                      <div className="flex gap-2">
+                        <Textarea
+                          placeholder="请输入您对培训方案的修改意见，例如：增加实操课程、调整课程顺序、更换讲师类型等..."
+                          value={modifySuggestion}
+                          onChange={(e) => setModifySuggestion(e.target.value)}
+                          rows={2}
+                          className="flex-1"
+                        />
+                        <Button 
+                          onClick={handleModifyScheme}
+                          disabled={generateLoading || !modifySuggestion.trim()}
+                          className="self-end"
+                        >
+                          {generateLoading ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              生成中...
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw className="h-4 w-4 mr-2" />
+                              根据意见重新生成
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 )}
               </CardContent>
@@ -1185,6 +1327,72 @@ export default function DesignPage() {
           title="需要配置 API Key"
           description="智能分析功能需要配置 AI API Key。您可以前往设置页面配置，或手动填写信息。"
         />
+
+        {/* 课程编辑对话框 */}
+        <Dialog open={showEditCourseDialog} onOpenChange={setShowEditCourseDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>编辑课程</DialogTitle>
+              <DialogDescription>
+                修改课程信息
+              </DialogDescription>
+            </DialogHeader>
+            {editingCourse && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>课程名称</Label>
+                  <Input
+                    value={editingCourse.name}
+                    onChange={(e) => setEditingCourse({ ...editingCourse, name: e.target.value })}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>培训天数</Label>
+                    <Input
+                      type="number"
+                      value={editingCourse.day}
+                      onChange={(e) => setEditingCourse({ ...editingCourse, day: parseInt(e.target.value) || 1 })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>课时</Label>
+                    <Input
+                      type="number"
+                      value={editingCourse.duration}
+                      onChange={(e) => setEditingCourse({ ...editingCourse, duration: parseInt(e.target.value) || 4 })}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>建议讲师职称</Label>
+                  <Input
+                    value={editingCourse.teacherTitle || ''}
+                    onChange={(e) => setEditingCourse({ ...editingCourse, teacherTitle: e.target.value })}
+                    placeholder="例如：教授、高级工程师"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>课程描述</Label>
+                  <Textarea
+                    value={editingCourse.description || ''}
+                    onChange={(e) => setEditingCourse({ ...editingCourse, description: e.target.value })}
+                    rows={3}
+                    placeholder="课程内容概述..."
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setShowEditCourseDialog(false)}>
+                    取消
+                  </Button>
+                  <Button onClick={handleSaveEditedCourse}>
+                    保存
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );
