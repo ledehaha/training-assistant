@@ -51,23 +51,23 @@ const TITLE_TO_HOURLY_RATE: Record<string, number> = {
   '中国科学院院士': 1500,
   '中国工程院院士': 1500,
   
-  // 教授级：1000元/小时
+  // 教授级（正高级职称）：1000元/小时
   '教授': 1000,
   '正教授': 1000,
+  '研究员': 1000,
+  '正高级工程师': 1000,
+  '正高级经济师': 1000,
+  '正高级会计师': 1000,
+  '主任医师': 1000,
+  '主任药师': 1000,
+  '主任技师': 1000,
+  '编审': 1000,
+  '译审': 1000,
+  '教授级高级工程师': 1000,
+  '教授级高工': 1000,
+  '国家级教练': 1000,
   
-  // 其他职称：500元/小时
-  '研究员': 500,
-  '正高级工程师': 500,
-  '正高级经济师': 500,
-  '正高级会计师': 500,
-  '主任医师': 500,
-  '主任药师': 500,
-  '主任技师': 500,
-  '编审': 500,
-  '译审': 500,
-  '教授级高级工程师': 500,
-  '教授级高工': 500,
-  '国家级教练': 500,
+  // 其他职称（副高及以下）：500元/小时
   '副教授': 500,
   '副研究员': 500,
   '高级工程师': 500,
@@ -116,7 +116,7 @@ const TITLE_TO_HOURLY_RATE: Record<string, number> = {
   '二级教练': 500,
   
   // 标准等级（兼容旧数据）
-  '正高': 500,
+  '正高': 1000,
   '副高': 500,
   '中级': 500,
   '初级': 500,
@@ -132,10 +132,14 @@ const getHourlyRateByTitle = (title: string | undefined | null): number => {
     return TITLE_TO_HOURLY_RATE[title];
   }
   
-  // 模糊匹配（上海市三档标准：院士1500、教授1000、其他500）
+  // 模糊匹配（上海市三档标准：院士1500、教授级1000、其他500）
   const lowerTitle = title.toLowerCase();
   if (lowerTitle.includes('院士')) return 1500;
+  // 教授级（正高级职称）：1000元
+  if (lowerTitle.includes('正高') || lowerTitle.includes('教授级')) return 1000;
   if (lowerTitle.includes('教授') && !lowerTitle.includes('副')) return 1000;
+  if (lowerTitle.includes('研究员') && !lowerTitle.includes('副') && !lowerTitle.includes('助理')) return 1000;
+  if (lowerTitle.includes('主任') && !lowerTitle.includes('副主任')) return 1000;
   
   // 其他所有职称统一500元
   return 500;
