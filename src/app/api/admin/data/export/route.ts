@@ -144,6 +144,17 @@ export async function GET(request: NextRequest) {
         if (typeof value === 'boolean') {
           value = value ? '是' : '否';
         }
+        // 处理状态字段（英文转中文）
+        if (col.key === 'status') {
+          const statusMap: Record<string, string> = {
+            'draft': '草稿',
+            'designing': '设计阶段',
+            'executing': '执行阶段',
+            'completed': '已完成',
+            'archived': '已归档',
+          };
+          value = statusMap[String(value)] || value;
+        }
         // 处理 null/undefined
         if (value === null || value === undefined) {
           value = '';
@@ -227,6 +238,17 @@ export async function POST(request: NextRequest) {
         // 处理布尔值
         if (typeof value === 'boolean') {
           value = value ? '是' : '否';
+        }
+        // 处理状态字段（英文转中文）
+        if (col.key === 'status') {
+          const statusMap: Record<string, string> = {
+            'draft': '草稿',
+            'designing': '设计阶段',
+            'executing': '执行阶段',
+            'completed': '已完成',
+            'archived': '已归档',
+          };
+          value = statusMap[String(value)] || value;
         }
         // 处理 null/undefined
         if (value === null || value === undefined) {

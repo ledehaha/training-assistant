@@ -116,7 +116,7 @@ const TABLES_CONFIG = [
     columns: [
       { key: 'id', label: 'ID', type: 'uuid', editable: false },
       { key: 'name', label: '项目名称', type: 'text', editable: true, required: true },
-      { key: 'status', label: '状态', type: 'select', options: ['draft', 'designing', 'executing', 'completed', 'archived'], editable: true },
+      { key: 'status', label: '状态', type: 'select', options: ['草稿', '设计阶段', '执行阶段', '已完成', '已归档'], editable: true },
       { key: 'trainingTarget', label: '培训目标', type: 'text', editable: true },
       { key: 'targetAudience', label: '目标人群', type: 'text', editable: true },
       { key: 'participantCount', label: '参训人数', type: 'number', editable: true },
@@ -867,10 +867,12 @@ export default function DataManagementPage() {
 
     switch (col.type) {
       case 'select':
+        // 对于状态字段，处理英文到中文的映射
+        const displayValue = col.key === 'status' ? (statusMap[String(value)] || String(value)) : String(value);
         return (
           <select
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            value={String(value)}
+            value={displayValue}
             onChange={(e) => setFormData({ ...formData, [col.key]: e.target.value })}
           >
             <option value="">请选择</option>
@@ -927,6 +929,15 @@ export default function DataManagementPage() {
     }
   };
 
+  // 状态映射
+  const statusMap: Record<string, string> = {
+    'draft': '草稿',
+    'designing': '设计阶段',
+    'executing': '执行阶段',
+    'completed': '已完成',
+    'archived': '已归档',
+  };
+
   // 渲染单元格值
   const renderCellValue = (col: ColumnConfig, value: unknown) => {
     if (value === null || value === undefined) return '-';
@@ -945,6 +956,21 @@ export default function DataManagementPage() {
           <ExternalLink className="w-3 h-3" />
           下载文件
         </a>
+      );
+    }
+
+    // 特殊处理状态字段
+    if (col.key === 'status') {
+      const statusValue = String(value);
+      const displayValue = statusMap[statusValue] || statusValue;
+      return (
+        <Badge variant={
+          statusValue === 'completed' ? 'default' :
+          statusValue === 'executing' ? 'secondary' :
+          statusValue === 'draft' ? 'outline' : 'secondary'
+        }>
+          {displayValue}
+        </Badge>
       );
     }
 
