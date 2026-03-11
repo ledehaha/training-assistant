@@ -185,7 +185,7 @@ const tableMap = {
 
 // 表结构描述
 const TABLE_SCHEMA: Record<string, string> = {
-  teachers: `讲师信息表: name(必填), title(职称:院士/正高/副高/中级/初级/其他), expertise, organization, bio, hourlyRate(课时费参考:院士5000+/正高2000-3000/副高1200-1800/中级800-1200/初级500-800/其他300-600), rating, teachingCount, isActive`,
+  teachers: `讲师信息表: name(必填), title(职称:院士/正高/副高/中级/初级/其他), expertise, organization, bio, hourlyRate(课时费标准:院士1500/正高1000/副高500/中级500/初级500/其他500), rating, teachingCount, isActive`,
   venues: '场地信息表: name(必填), location, capacity, dailyRate, facilities, rating, usageCount, isActive',
   course_templates: '课程模板表: name(必填), category, duration, targetAudience, difficulty, description, usageCount, avgRating',
   normative_documents: '规范性文件表: name(必填), summary, issuer, issueDate, filePath, isEffective',
@@ -257,7 +257,7 @@ ${normativeContext}
 
 重要提示：
 - 对于讲师信息，当识别出职称时，请根据职称自动推荐课时费：
-  院士: 5000+元、正高: 2000-3000元、副高: 1200-1800元、中级: 800-1200元、初级: 500-800元、其他: 300-600元
+  院士: 1500元、正高: 1000元、副高: 500元、中级: 500元、初级: 500元、其他: 500元
 
 文件内容:
 ${extractedText.substring(0, 8000)}
