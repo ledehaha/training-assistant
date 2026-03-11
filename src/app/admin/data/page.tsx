@@ -185,6 +185,11 @@ export default function DataManagementPage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [fileImportLoading, setFileImportLoading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  // 规范性文件专用状态
+  const [normativeFile, setNormativeFile] = useState<File | null>(null);
+  const [normativeFileLoading, setNormativeFileLoading] = useState(false);
+  const [aiFillingLoading, setAiFillingLoading] = useState(false);
+  const [isDraggingNormative, setIsDraggingNormative] = useState(false);
 
   // 根据表类型获取导入提示词
   const getImportPlaceholder = () => {
@@ -281,6 +286,7 @@ export default function DataManagementPage() {
     });
     setFormData(initialData);
     setCurrentItem(null);
+    setNormativeFile(null); // 清空规范性文件
     setEditDialogOpen(true);
   };
 
@@ -288,12 +294,39 @@ export default function DataManagementPage() {
   const handleEdit = (item: Record<string, unknown>) => {
     setFormData({ ...item });
     setCurrentItem(item);
+    setNormativeFile(null); // 清空规范性文件
     setEditDialogOpen(true);
   };
 
   // 保存数据
   const handleSave = async () => {
     try {
+      // 如果是规范性文件且有上传文件，先上传文件
+      if (selectedTable.name === 'normative_documents' && normativeFile) {
+        setNormativeFileLoading(true);
+        const formDataObj = new FormData();
+        formDataObj.append('file', normativeFile);
+        formDataObj.append('table', 'normative_documents');
+
+        const uploadRes = await fetch('/api/admin/data/ai-import-file', {
+          method: 'POST',
+          body: formDataObj,
+        });
+
+        const uploadResult = await uploadRes.json();
+        if (uploadResult.success) {
+          setMessage({ type: 'success', text: '文件上传成功，已导入数据' });
+          setEditDialogOpen(false);
+          setNormativeFile(null);
+          loadData();
+          return;
+        } else {
+          setMessage({ type: 'error', text: uploadResult.error || '文件上传失败' });
+          setNormativeFileLoading(false);
+          return;
+        }
+      }
+
       const url = '/api/admin/data';
       const method = currentItem ? 'PUT' : 'POST';
       const body = {
@@ -454,6 +487,45 @@ export default function DataManagementPage() {
       setMessage({ type: 'error', text: '文件导入失败' });
     } finally {
       setFileImportLoading(false);
+    }
+  };
+
+  // AI 填写规范性文件信息
+  const handleAiFillNormative = async () => {
+    if (!normativeFile) {
+      setMessage({ type: 'error', text: '请先上传文件' });
+      return;
+    }
+
+    setAiFillingLoading(true);
+    try {
+      const formDataObj = new FormData();
+      formDataObj.append('file', normativeFile);
+
+      const res = await fetch('/api/admin/data/analyze-normative', {
+        method: 'POST',
+        body: formDataObj,
+      });
+
+      const result = await res.json();
+      if (result.success && result.data) {
+        // 自动填充表单
+        setFormData(prev => ({
+          ...prev,
+          name: result.data.name || prev.name,
+          summary: result.data.summary || prev.summary,
+          issuer: result.data.issuer || prev.issuer,
+          issue_date: result.data.issueDate || prev.issue_date,
+        }));
+        setMessage({ type: 'success', text: 'AI 分析完成，已自动填写表单' });
+      } else {
+        setMessage({ type: 'error', text: result.error || 'AI 分析失败' });
+      }
+    } catch (error) {
+      console.error('AI fill error:', error);
+      setMessage({ type: 'error', text: 'AI 分析失败' });
+    } finally {
+      setAiFillingLoading(false);
     }
   };
 
@@ -753,23 +825,222 @@ export default function DataManagementPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {selectedTable.columns
-              .filter(col => col.editable)
-              .map(col => (
-                <div key={col.key} className="space-y-2">
+            {selectedTable.name === 'normative_documents' ? (
+              // 规范性文件特殊表单
+              <>
+                {/* 文件名称 */}
+                <div className="space-y-2">
                   <Label>
-                    {col.label}
-                    {col.required && <span className="text-red-500 ml-1">*</span>}
+                    文件名称<span className="text-red-500 ml-1">*</span>
                   </Label>
-                  {renderFormField(col)}
+                  <Input
+                    type="text"
+                    value={String(formData.name || '')}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="请输入文件名称"
+                  />
                 </div>
-              ))}
+
+                {/* 文件上传区域 */}
+                <div className="space-y-2">
+                  <Label>上传文件</Label>
+                  <div
+                    className={`border-2 border-dashed rounded-lg p-4 transition-colors ${
+                      isDraggingNormative 
+                        ? 'border-blue-500 bg-blue-50' 
+                        : 'border-gray-300 hover:border-blue-400'
+                    }`}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDraggingNormative(true);
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      setIsDraggingNormative(false);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsDraggingNormative(false);
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) {
+                        const ext = file.name.split('.').pop()?.toLowerCase();
+                        if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext || '')) {
+                          setNormativeFile(file);
+                          // 自动填充文件名
+                          if (!formData.name) {
+                            setFormData(prev => ({ ...prev, name: file.name.replace(/\.[^/.]+$/, '') }));
+                          }
+                        } else {
+                          setMessage({ type: 'error', text: '不支持的文件格式，支持 PDF、Word、Excel、PPT' });
+                        }
+                      }
+                    }}
+                  >
+                    <input
+                      type="file"
+                      className="hidden"
+                      id="normative-file-upload"
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setNormativeFile(file);
+                          // 自动填充文件名
+                          if (!formData.name) {
+                            setFormData(prev => ({ ...prev, name: file.name.replace(/\.[^/.]+$/, '') }));
+                          }
+                        }
+                      }}
+                    />
+                    <label htmlFor="normative-file-upload" className="cursor-pointer">
+                      <div className="flex flex-col items-center gap-2">
+                        <FileUp className={`w-8 h-8 ${isDraggingNormative ? 'text-blue-500' : 'text-gray-400'}`} />
+                        {normativeFile ? (
+                          <div className="flex items-center gap-2 p-2 bg-blue-100 rounded-lg">
+                            <FileText className="w-4 h-4 text-blue-600" />
+                            <span className="text-sm text-blue-700 font-medium">{normativeFile.name}</span>
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setNormativeFile(null);
+                              }}
+                              className="text-gray-400 hover:text-red-500 ml-1"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <p className="text-sm text-gray-600">
+                              <span className="text-blue-600 font-medium">点击上传</span> 或拖拽文件到此处
+                            </p>
+                            <p className="text-xs text-gray-400">
+                              支持 PDF、Word、Excel、PPT 文件
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    </label>
+                  </div>
+                  {normativeFile && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAiFillNormative}
+                      disabled={aiFillingLoading}
+                      className="w-full mt-2"
+                    >
+                      {aiFillingLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          AI 分析中...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4 mr-2" />
+                          AI 填写
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
+
+                {/* 内容摘要 */}
+                <div className="space-y-2">
+                  <Label>内容摘要</Label>
+                  <textarea
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows={3}
+                    value={String(formData.summary || '')}
+                    onChange={(e) => setFormData({ ...formData, summary: e.target.value })}
+                    placeholder="请输入内容摘要，或上传文件后点击 AI 填写"
+                  />
+                </div>
+
+                {/* 颁发部门 */}
+                <div className="space-y-2">
+                  <Label>颁发部门</Label>
+                  <Input
+                    type="text"
+                    value={String(formData.issuer || '')}
+                    onChange={(e) => setFormData({ ...formData, issuer: e.target.value })}
+                    placeholder="请输入颁发部门"
+                  />
+                </div>
+
+                {/* 颁发时间 */}
+                <div className="space-y-2">
+                  <Label>颁发时间</Label>
+                  <Input
+                    type="date"
+                    value={String(formData.issue_date || '').substring(0, 10)}
+                    onChange={(e) => setFormData({ ...formData, issue_date: e.target.value })}
+                  />
+                </div>
+
+                {/* 是否有效 */}
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(formData.is_effective)}
+                      onChange={(e) => setFormData({ ...formData, is_effective: e.target.checked })}
+                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                    />
+                    <span className="text-sm">是否有效</span>
+                  </label>
+                </div>
+
+                {/* 已有文件链接提示 */}
+                {currentItem?.file_url && (
+                  <div className="p-3 bg-gray-50 rounded-lg text-sm text-gray-600">
+                    <p className="font-medium mb-1">已上传文件：</p>
+                    <a
+                      href={String(currentItem.file_url)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      下载查看
+                    </a>
+                  </div>
+                )}
+              </>
+            ) : (
+              // 其他表的通用表单
+              selectedTable.columns
+                .filter(col => col.editable)
+                .map(col => (
+                  <div key={col.key} className="space-y-2">
+                    <Label>
+                      {col.label}
+                      {col.required && <span className="text-red-500 ml-1">*</span>}
+                    </Label>
+                    {renderFormField(col)}
+                  </div>
+                ))
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
               取消
             </Button>
-            <Button onClick={handleSave}>保存</Button>
+            <Button 
+              onClick={handleSave}
+              disabled={normativeFileLoading}
+            >
+              {normativeFileLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  上传中...
+                </>
+              ) : (
+                '保存'
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
