@@ -2,13 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 import { 
   db, teachers, venues, courseTemplates, normativeDocuments, 
-  eq, desc, sql 
+  eq, desc, sql, ensureDatabaseReady 
 } from '@/storage/database';
 import { getApiKey } from '@/lib/api-key';
 
 // POST /api/ai/recommend - AI智能推荐
 export async function POST(request: NextRequest) {
   try {
+    // 确保数据库已初始化
+    await ensureDatabaseReady();
+    
     // 检查 API Key
     const apiKey = await getApiKey();
     if (!apiKey) {
@@ -327,6 +330,11 @@ ${projectData.feedback}
     let result;
     try {
       let content = response.content || '';
+      
+      // 移除 AI 思考过程（如 <think>...</think> 和 ◁think▷...◁/think▷）
+      content = content.replace(/<[\/]?think>/g, '');
+      content = content.replace(/◁[\/]?think▷/g, '');
+      content = content.replace(/◁think▷[\s\S]*?◁\/think▷/g, '');
       
       // 尝试提取JSON块
       const jsonBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
