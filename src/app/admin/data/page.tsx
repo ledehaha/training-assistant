@@ -188,6 +188,9 @@ export default function DataManagementPage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [fileImportLoading, setFileImportLoading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  // AI 导入预览状态
+  const [aiImportPreview, setAiImportPreview] = useState<Record<string, unknown> | null>(null);
+  const [aiImportConfirming, setAiImportConfirming] = useState(false);
   // 规范性文件专用状态
   const [normativeFile, setNormativeFile] = useState<File | null>(null);
   const [aiFillingLoading, setAiFillingLoading] = useState(false);
@@ -471,29 +474,88 @@ export default function DataManagementPage() {
   const doFileImport = async () => {
     setFileImportLoading(true);
     try {
-      const formDataObj = new FormData();
-      formDataObj.append('file', uploadFile!);
-      formDataObj.append('table', selectedTable.name);
+      // 对于规范性文件，先分析显示预览
+      if (selectedTable.name === 'normative_documents') {
+        const formDataObj = new FormData();
+        formDataObj.append('file', uploadFile!);
 
-      const res = await fetch('/api/admin/data/ai-import-file', {
-        method: 'POST',
-        body: formDataObj,
-      });
+        const res = await fetch('/api/admin/data/analyze-normative', {
+          method: 'POST',
+          body: formDataObj,
+        });
 
-      const result = await res.json();
-      if (result.success) {
-        setMessage({ type: 'success', text: result.summary || `成功导入 ${result.count} 条数据` });
-        setAiImportDialogOpen(false);
-        setUploadFile(null);
-        loadData();
+        const result = await res.json();
+        if (result.success && result.data) {
+          // 显示预览结果
+          setAiImportPreview({
+            name: result.data.name || uploadFile!.name.replace(/\.[^/.]+$/, ''),
+            summary: result.data.summary || '',
+            issuer: result.data.issuer || '',
+            issue_date: result.data.issueDate || '',
+            is_effective: true,
+          });
+        } else {
+          setMessage({ type: 'error', text: result.error || '文件解析失败' });
+        }
       } else {
-        setMessage({ type: 'error', text: result.error || '文件解析失败' });
+        // 其他表直接导入
+        const formDataObj = new FormData();
+        formDataObj.append('file', uploadFile!);
+        formDataObj.append('table', selectedTable.name);
+
+        const res = await fetch('/api/admin/data/ai-import-file', {
+          method: 'POST',
+          body: formDataObj,
+        });
+
+        const result = await res.json();
+        if (result.success) {
+          setMessage({ type: 'success', text: result.summary || `成功导入 ${result.count} 条数据` });
+          setAiImportDialogOpen(false);
+          setUploadFile(null);
+          loadData();
+        } else {
+          setMessage({ type: 'error', text: result.error || '文件解析失败' });
+        }
       }
     } catch (error) {
       console.error('File import error:', error);
       setMessage({ type: 'error', text: '文件导入失败' });
     } finally {
       setFileImportLoading(false);
+    }
+  };
+
+  // 确认导入规范性文件
+  const confirmImportNormative = async () => {
+    if (!aiImportPreview) return;
+    
+    setAiImportConfirming(true);
+    try {
+      const res = await fetch('/api/admin/data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          table: 'normative_documents',
+          data: aiImportPreview,
+        }),
+      });
+
+      const result = await res.json();
+      if (result.success) {
+        setMessage({ type: 'success', text: '规范性文件导入成功' });
+        setAiImportDialogOpen(false);
+        setUploadFile(null);
+        setAiImportPreview(null);
+        loadData();
+      } else {
+        setMessage({ type: 'error', text: result.error || '导入失败' });
+      }
+    } catch (error) {
+      console.error('Confirm import error:', error);
+      setMessage({ type: 'error', text: '导入失败' });
+    } finally {
+      setAiImportConfirming(false);
     }
   };
 
@@ -1206,31 +1268,82 @@ export default function DataManagementPage() {
               }}
             />
           </div>
+          
+          {/* AI 分析预览结果 */}
+          {aiImportPreview && selectedTable.name === 'normative_documents' && (
+            <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex items-center gap-2 mb-3">
+                <CheckCircle className="w-5 h-5 text-blue-600" />
+                <span className="font-medium text-blue-700">AI 分析结果预览</span>
+              </div>
+              <div className="space-y-2 text-sm">
+                <div><span className="font-medium text-gray-700">文件名称：</span>{String(aiImportPreview.name || '')}</div>
+                <div><span className="font-medium text-gray-700">颁发部门：</span>{String(aiImportPreview.issuer || '未识别')}</div>
+                <div><span className="font-medium text-gray-700">颁发时间：</span>{String(aiImportPreview.issue_date || '未识别')}</div>
+                <div><span className="font-medium text-gray-700">内容摘要：</span>
+                  <p className="mt-1 text-gray-600 bg-white p-2 rounded border">
+                    {String(aiImportPreview.summary || '未识别')}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2 mt-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAiImportPreview(null)}
+                >
+                  取消
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={confirmImportNormative}
+                  disabled={aiImportConfirming}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  {aiImportConfirming ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      导入中...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      确认导入
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+          
           <DialogFooter>
             <Button variant="outline" onClick={() => {
               setAiImportDialogOpen(false);
               setUploadFile(null);
               setAiImportText('');
+              setAiImportPreview(null);
             }}>
               取消
             </Button>
-            <Button 
-              onClick={uploadFile ? handleFileImport : handleAiImport} 
-              disabled={(!uploadFile && !aiImportText.trim()) || aiImportLoading || fileImportLoading}
-              className="bg-purple-600 hover:bg-purple-700"
-            >
-              {(aiImportLoading || fileImportLoading) ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  AI 解析中...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  AI 分析导入
-                </>
-              )}
-            </Button>
+            {!aiImportPreview && (
+              <Button 
+                onClick={uploadFile ? handleFileImport : handleAiImport} 
+                disabled={(!uploadFile && !aiImportText.trim()) || aiImportLoading || fileImportLoading}
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                {(aiImportLoading || fileImportLoading) ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    AI 解析中...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    AI 分析导入
+                  </>
+                )}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
