@@ -44,6 +44,110 @@ import {
 } from 'lucide-react';
 import ApiKeyCheckDialog, { checkApiKeyConfigured } from '@/components/api-key-check-dialog';
 
+// 职称到课时费的映射表
+const TITLE_TO_HOURLY_RATE: Record<string, number> = {
+  // 院士级
+  '院士': 1500,
+  '中国科学院院士': 1500,
+  '中国工程院院士': 1500,
+  
+  // 正高
+  '教授': 1000,
+  '正教授': 1000,
+  '研究员': 1000,
+  '正高级工程师': 1000,
+  '正高级经济师': 1000,
+  '正高级会计师': 1000,
+  '主任医师': 1000,
+  '主任药师': 1000,
+  '主任技师': 1000,
+  '编审': 1000,
+  '译审': 1000,
+  '教授级高级工程师': 1000,
+  '教授级高工': 1000,
+  '国家级教练': 1000,
+  
+  // 副高
+  '副教授': 500,
+  '副研究员': 500,
+  '高级工程师': 500,
+  '高工': 500,
+  '高级经济师': 500,
+  '高级会计师': 500,
+  '高级农艺师': 500,
+  '副主任医师': 500,
+  '副主任药师': 500,
+  '副主任技师': 500,
+  '副编审': 500,
+  '副译审': 500,
+  '高级讲师': 500,
+  '高级实习指导教师': 500,
+  '中小学高级教师': 500,
+  '高级教师': 500,
+  '省级教练': 500,
+  '高级技师': 500,
+  
+  // 中级
+  '讲师': 500,
+  '助理研究员': 500,
+  '工程师': 500,
+  '经济师': 500,
+  '会计师': 500,
+  '农艺师': 500,
+  '主治医师': 500,
+  '主管药师': 500,
+  '主管技师': 500,
+  '编辑': 500,
+  '翻译': 500,
+  '中小学一级教师': 500,
+  '一级教师': 500,
+  '一级教练': 500,
+  '技师': 500,
+  
+  // 初级
+  '助教': 500,
+  '助理工程师': 500,
+  '助理经济师': 500,
+  '助理会计师': 500,
+  '助理农艺师': 500,
+  '医师': 500,
+  '药师': 500,
+  '检验师': 500,
+  '助理编辑': 500,
+  '助理翻译': 500,
+  '中小学二级教师': 500,
+  '二级教师': 500,
+  '二级教练': 500,
+  
+  // 标准等级（兼容旧数据）
+  '正高': 1000,
+  '副高': 500,
+  '中级': 500,
+  '初级': 500,
+  '其他': 500,
+};
+
+// 根据职称获取课时费
+const getHourlyRateByTitle = (title: string | undefined | null): number => {
+  if (!title) return 500;
+  
+  // 精确匹配
+  if (TITLE_TO_HOURLY_RATE[title]) {
+    return TITLE_TO_HOURLY_RATE[title];
+  }
+  
+  // 模糊匹配
+  const lowerTitle = title.toLowerCase();
+  if (lowerTitle.includes('院士')) return 1500;
+  if (lowerTitle.includes('正高') || lowerTitle.includes('教授级')) return 1000;
+  if (lowerTitle.includes('教授') && !lowerTitle.includes('副')) return 1000;
+  if (lowerTitle.includes('研究员') && !lowerTitle.includes('副') && !lowerTitle.includes('助理')) return 1000;
+  if (lowerTitle.includes('副高') || lowerTitle.includes('副教授') || lowerTitle.includes('高级工程师') || lowerTitle.includes('高级技师')) return 500;
+  if (lowerTitle.includes('讲师') || lowerTitle.includes('工程师') || lowerTitle.includes('技师')) return 500;
+  
+  return 500;
+};
+
 // 数据表配置
 const TABLES_CONFIG = [
   { 
@@ -53,7 +157,7 @@ const TABLES_CONFIG = [
     columns: [
       { key: 'id', label: 'ID', type: 'uuid', editable: false },
       { key: 'name', label: '姓名', type: 'text', editable: true, required: true },
-      { key: 'title', label: '职称', type: 'select', options: ['院士', '正高', '副高', '中级', '初级', '其他'], editable: true },
+      { key: 'title', label: '职称', type: 'text', editable: true },
       { key: 'expertise', label: '专业领域', type: 'text', editable: true },
       { key: 'organization', label: '所属单位', type: 'text', editable: true },
       { key: 'bio', label: '简介', type: 'textarea', editable: true },
@@ -881,6 +985,12 @@ export default function DataManagementPage() {
 
     const value = formData[col.key] ?? '';
 
+    // 职称字段特殊处理：修改时自动更新课时费
+    const handleTitleChange = (newTitle: string) => {
+      const newHourlyRate = getHourlyRateByTitle(newTitle);
+      setFormData({ ...formData, title: newTitle, hourlyRate: newHourlyRate });
+    };
+
     switch (col.type) {
       case 'select':
         // 对于状态字段，处理英文到中文的映射
@@ -919,6 +1029,25 @@ export default function DataManagementPage() {
           </label>
         );
       case 'number':
+        // 课时费字段显示提示
+        if (col.key === 'hourlyRate') {
+          const suggestedRate = getHourlyRateByTitle(formData.title as string);
+          return (
+            <div className="space-y-1">
+              <Input
+                type="number"
+                value={String(value)}
+                onChange={(e) => setFormData({ ...formData, [col.key]: Number(e.target.value) })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              {formData.title ? (
+                <p className="text-xs text-gray-500">
+                  根据职称「{String(formData.title)}」建议课时费：{suggestedRate}元
+                </p>
+              ) : null}
+            </div>
+          );
+        }
         return (
           <Input
             type="number"
@@ -935,6 +1064,22 @@ export default function DataManagementPage() {
           />
         );
       default:
+        // 职称字段特殊处理：修改时自动更新课时费
+        if (col.key === 'title') {
+          return (
+            <div className="space-y-1">
+              <Input
+                type="text"
+                value={String(value)}
+                onChange={(e) => handleTitleChange(e.target.value)}
+                placeholder="如：高级工程师、教授、副教授等"
+              />
+              <p className="text-xs text-gray-500">
+                输入职称后，课时费将自动计算
+              </p>
+            </div>
+          );
+        }
         return (
           <Input
             type="text"
@@ -1792,11 +1937,18 @@ export default function DataManagementPage() {
                         type="text"
                         value={String(aiImportPreview[currentIndex].title || '')}
                         onChange={(e) => {
+                          const newTitle = e.target.value;
+                          const newHourlyRate = getHourlyRateByTitle(newTitle);
                           const newData = [...aiImportPreview];
-                          newData[currentIndex] = { ...newData[currentIndex], title: e.target.value };
+                          newData[currentIndex] = { 
+                            ...newData[currentIndex], 
+                            title: newTitle, 
+                            hourly_rate: newHourlyRate,
+                            hourlyRate: newHourlyRate 
+                          };
                           setAiImportPreview(newData);
                         }}
-                        placeholder="未识别"
+                        placeholder="如：高级工程师、教授等"
                         className="flex-1 bg-white"
                       />
                     </div>
@@ -1830,17 +1982,24 @@ export default function DataManagementPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-gray-700 w-24 shrink-0">课时费(元)：</span>
-                      <Input
-                        type="number"
-                        value={String(aiImportPreview[currentIndex].hourly_rate || aiImportPreview[currentIndex].hourlyRate || '')}
-                        onChange={(e) => {
-                          const newData = [...aiImportPreview];
-                          newData[currentIndex] = { ...newData[currentIndex], hourly_rate: parseFloat(e.target.value) || 0, hourlyRate: parseFloat(e.target.value) || 0 };
-                          setAiImportPreview(newData);
-                        }}
-                        placeholder="0"
-                        className="flex-1 bg-white"
-                      />
+                      <div className="flex-1 flex items-center gap-2">
+                        <Input
+                          type="number"
+                          value={String(aiImportPreview[currentIndex].hourly_rate || aiImportPreview[currentIndex].hourlyRate || '')}
+                          onChange={(e) => {
+                            const newData = [...aiImportPreview];
+                            newData[currentIndex] = { ...newData[currentIndex], hourly_rate: parseFloat(e.target.value) || 0, hourlyRate: parseFloat(e.target.value) || 0 };
+                            setAiImportPreview(newData);
+                          }}
+                          placeholder="0"
+                          className="flex-1 bg-white"
+                        />
+                        {aiImportPreview[currentIndex].title ? (
+                          <span className="text-xs text-gray-500 whitespace-nowrap">
+                            (根据职称自动计算)
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-gray-700 w-24 shrink-0">是否在职：</span>
