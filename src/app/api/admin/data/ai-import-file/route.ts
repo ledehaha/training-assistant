@@ -185,7 +185,7 @@ const tableMap = {
 
 // 表结构描述
 const TABLE_SCHEMA: Record<string, string> = {
-  teachers: '讲师信息表: name(必填), title, expertise, organization, bio, hourlyRate, rating, teachingCount, isActive',
+  teachers: `讲师信息表: name(必填), title(职称:院士/正高/副高/中级/初级/其他), expertise, organization, bio, hourlyRate(课时费参考:院士5000+/正高2000-3000/副高1200-1800/中级800-1200/初级500-800/其他300-600), rating, teachingCount, isActive`,
   venues: '场地信息表: name(必填), location, capacity, dailyRate, facilities, rating, usageCount, isActive',
   course_templates: '课程模板表: name(必填), category, duration, targetAudience, difficulty, description, usageCount, avgRating',
   normative_documents: '规范性文件表: name(必填), summary, issuer, issueDate, filePath, isEffective',
@@ -254,6 +254,11 @@ export async function POST(request: NextRequest) {
 
       const prompt = `你是一个数据解析专家。从以下文件内容中提取${TABLE_SCHEMA[table] || table}的数据。
 ${normativeContext}
+
+重要提示：
+- 对于讲师信息，当识别出职称时，请根据职称自动推荐课时费：
+  院士: 5000+元、正高: 2000-3000元、副高: 1200-1800元、中级: 800-1200元、初级: 500-800元、其他: 300-600元
+
 文件内容:
 ${extractedText.substring(0, 8000)}
 
