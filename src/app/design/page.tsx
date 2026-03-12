@@ -1117,7 +1117,10 @@ export default function DesignPage() {
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={() => loadDraftProjects()}
+              onClick={() => {
+                loadDraftProjects();
+                setShowDraftList(true);
+              }}
             >
               <FolderOpen className="h-4 w-4 mr-2" />
               草稿箱
