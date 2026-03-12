@@ -373,8 +373,8 @@ export default function DesignPage() {
         setDraftProjects(data.data.map((p: Record<string, unknown>) => ({
           id: p.id as string,
           name: (p.name as string) || '未命名项目',
-          created_at: p.created_at as string,
-          updated_at: p.updated_at as string,
+          created_at: (p.createdAt as string) || (p.created_at as string),
+          updated_at: (p.updatedAt as string) || (p.updated_at as string),
           status: p.status as string,
           progress: calculateProgress(p),
         })));
@@ -386,7 +386,7 @@ export default function DesignPage() {
 
   const calculateProgress = (project: Record<string, unknown>): string => {
     if (project.status === 'draft') {
-      if (project.name && project.participant_count && project.training_days) {
+      if (project.name && (project.participantCount || project.participant_count) && (project.trainingDays || project.training_days)) {
         return '需求填写';
       }
       return '新建';
@@ -436,24 +436,25 @@ export default function DesignPage() {
         setProjectId(project.id);
         setFormData({
           name: project.name || '',
-          trainingTarget: project.training_target || '',
-          targetAudience: project.target_audience || '',
-          participantCount: project.participant_count || 50,
-          trainingDays: project.training_days || 4,
-          trainingHours: project.training_hours || 32,
-          trainingPeriod: project.training_period || '',
-          budgetMin: project.budget_min || 8,
-          budgetMax: project.budget_max || 12,
+          trainingTarget: project.trainingTarget || project.training_target || '',
+          targetAudience: project.targetAudience || project.target_audience || '',
+          participantCount: project.participantCount || project.participant_count || 50,
+          trainingDays: project.trainingDays || project.training_days || 4,
+          trainingHours: project.trainingHours || project.training_hours || 32,
+          trainingPeriod: project.trainingPeriod || project.training_period || '',
+          budgetMin: project.budgetMin ?? project.budget_min ?? 8,
+          budgetMax: project.budgetMax ?? project.budget_max ?? 12,
           location: project.location || '',
-          specialRequirements: project.special_requirements || '',
+          specialRequirements: project.specialRequirements || project.special_requirements || '',
         });
         
         if (project.courses) {
           setCourses(project.courses);
         }
         
-        if (project.selected_venue_id) {
-          const venue = venues.find(v => v.id === project.selected_venue_id);
+        const venueId = project.venueId || project.selected_venue_id || project.venue_id;
+        if (venueId) {
+          const venue = venues.find(v => v.id === venueId);
           if (venue) setSelectedVenue(venue);
         }
         
@@ -461,19 +462,19 @@ export default function DesignPage() {
         lastSavedDataRef.current = JSON.stringify({
           formData: {
             name: project.name || '',
-            trainingTarget: project.training_target || '',
-            targetAudience: project.target_audience || '',
-            participantCount: project.participant_count || 50,
-            trainingDays: project.training_days || 4,
-            trainingHours: project.training_hours || 32,
-            trainingPeriod: project.training_period || '',
-            budgetMin: project.budget_min || 8,
-            budgetMax: project.budget_max || 12,
+            trainingTarget: project.trainingTarget || project.training_target || '',
+            targetAudience: project.targetAudience || project.target_audience || '',
+            participantCount: project.participantCount || project.participant_count || 50,
+            trainingDays: project.trainingDays || project.training_days || 4,
+            trainingHours: project.trainingHours || project.training_hours || 32,
+            trainingPeriod: project.trainingPeriod || project.training_period || '',
+            budgetMin: project.budgetMin ?? project.budget_min ?? 8,
+            budgetMax: project.budgetMax ?? project.budget_max ?? 12,
             location: project.location || '',
-            specialRequirements: project.special_requirements || '',
+            specialRequirements: project.specialRequirements || project.special_requirements || '',
           },
           courses: project.courses || [],
-          selectedVenueId: project.selected_venue_id,
+          selectedVenueId: venueId,
         });
         
         setShowDraftList(false);
