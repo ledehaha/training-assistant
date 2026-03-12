@@ -283,10 +283,10 @@ export default function DesignPage() {
     // 没有内容不保存
     if (!formData.name?.trim() && !projectId) return;
     
-    // 设置新的定时器（3秒防抖）
+    // 设置新的定时器（30秒防抖）
     saveTimerRef.current = setTimeout(() => {
       performSave();
-    }, 3000);
+    }, 30000);
 
     return () => {
       if (saveTimerRef.current) {
@@ -929,6 +929,11 @@ export default function DesignPage() {
 
   // 处理"下一步：方案设计"按钮点击
   const handleNextToScheme = async () => {
+    // 先保存数据
+    if (formData.name?.trim()) {
+      await performSave();
+    }
+    
     setActiveTab('scheme');
     
     // 如果没有课程且有项目名称，自动生成方案
