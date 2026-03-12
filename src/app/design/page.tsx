@@ -904,12 +904,12 @@ export default function DesignPage() {
     <MainLayout>
       <div className="container mx-auto py-6 px-4 max-w-6xl">
         {/* 顶部操作栏 */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
           <div className="flex items-center gap-4">
             <h1 className="text-2xl font-bold">项目设计</h1>
             <SaveIndicator />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button 
               variant="outline" 
               size="sm" 
@@ -941,7 +941,13 @@ export default function DesignPage() {
           </div>
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <Tabs value={activeTab} onValueChange={(value) => {
+          // 切换 Tab 前先尝试保存
+          if (formData.name?.trim()) {
+            performSave();
+          }
+          setActiveTab(value);
+        }}>
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="requirement">需求录入</TabsTrigger>
             <TabsTrigger value="scheme">方案设计</TabsTrigger>
