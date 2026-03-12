@@ -117,21 +117,26 @@ export async function POST(request: NextRequest) {
 参训人数：${projectData.participantCount || 0}人
 培训天数：${projectData.trainingDays || 0}天
 总课时：${projectData.trainingHours || 0}课时
+平均每天课时：${projectData.trainingHours && projectData.trainingDays ? Math.round((projectData.trainingHours / projectData.trainingDays) * 10) / 10 : '未指定'}
 预算：${budgetStr}
 特殊要求：${projectData.specialRequirements || '无'}
 ${contextData}${userProfileContext}
 
 要求：
 1. 所有课程必须紧扣培训主题，不要生成无关课程
-2. 合理分配课时，总课时等于${projectData.trainingHours || 32}课时
-3. 按天安排课程，每天最多12课时（上午4课时+下午4课时+晚上4课时）
-4. 每门课程标注建议讲师职称
-5. 考虑目标人群的特征偏好进行个性化设计
-6. 【重要】课程时长必须是4课时或2课时：
-   - 半天课程为4课时（上午或下午的标准单位）
-   - 2课时用于部分课程（如晚上课程或短课程）
+2. 总课时必须严格等于${projectData.trainingHours || 32}课时，不能多也不能少
+3. 【重要】根据"平均每天课时"合理安排每天的课时量：
+   - 如果平均每天≤4课时：每天安排半天课程即可
+   - 如果平均每天在5-8课时：安排上午+下午的课程
+   - 如果平均每天>8课时：可以考虑安排晚上课程
+   - 不要机械地每天安排相同课时，可以有适当变化
+4. 每门课程时长必须是4课时或2课时：
+   - 4课时 = 半天（上午或下午的标准单位）
+   - 2课时 = 短课程（如晚上课程）
    - 禁止生成6、8、10、12课时的单门课程
    - 如果内容较多需要拆分为多门课程，命名使用"（上）"、"（下）"、"（中）"区分
+5. 每门课程标注建议讲师职称
+6. 考虑目标人群的特征偏好进行个性化设计
 
 返回JSON格式：
 {
@@ -153,6 +158,7 @@ ${contextData}${userProfileContext}
 目标人群：${projectData.targetAudience || '未指定'}
 总课时：${projectData.trainingHours || 32}课时
 培训天数：${projectData.trainingDays || 4}天
+平均每天课时：${projectData.trainingHours && projectData.trainingDays ? Math.round((projectData.trainingHours / projectData.trainingDays) * 10) / 10 : '未指定'}
 
 当前方案：
 ${JSON.stringify(projectData.currentCourses, null, 2)}
@@ -162,9 +168,9 @@ ${projectData.modifySuggestion}
 
 要求：
 1. 根据意见调整课程，保持与培训主题相关
-2. 总课时保持${projectData.trainingHours || 32}课时
-3. 按天分配，每天最多12课时
-4. 【重要】课程时长必须是4课时或2课时，禁止生成6、8、10、12课时的单门课程
+2. 总课时必须严格等于${projectData.trainingHours || 32}课时
+3. 根据"平均每天课时"合理安排每天的课时量，不要机械地每天排满
+4. 课程时长必须是4课时或2课时，禁止生成6、8、10、12课时的单门课程
 5. 如果内容较多需要拆分为多门课程，命名使用"（上）"、"（下）"、"（中）"区分
 
 返回JSON格式：
