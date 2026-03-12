@@ -793,18 +793,19 @@ export default function DesignPage() {
   };
 
   // 检查课程序号是否正确
-  const [checkResult, setCheckResult] = useState<{ valid: boolean; issues: string[] } | null>(null);
+  const [checkResult, setCheckResult] = useState<{ valid: boolean; issues: string[]; canAutoFix: boolean } | null>(null);
   const [showCheckResult, setShowCheckResult] = useState(false);
 
   const handleCheckCourses = () => {
     const issues: string[] = [];
+    let canAutoFix = true;
     const totalDays = formData.trainingDays || 1;
     const totalHours = formData.trainingHours || 0;
     
     // 1. 检查天数是否连续且在范围内
     const days = courses.map(c => c.day);
     const uniqueDays = [...new Set(days)].sort((a, b) => a - b);
-    const maxDay = Math.max(...days);
+    const maxDay = days.length > 0 ? Math.max(...days) : 0;
     
     if (maxDay > totalDays) {
       issues.push(`存在第${maxDay}天的课程，但培训总天数为${totalDays}天`);
@@ -821,6 +822,7 @@ export default function DesignPage() {
     const totalCourseHours = courses.reduce((sum, c) => sum + (c.duration || 0), 0);
     if (totalHours > 0 && totalCourseHours !== totalHours) {
       issues.push(`课程总课时为${totalCourseHours}，与设定课时${totalHours}不符`);
+      canAutoFix = false; // 课时总数问题无法自动修复
     }
     
     // 3. 检查每天课时是否合理（一般每天不超过8课时）
@@ -829,52 +831,79 @@ export default function DesignPage() {
       hoursByDay[c.day] = (hoursByDay[c.day] || 0) + (c.duration || 0);
     });
     
+    const overDays: number[] = [];
     Object.entries(hoursByDay).forEach(([day, hours]) => {
       if (hours > 8) {
         issues.push(`第${day}天课时为${hours}，超过每日8课时上限`);
+        overDays.push(parseInt(day));
       }
     });
+    
+    // 检查是否可以自动修复（需要计算是否能在设定天数内安排完）
+    if (overDays.length > 0) {
+      const neededDays = Math.ceil(totalCourseHours / 8);
+      if (neededDays > totalDays) {
+        issues.push(`提示：按每天8课时计算，当前课程需要${neededDays}天，但培训总天数仅为${totalDays}天`);
+        canAutoFix = false;
+      }
+    }
     
     // 4. 检查是否有重复课程
     const courseNames = courses.map(c => c.name);
     const duplicates = courseNames.filter((name, idx) => courseNames.indexOf(name) !== idx);
     if (duplicates.length > 0) {
       issues.push(`存在重复课程：${[...new Set(duplicates)].join('、')}`);
+      canAutoFix = false; // 重复课程无法自动修复
     }
     
     // 5. 检查课程是否有名称
     courses.forEach((c, idx) => {
       if (!c.name || c.name.trim() === '') {
         issues.push(`第${idx + 1}个课程没有名称`);
+        canAutoFix = false; // 空名称无法自动修复
+      }
+    });
+    
+    // 6. 检查是否有单门课程超过8课时
+    courses.forEach((c, idx) => {
+      if ((c.duration || 0) > 8) {
+        issues.push(`第${idx + 1}门课程"${c.name}"课时为${c.duration}，超过8课时，请手动拆分`);
+        canAutoFix = false;
       }
     });
     
     setCheckResult({
       valid: issues.length === 0,
-      issues
+      issues,
+      canAutoFix
     });
     setShowCheckResult(true);
   };
 
   // 自动修复课程序号
   const handleAutoFix = () => {
-    if (!checkResult || checkResult.valid) return;
+    if (!checkResult || checkResult.valid || !checkResult.canAutoFix) return;
     
-    // 重新分配天数，按每天最多8课时分配
-    const totalHours = formData.trainingHours || 32;
-    const hoursPerDay = Math.ceil(totalHours / (formData.trainingDays || 4));
-    const maxHoursPerDay = Math.min(hoursPerDay, 8);
+    // 按每天最多8课时重新分配课程天数
+    const maxHoursPerDay = 8;
     
     let currentDay = 1;
     let currentDayHours = 0;
-    const fixedCourses = courses.map(c => {
-      if (currentDayHours + (c.duration || 4) > maxHoursPerDay) {
+    const fixedCourses: Course[] = [];
+    
+    // 按顺序分配课程到每天，确保每天不超过8课时
+    for (const course of courses) {
+      const courseHours = course.duration || 4;
+      
+      // 如果当前课程加到当天会超过8课时，移到下一天
+      if (currentDayHours + courseHours > maxHoursPerDay && currentDayHours > 0) {
         currentDay++;
         currentDayHours = 0;
       }
-      currentDayHours += c.duration || 4;
-      return { ...c, day: currentDay };
-    });
+      
+      fixedCourses.push({ ...course, day: currentDay });
+      currentDayHours += courseHours;
+    }
     
     setCourses(fixedCourses);
     setCheckResult(null);
@@ -1551,9 +1580,11 @@ export default function DesignPage() {
                   <Button variant="outline" onClick={() => setShowCheckResult(false)}>
                     手动调整
                   </Button>
-                  <Button onClick={handleAutoFix}>
-                    自动修复
-                  </Button>
+                  {checkResult.canAutoFix && (
+                    <Button onClick={handleAutoFix}>
+                      自动修复
+                    </Button>
+                  )}
                 </div>
               </div>
             )}
