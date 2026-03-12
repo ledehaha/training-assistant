@@ -204,6 +204,19 @@ export default function DesignPage() {
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastSavedDataRef = useRef<string>('');
   
+  // 使用 ref 存储最新的表单数据，确保 AI 生成时使用最新值
+  const formDataRef = useRef(formData);
+  const coursesRef = useRef(courses);
+  
+  // 更新 ref
+  useEffect(() => {
+    formDataRef.current = formData;
+  }, [formData]);
+  
+  useEffect(() => {
+    coursesRef.current = courses;
+  }, [courses]);
+  
   // 手动保存（用户点击保存按钮时立即保存）
   const handleManualSave = useCallback(async () => {
     await performSave();
@@ -211,13 +224,17 @@ export default function DesignPage() {
 
   // 实际执行保存的函数
   const performSave = useCallback(async () => {
+    // 使用 ref 获取最新数据，避免闭包问题
+    const currentFormData = formDataRef.current;
+    const currentCourses = coursesRef.current;
+    
     // 检查是否有内容需要保存
-    if (!formData.name?.trim() && !projectId) return;
+    if (!currentFormData.name?.trim() && !projectId) return;
     
     // 检查数据是否变化
     const currentData = JSON.stringify({
-      formData,
-      courses,
+      formData: currentFormData,
+      courses: currentCourses,
       selectedVenueId: selectedVenue?.id,
     });
     
@@ -229,12 +246,12 @@ export default function DesignPage() {
     
     try {
       const dataToSave = {
-        ...formData,
-        budgetMin: noBudgetLimit ? null : formData.budgetMin,
-        budgetMax: noBudgetLimit ? null : formData.budgetMax,
-        trainingPeriod: formData.trainingPeriod === '其他' ? otherTrainingPeriod : formData.trainingPeriod,
+        ...currentFormData,
+        budgetMin: noBudgetLimit ? null : currentFormData.budgetMin,
+        budgetMax: noBudgetLimit ? null : currentFormData.budgetMax,
+        trainingPeriod: currentFormData.trainingPeriod === '其他' ? otherTrainingPeriod : currentFormData.trainingPeriod,
         status: 'draft',
-        courses,
+        courses: currentCourses,
         selectedVenueId: selectedVenue?.id,
       };
 
@@ -271,7 +288,7 @@ export default function DesignPage() {
       showToast('error', '保存失败，请重试');
       setTimeout(() => setSaveStatus('idle'), 3000);
     }
-  }, [formData, courses, selectedVenue, projectId, noBudgetLimit, otherTrainingPeriod]);
+  }, [selectedVenue, projectId, noBudgetLimit, otherTrainingPeriod]);
 
   // 优化后的自动保存：防抖 3 秒，且只在数据变化时保存
   useEffect(() => {
@@ -649,6 +666,10 @@ export default function DesignPage() {
 
   // 实际执行生成方案
   const doGenerateScheme = async () => {
+    // 使用 ref 获取最新的表单数据，避免闭包问题
+    const currentFormData = formDataRef.current;
+    const currentCourses = coursesRef.current;
+    
     setGenerateLoading(true);
     try {
       // 添加超时控制（60秒）
@@ -661,10 +682,10 @@ export default function DesignPage() {
         body: JSON.stringify({
           type: 'courses',
           projectData: {
-            ...formData,
-            budgetMin: noBudgetLimit ? null : formData.budgetMin,
-            budgetMax: noBudgetLimit ? null : formData.budgetMax,
-            trainingPeriod: formData.trainingPeriod === '其他' ? otherTrainingPeriod : formData.trainingPeriod,
+            ...currentFormData,
+            budgetMin: noBudgetLimit ? null : currentFormData.budgetMin,
+            budgetMax: noBudgetLimit ? null : currentFormData.budgetMax,
+            trainingPeriod: currentFormData.trainingPeriod === '其他' ? otherTrainingPeriod : currentFormData.trainingPeriod,
             noBudgetLimit,
           },
         }),
@@ -1081,15 +1102,19 @@ export default function DesignPage() {
 
   // 处理"下一步：方案设计"按钮点击
   const handleNextToScheme = async () => {
+    // 使用 ref 获取最新状态
+    const currentFormData = formDataRef.current;
+    const currentCourses = coursesRef.current;
+    
     // 先保存数据
-    if (formData.name?.trim()) {
+    if (currentFormData.name?.trim()) {
       await performSave();
     }
     
     setActiveTab('scheme');
     
     // 如果没有课程且有项目名称，自动生成方案
-    if (courses.length === 0 && formData.name) {
+    if (currentCourses.length === 0 && currentFormData.name) {
       // 直接调用生成，不用 setTimeout
       handleGenerateScheme();
     }
