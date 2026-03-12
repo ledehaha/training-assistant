@@ -814,6 +814,7 @@ export default function DesignPage() {
   // 检查课程序号是否正确
   const [checkResult, setCheckResult] = useState<{ valid: boolean; issues: string[]; canAutoFix: boolean } | null>(null);
   const [showCheckResult, setShowCheckResult] = useState(false);
+  const [coursesToSplit, setCoursesToSplit] = useState<Array<{idx: number; name: string; duration: number; suggestion: string}>>([]);
 
   const handleCheckCourses = () => {
     const issues: string[] = [];
@@ -883,13 +884,33 @@ export default function DesignPage() {
       }
     });
     
-    // 6. 检查是否有单门课程超过12课时
+    // 6. 检查是否有单门课程超过4课时（需要拆分）
+    const coursesNeedSplit: Array<{idx: number; name: string; duration: number; suggestion: string}> = [];
     courses.forEach((c, idx) => {
-      if ((c.duration || 0) > 12) {
-        issues.push(`第${idx + 1}门课程"${c.name}"课时为${c.duration}，超过12课时，请手动拆分`);
-        canAutoFix = false;
+      const duration = c.duration || 4;
+      if (duration > 4) {
+        let suggestion = '';
+        if (duration === 6) {
+          suggestion = '建议拆分为4+2课时，课程名称分为上下';
+        } else if (duration === 8) {
+          suggestion = '建议拆分为4+4课时，课程名称分为上下';
+        } else if (duration === 10) {
+          suggestion = '建议拆分为4+4+2课时，课程名称分为上中下';
+        } else if (duration === 12) {
+          suggestion = '建议拆分为4+4+4课时，课程名称分为上中下';
+        } else {
+          suggestion = `建议拆分为多个4课时或2课时的课程`;
+        }
+        coursesNeedSplit.push({ idx: idx + 1, name: c.name, duration, suggestion });
+        issues.push(`第${idx + 1}门课程"${c.name}"课时为${duration}，${suggestion}`);
       }
     });
+    
+    // 记录需要拆分的课程，用于自动修复
+    setCoursesToSplit(coursesNeedSplit);
+    if (coursesNeedSplit.length > 0) {
+      canAutoFix = true; // 可以自动拆分
+    }
     
     setCheckResult({
       valid: issues.length === 0,
@@ -899,11 +920,126 @@ export default function DesignPage() {
     setShowCheckResult(true);
   };
 
-  // 自动修复课程序号
+  // 拆分课程函数：将超4课时课程拆分为4课时单位
+  const splitCourse = (course: Course): Course[] => {
+    const duration = course.duration || 4;
+    
+    if (duration <= 4) {
+      return [course];
+    }
+    
+    const result: Course[] = [];
+    
+    // 根据课时决定拆分方式和命名
+    if (duration === 6) {
+      // 4+2，分上下
+      result.push({
+        ...course,
+        id: `${course.id}-1`,
+        name: `${course.name}（上）`,
+        duration: 4,
+      });
+      result.push({
+        ...course,
+        id: `${course.id}-2`,
+        name: `${course.name}（下）`,
+        duration: 2,
+      });
+    } else if (duration === 8) {
+      // 4+4，分上下
+      result.push({
+        ...course,
+        id: `${course.id}-1`,
+        name: `${course.name}（上）`,
+        duration: 4,
+      });
+      result.push({
+        ...course,
+        id: `${course.id}-2`,
+        name: `${course.name}（下）`,
+        duration: 4,
+      });
+    } else if (duration === 10) {
+      // 4+4+2，分上中下
+      result.push({
+        ...course,
+        id: `${course.id}-1`,
+        name: `${course.name}（上）`,
+        duration: 4,
+      });
+      result.push({
+        ...course,
+        id: `${course.id}-2`,
+        name: `${course.name}（中）`,
+        duration: 4,
+      });
+      result.push({
+        ...course,
+        id: `${course.id}-3`,
+        name: `${course.name}（下）`,
+        duration: 2,
+      });
+    } else if (duration === 12) {
+      // 4+4+4，分上中下
+      result.push({
+        ...course,
+        id: `${course.id}-1`,
+        name: `${course.name}（上）`,
+        duration: 4,
+      });
+      result.push({
+        ...course,
+        id: `${course.id}-2`,
+        name: `${course.name}（中）`,
+        duration: 4,
+      });
+      result.push({
+        ...course,
+        id: `${course.id}-3`,
+        name: `${course.name}（下）`,
+        duration: 4,
+      });
+    } else {
+      // 其他情况：按4课时拆分，剩余部分作为最后一个课程
+      const fullParts = Math.floor(duration / 4);
+      const remainder = duration % 4;
+      
+      const suffixes = ['（上）', '（中）', '（下）', '（四）', '（五）', '（六）'];
+      
+      for (let i = 0; i < fullParts; i++) {
+        result.push({
+          ...course,
+          id: `${course.id}-${i + 1}`,
+          name: `${course.name}${suffixes[i] || `（第${i + 1}部分）`}`,
+          duration: 4,
+        });
+      }
+      
+      if (remainder > 0) {
+        result.push({
+          ...course,
+          id: `${course.id}-${fullParts + 1}`,
+          name: `${course.name}${suffixes[fullParts] || `（第${fullParts + 1}部分）`}`,
+          duration: remainder,
+        });
+      }
+    }
+    
+    return result;
+  };
+
+  // 自动修复：拆分课程并重新分配天数
   const handleAutoFix = () => {
     if (!checkResult || checkResult.valid || !checkResult.canAutoFix) return;
     
-    // 按每天最多12课时重新分配课程天数
+    // 第一步：拆分所有超过4课时的课程
+    const splitCourses: Course[] = [];
+    for (const course of courses) {
+      const split = splitCourse(course);
+      splitCourses.push(...split);
+    }
+    
+    // 第二步：按每天最多12课时重新分配课程天数
     const maxHoursPerDay = 12;
     
     let currentDay = 1;
@@ -911,7 +1047,7 @@ export default function DesignPage() {
     const fixedCourses: Course[] = [];
     
     // 按顺序分配课程到每天，确保每天不超过12课时
-    for (const course of courses) {
+    for (const course of splitCourses) {
       const courseHours = course.duration || 4;
       
       // 如果当前课程加到当天会超过12课时，移到下一天
@@ -925,8 +1061,10 @@ export default function DesignPage() {
     }
     
     setCourses(fixedCourses);
+    setCoursesToSplit([]);
     setCheckResult(null);
     setShowCheckResult(false);
+    showToast('success', `已自动拆分并重新分配课程，共${fixedCourses.length}门课程`);
   };
 
   // 处理"下一步：方案设计"按钮点击
