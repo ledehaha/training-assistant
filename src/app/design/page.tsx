@@ -843,7 +843,7 @@ export default function DesignPage() {
       canAutoFix = false; // 课时总数问题无法自动修复
     }
     
-    // 3. 检查每天课时是否合理（一般每天不超过8课时）
+    // 3. 检查每天课时是否合理（每天不超过12课时）
     const hoursByDay: Record<number, number> = {};
     courses.forEach(c => {
       hoursByDay[c.day] = (hoursByDay[c.day] || 0) + (c.duration || 0);
@@ -851,17 +851,17 @@ export default function DesignPage() {
     
     const overDays: number[] = [];
     Object.entries(hoursByDay).forEach(([day, hours]) => {
-      if (hours > 8) {
-        issues.push(`第${day}天课时为${hours}，超过每日8课时上限`);
+      if (hours > 12) {
+        issues.push(`第${day}天课时为${hours}，超过每日12课时上限`);
         overDays.push(parseInt(day));
       }
     });
     
     // 检查是否可以自动修复（需要计算是否能在设定天数内安排完）
     if (overDays.length > 0) {
-      const neededDays = Math.ceil(totalCourseHours / 8);
+      const neededDays = Math.ceil(totalCourseHours / 12);
       if (neededDays > totalDays) {
-        issues.push(`提示：按每天8课时计算，当前课程需要${neededDays}天，但培训总天数仅为${totalDays}天`);
+        issues.push(`提示：按每天12课时计算，当前课程需要${neededDays}天，但培训总天数仅为${totalDays}天`);
         canAutoFix = false;
       }
     }
@@ -882,10 +882,10 @@ export default function DesignPage() {
       }
     });
     
-    // 6. 检查是否有单门课程超过8课时
+    // 6. 检查是否有单门课程超过12课时
     courses.forEach((c, idx) => {
-      if ((c.duration || 0) > 8) {
-        issues.push(`第${idx + 1}门课程"${c.name}"课时为${c.duration}，超过8课时，请手动拆分`);
+      if ((c.duration || 0) > 12) {
+        issues.push(`第${idx + 1}门课程"${c.name}"课时为${c.duration}，超过12课时，请手动拆分`);
         canAutoFix = false;
       }
     });
@@ -902,18 +902,18 @@ export default function DesignPage() {
   const handleAutoFix = () => {
     if (!checkResult || checkResult.valid || !checkResult.canAutoFix) return;
     
-    // 按每天最多8课时重新分配课程天数
-    const maxHoursPerDay = 8;
+    // 按每天最多12课时重新分配课程天数
+    const maxHoursPerDay = 12;
     
     let currentDay = 1;
     let currentDayHours = 0;
     const fixedCourses: Course[] = [];
     
-    // 按顺序分配课程到每天，确保每天不超过8课时
+    // 按顺序分配课程到每天，确保每天不超过12课时
     for (const course of courses) {
       const courseHours = course.duration || 4;
       
-      // 如果当前课程加到当天会超过8课时，移到下一天
+      // 如果当前课程加到当天会超过12课时，移到下一天
       if (currentDayHours + courseHours > maxHoursPerDay && currentDayHours > 0) {
         currentDay++;
         currentDayHours = 0;
