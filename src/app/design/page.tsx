@@ -428,6 +428,13 @@ export default function DesignPage() {
   // 加载草稿项目
   const handleLoadProject = async (id: string) => {
     try {
+      // 先清除之前的数据状态，避免残留
+      setCourses([]);
+      setSelectedVenue(null);
+      setModifySuggestion('');
+      setCheckResult(null);
+      setCoursesToSplit([]);
+      
       const res = await fetch(`/api/projects/${id}`);
       const data = await res.json();
       
@@ -448,14 +455,19 @@ export default function DesignPage() {
           specialRequirements: project.specialRequirements || project.special_requirements || '',
         });
         
-        if (project.courses) {
+        if (project.courses && Array.isArray(project.courses)) {
           setCourses(project.courses);
+        } else {
+          setCourses([]); // 清空课程数据
         }
         
         const venueId = project.venueId || project.selected_venue_id || project.venue_id;
         if (venueId) {
           const venue = venues.find(v => v.id === venueId);
           if (venue) setSelectedVenue(venue);
+          else setSelectedVenue(null);
+        } else {
+          setSelectedVenue(null); // 清空场地选择
         }
         
         // 更新已保存数据引用
