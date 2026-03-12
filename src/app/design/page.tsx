@@ -1111,12 +1111,19 @@ export default function DesignPage() {
       await performSave();
     }
     
-    setActiveTab('scheme');
-    
-    // 如果没有课程且有项目名称，自动生成方案
-    if (currentCourses.length === 0 && currentFormData.name) {
-      // 直接调用生成，不用 setTimeout
+    // 如果已有方案，直接切换到方案设计tab显示
+    if (currentCourses.length > 0) {
+      setActiveTab('scheme');
+      showToast('success', `已加载现有方案，共${currentCourses.length}门课程`);
+    } 
+    // 如果没有课程但有项目名称，自动生成方案
+    else if (currentFormData.name) {
+      setActiveTab('scheme');
       handleGenerateScheme();
+    }
+    // 如果连项目名称都没有，提示用户
+    else {
+      showToast('error', '请先填写项目名称');
     }
   };
 
@@ -1451,7 +1458,7 @@ export default function DesignPage() {
                     onClick={handleNextToScheme}
                     disabled={!formData.name}
                   >
-                    下一步：方案设计
+                    {courses.length > 0 ? '下一步：查看方案' : '下一步：生成方案'}
                     <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
                 </div>
