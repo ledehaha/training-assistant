@@ -208,6 +208,11 @@ export default function DesignPage() {
   const formDataRef = useRef(formData);
   const coursesRef = useRef(courses);
   
+  // 记录原始加载的项目名称，用于判断是否需要新建项目
+  const [originalProjectName, setOriginalProjectName] = useState<string>('');
+  const [showSaveAsNewDialog, setShowSaveAsNewDialog] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'next' | 'save' | null>(null);
+  
   // 更新 ref
   useEffect(() => {
     formDataRef.current = formData;
@@ -414,6 +419,7 @@ export default function DesignPage() {
   // 新建项目
   const handleNewProject = () => {
     setProjectId(null);
+    setOriginalProjectName(''); // 清空原始项目名称
     setFormData({
       name: '',
       trainingTarget: '',
@@ -458,6 +464,7 @@ export default function DesignPage() {
       if (data.data) {
         const project = data.data;
         setProjectId(project.id);
+        setOriginalProjectName(project.name || ''); // 记录原始项目名称
         setFormData({
           name: project.name || '',
           trainingTarget: project.trainingTarget || project.training_target || '',
@@ -1106,6 +1113,13 @@ export default function DesignPage() {
     const currentFormData = formDataRef.current;
     const currentCourses = coursesRef.current;
     
+    // 判断是否需要询问用户（项目名称变化了）
+    if (projectId && originalProjectName && currentFormData.name && currentFormData.name !== originalProjectName) {
+      setPendingAction('next');
+      setShowSaveAsNewDialog(true);
+      return;
+    }
+    
     // 先保存数据
     if (currentFormData.name?.trim()) {
       await performSave();
@@ -1125,6 +1139,62 @@ export default function DesignPage() {
     else {
       showToast('error', '请先填写项目名称');
     }
+  };
+  
+  // 处理"另存为新项目"
+  const handleSaveAsNewProject = async () => {
+    const currentFormData = formDataRef.current;
+    
+    // 清除原项目ID，作为新项目保存
+    setProjectId(null);
+    setOriginalProjectName(currentFormData.name || '');
+    lastSavedDataRef.current = ''; // 强制保存
+    
+    setShowSaveAsNewDialog(false);
+    
+    // 执行保存
+    await performSave();
+    
+    // 如果之前是点击"下一步"，继续执行
+    if (pendingAction === 'next') {
+      const currentCourses = coursesRef.current;
+      if (currentCourses.length > 0) {
+        setActiveTab('scheme');
+        showToast('success', `已保存为新项目，共${currentCourses.length}门课程`);
+      } else if (currentFormData.name) {
+        setActiveTab('scheme');
+        handleGenerateScheme();
+      }
+    }
+    
+    setPendingAction(null);
+  };
+  
+  // 处理"更新原项目"
+  const handleUpdateOriginalProject = async () => {
+    const currentFormData = formDataRef.current;
+    
+    // 更新原始项目名称
+    setOriginalProjectName(currentFormData.name || '');
+    
+    setShowSaveAsNewDialog(false);
+    
+    // 执行保存
+    await performSave();
+    
+    // 如果之前是点击"下一步"，继续执行
+    if (pendingAction === 'next') {
+      const currentCourses = coursesRef.current;
+      if (currentCourses.length > 0) {
+        setActiveTab('scheme');
+        showToast('success', `已更新原项目，共${currentCourses.length}门课程`);
+      } else if (currentFormData.name) {
+        setActiveTab('scheme');
+        handleGenerateScheme();
+      }
+    }
+    
+    setPendingAction(null);
   };
 
   // 更新单个表单字段（优化：使用函数式更新）
@@ -1207,6 +1277,28 @@ export default function DesignPage() {
           </TabsList>
 
           <TabsContent value="requirement" className="mt-6">
+            {/* 当前编辑项目提示 */}
+            {projectId && originalProjectName && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <FolderOpen className="h-4 w-4 text-blue-600" />
+                  <span className="text-sm text-blue-800">
+                    正在编辑项目：<strong>{originalProjectName}</strong>
+                    {formData.name !== originalProjectName && (
+                      <span className="ml-2 text-orange-600">（名称已修改）</span>
+                    )}
+                  </span>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={handleNewProject}
+                  className="text-blue-600 hover:text-blue-800"
+                >
+                  新建项目
+                </Button>
+              </div>
+            )}
             <Card>
               <CardHeader>
                 <CardTitle>培训需求</CardTitle>
@@ -1856,6 +1948,53 @@ export default function DesignPage() {
                 </Button>
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* 另存为新项目对话框 */}
+        <Dialog open={showSaveAsNewDialog} onOpenChange={setShowSaveAsNewDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>项目名称已修改</DialogTitle>
+              <DialogDescription>
+                检测到您修改了项目名称，请选择操作方式：
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 py-4">
+              <div className="p-3 border rounded-lg">
+                <p className="text-sm text-muted-foreground">原项目名称：</p>
+                <p className="font-medium">{originalProjectName}</p>
+              </div>
+              <div className="p-3 border rounded-lg bg-blue-50">
+                <p className="text-sm text-muted-foreground">新项目名称：</p>
+                <p className="font-medium">{formData.name}</p>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Button 
+                onClick={handleSaveAsNewProject}
+                className="w-full"
+              >
+                另存为新项目
+              </Button>
+              <Button 
+                variant="outline"
+                onClick={handleUpdateOriginalProject}
+                className="w-full"
+              >
+                更新原项目
+              </Button>
+              <Button 
+                variant="ghost"
+                onClick={() => {
+                  setShowSaveAsNewDialog(false);
+                  setPendingAction(null);
+                }}
+                className="w-full"
+              >
+                取消
+              </Button>
+            </div>
           </DialogContent>
         </Dialog>
 
