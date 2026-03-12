@@ -776,6 +776,111 @@ export default function DesignPage() {
     }
   };
 
+  // 上移课程
+  const handleMoveUp = (index: number) => {
+    if (index === 0) return;
+    const newCourses = [...courses];
+    [newCourses[index - 1], newCourses[index]] = [newCourses[index], newCourses[index - 1]];
+    setCourses(newCourses);
+  };
+
+  // 下移课程
+  const handleMoveDown = (index: number) => {
+    if (index === courses.length - 1) return;
+    const newCourses = [...courses];
+    [newCourses[index], newCourses[index + 1]] = [newCourses[index + 1], newCourses[index]];
+    setCourses(newCourses);
+  };
+
+  // 检查课程序号是否正确
+  const [checkResult, setCheckResult] = useState<{ valid: boolean; issues: string[] } | null>(null);
+  const [showCheckResult, setShowCheckResult] = useState(false);
+
+  const handleCheckCourses = () => {
+    const issues: string[] = [];
+    const totalDays = formData.trainingDays || 1;
+    const totalHours = formData.trainingHours || 0;
+    
+    // 1. 检查天数是否连续且在范围内
+    const days = courses.map(c => c.day);
+    const uniqueDays = [...new Set(days)].sort((a, b) => a - b);
+    const maxDay = Math.max(...days);
+    
+    if (maxDay > totalDays) {
+      issues.push(`存在第${maxDay}天的课程，但培训总天数为${totalDays}天`);
+    }
+    
+    // 检查天数是否有跳过
+    for (let d = 1; d <= Math.min(maxDay, totalDays); d++) {
+      if (!uniqueDays.includes(d)) {
+        issues.push(`第${d}天没有安排课程`);
+      }
+    }
+    
+    // 2. 检查课时总数
+    const totalCourseHours = courses.reduce((sum, c) => sum + (c.duration || 0), 0);
+    if (totalHours > 0 && totalCourseHours !== totalHours) {
+      issues.push(`课程总课时为${totalCourseHours}，与设定课时${totalHours}不符`);
+    }
+    
+    // 3. 检查每天课时是否合理（一般每天不超过8课时）
+    const hoursByDay: Record<number, number> = {};
+    courses.forEach(c => {
+      hoursByDay[c.day] = (hoursByDay[c.day] || 0) + (c.duration || 0);
+    });
+    
+    Object.entries(hoursByDay).forEach(([day, hours]) => {
+      if (hours > 8) {
+        issues.push(`第${day}天课时为${hours}，超过每日8课时上限`);
+      }
+    });
+    
+    // 4. 检查是否有重复课程
+    const courseNames = courses.map(c => c.name);
+    const duplicates = courseNames.filter((name, idx) => courseNames.indexOf(name) !== idx);
+    if (duplicates.length > 0) {
+      issues.push(`存在重复课程：${[...new Set(duplicates)].join('、')}`);
+    }
+    
+    // 5. 检查课程是否有名称
+    courses.forEach((c, idx) => {
+      if (!c.name || c.name.trim() === '') {
+        issues.push(`第${idx + 1}个课程没有名称`);
+      }
+    });
+    
+    setCheckResult({
+      valid: issues.length === 0,
+      issues
+    });
+    setShowCheckResult(true);
+  };
+
+  // 自动修复课程序号
+  const handleAutoFix = () => {
+    if (!checkResult || checkResult.valid) return;
+    
+    // 重新分配天数，按每天最多8课时分配
+    const totalHours = formData.trainingHours || 32;
+    const hoursPerDay = Math.ceil(totalHours / (formData.trainingDays || 4));
+    const maxHoursPerDay = Math.min(hoursPerDay, 8);
+    
+    let currentDay = 1;
+    let currentDayHours = 0;
+    const fixedCourses = courses.map(c => {
+      if (currentDayHours + (c.duration || 4) > maxHoursPerDay) {
+        currentDay++;
+        currentDayHours = 0;
+      }
+      currentDayHours += c.duration || 4;
+      return { ...c, day: currentDay };
+    });
+    
+    setCourses(fixedCourses);
+    setCheckResult(null);
+    setShowCheckResult(false);
+  };
+
   // 处理"下一步：方案设计"按钮点击
   const handleNextToScheme = async () => {
     setActiveTab('scheme');
@@ -1071,29 +1176,42 @@ export default function DesignPage() {
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <span>培训方案</span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleGenerateScheme}
-                    disabled={generateLoading || !formData.name}
-                  >
-                    {generateLoading ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        生成中...
-                      </>
-                    ) : courses.length === 0 ? (
-                      <>
-                        <Wand2 className="h-4 w-4 mr-2" />
-                        智能生成方案
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        重新生成
-                      </>
+                  <div className="flex items-center gap-2">
+                    {courses.length > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleCheckCourses}
+                        className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                      >
+                        <AlertCircle className="h-4 w-4 mr-2" />
+                        检查方案
+                      </Button>
                     )}
-                  </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleGenerateScheme}
+                      disabled={generateLoading || !formData.name}
+                    >
+                      {generateLoading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          生成中...
+                        </>
+                      ) : courses.length === 0 ? (
+                        <>
+                          <Wand2 className="h-4 w-4 mr-2" />
+                          智能生成方案
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          重新生成
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </CardTitle>
                 <CardDescription>设计培训课程安排，可使用 AI 智能生成</CardDescription>
               </CardHeader>
@@ -1126,6 +1244,7 @@ export default function DesignPage() {
                       <Table>
                         <TableHeader>
                           <TableRow>
+                            <TableHead className="w-20 text-center">排序</TableHead>
                             <TableHead className="w-16 text-center">序号</TableHead>
                             <TableHead className="w-20 text-center">天数</TableHead>
                             <TableHead>课程名称</TableHead>
@@ -1142,7 +1261,35 @@ export default function DesignPage() {
                               className="cursor-pointer hover:bg-muted/50"
                               onClick={() => handleEditCourse(course, index)}
                             >
-                              <TableCell className="text-center">{index + 1}</TableCell>
+                              <TableCell className="text-center">
+                                <div className="flex items-center justify-center gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 w-7 p-0"
+                                    disabled={index === 0}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleMoveUp(index);
+                                    }}
+                                  >
+                                    ↑
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 w-7 p-0"
+                                    disabled={index === courses.length - 1}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleMoveDown(index);
+                                    }}
+                                  >
+                                    ↓
+                                  </Button>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-center font-medium">{index + 1}</TableCell>
                               <TableCell className="text-center">第{course.day}天</TableCell>
                               <TableCell className="font-medium">{course.name}</TableCell>
                               <TableCell className="text-center">{course.duration}</TableCell>
@@ -1360,6 +1507,59 @@ export default function DesignPage() {
           title="需要配置 API Key"
           description="智能分析功能需要配置 AI API Key。您可以前往设置页面配置，或手动填写信息。"
         />
+
+        {/* 课程检查结果对话框 */}
+        <Dialog open={showCheckResult} onOpenChange={setShowCheckResult}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                {checkResult?.valid ? (
+                  <>
+                    <Check className="h-5 w-5 text-green-500" />
+                    方案检查通过
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle className="h-5 w-5 text-orange-500" />
+                    发现问题
+                  </>
+                )}
+              </DialogTitle>
+              <DialogDescription>
+                {checkResult?.valid 
+                  ? '课程安排符合要求，可以继续下一步。'
+                  : `发现 ${checkResult?.issues.length} 个问题需要处理：`}
+              </DialogDescription>
+            </DialogHeader>
+            {checkResult && !checkResult.valid && (
+              <div className="space-y-3">
+                <ul className="space-y-2">
+                  {checkResult.issues.map((issue, idx) => (
+                    <li key={idx} className="flex items-start gap-2 text-sm">
+                      <span className="text-orange-500 mt-0.5">•</span>
+                      <span>{issue}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="flex justify-end gap-2 pt-4 border-t">
+                  <Button variant="outline" onClick={() => setShowCheckResult(false)}>
+                    手动调整
+                  </Button>
+                  <Button onClick={handleAutoFix}>
+                    自动修复
+                  </Button>
+                </div>
+              </div>
+            )}
+            {checkResult?.valid && (
+              <div className="flex justify-end pt-4">
+                <Button onClick={() => setShowCheckResult(false)}>
+                  确定
+                </Button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
 
         {/* 课程编辑对话框 */}
         <Dialog open={showEditCourseDialog} onOpenChange={setShowEditCourseDialog}>
