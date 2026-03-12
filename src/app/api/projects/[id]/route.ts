@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, projects, projectCourses, projectDocuments, eq, asc, desc, saveDatabaseImmediate, ensureDatabaseReady } from '@/storage/database';
-import { getTimestamp } from '@/storage/database';
+import { generateId, getTimestamp } from '@/storage/database';
 
 // GET /api/projects/[id] - 获取项目详情
 export async function GET(
@@ -113,6 +113,32 @@ export async function PUT(
       .where(eq(projects.id, id))
       .returning()
       .get();
+
+    // 更新课程数据
+    if (body.courses !== undefined) {
+      // 删除旧的课程记录
+      db.delete(projectCourses).where(eq(projectCourses.projectId, id)).run();
+      
+      // 插入新的课程记录
+      if (Array.isArray(body.courses) && body.courses.length > 0) {
+        for (let i = 0; i < body.courses.length; i++) {
+          const course = body.courses[i];
+          db.insert(projectCourses)
+            .values({
+              id: course.id || generateId(),
+              projectId: id,
+              name: course.name,
+              day: course.day,
+              duration: course.duration,
+              description: course.description,
+              teacherId: course.teacherId,
+              order: i,
+              createdAt: course.createdAt || now,
+            })
+            .run();
+        }
+      }
+    }
 
     // 保存数据库到文件
     saveDatabaseImmediate();

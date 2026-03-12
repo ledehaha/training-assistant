@@ -112,12 +112,27 @@ const trainingPeriods = [
 // 保存状态类型
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
+// Toast 消息类型
+interface ToastMessage {
+  type: 'success' | 'error' | 'info';
+  text: string;
+}
+
 export default function DesignPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState('requirement');
   const [loading, setLoading] = useState(false);
   const [generateLoading, setGenerateLoading] = useState(false);
   const [projectId, setProjectId] = useState<string | null>(null);
+  
+  // Toast 消息状态
+  const [toast, setToast] = useState<ToastMessage | null>(null);
+  
+  // 显示 toast 消息
+  const showToast = (type: ToastMessage['type'], text: string) => {
+    setToast({ type, text });
+    setTimeout(() => setToast(null), 3000);
+  };
   
   const [formData, setFormData] = useState<ProjectFormData>({
     name: '',
@@ -245,6 +260,7 @@ export default function DesignPage() {
       lastSavedDataRef.current = currentData;
       setLastSaveTime(new Date());
       setSaveStatus('saved');
+      showToast('success', '项目已保存');
       
       // 3秒后恢复 idle 状态
       setTimeout(() => setSaveStatus('idle'), 3000);
@@ -252,6 +268,7 @@ export default function DesignPage() {
     } catch (error) {
       console.error('Auto save error:', error);
       setSaveStatus('error');
+      showToast('error', '保存失败，请重试');
       setTimeout(() => setSaveStatus('idle'), 3000);
     }
   }, [formData, courses, selectedVenue, projectId, noBudgetLimit, otherTrainingPeriod]);
@@ -931,6 +948,19 @@ export default function DesignPage() {
 
   return (
     <MainLayout>
+      {/* Toast 消息 */}
+      {toast && (
+        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-in slide-in-from-right ${
+          toast.type === 'success' ? 'bg-green-500 text-white' :
+          toast.type === 'error' ? 'bg-red-500 text-white' :
+          'bg-blue-500 text-white'
+        }`}>
+          {toast.type === 'success' && <Check className="h-4 w-4" />}
+          {toast.type === 'error' && <AlertCircle className="h-4 w-4" />}
+          <span>{toast.text}</span>
+        </div>
+      )}
+      
       <div className="container mx-auto py-6 px-4 max-w-6xl">
         {/* 顶部操作栏 */}
         <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
@@ -987,19 +1017,9 @@ export default function DesignPage() {
           <TabsContent value="requirement" className="mt-6">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>培训需求</span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowSmartAnalysis(true)}
-                  >
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    智能分析
-                  </Button>
-                </CardTitle>
+                <CardTitle>培训需求</CardTitle>
                 <CardDescription>
-                  请填写培训项目的基本需求信息
+                  请填写培训项目的基本需求信息，或使用智能分析自动填充
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -1012,6 +1032,55 @@ export default function DesignPage() {
                     value={formData.name}
                     onChange={(e) => updateFormField('name', e.target.value)}
                   />
+                </div>
+
+                {/* 智能需求分析区域 */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-5 w-5 text-blue-600" />
+                      <span className="font-medium text-blue-800">智能需求分析</span>
+                    </div>
+                    <span className="text-xs text-blue-600">输入描述，AI 自动填充表单</span>
+                  </div>
+                  <div className="space-y-3">
+                    <Textarea
+                      placeholder="请描述您的培训需求，例如：我们需要为中层管理人员举办一期为期3天的领导力提升培训，目标是提升团队管理和沟通协调能力，预计50人参加..."
+                      value={smartRequirementText}
+                      onChange={(e) => setSmartRequirementText(e.target.value)}
+                      rows={3}
+                      className="border-blue-200 focus:border-blue-400"
+                    />
+                    <div className="flex items-center gap-3">
+                      <Button
+                        onClick={handleSmartRequirementAnalysis}
+                        disabled={analyzingRequirement || !smartRequirementText.trim()}
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        {analyzingRequirement ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            分析中...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-4 w-4 mr-2" />
+                            开始分析
+                          </>
+                        )}
+                      </Button>
+                      {smartRequirementText.trim() && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSmartRequirementText('')}
+                          className="text-blue-600"
+                        >
+                          清空
+                        </Button>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

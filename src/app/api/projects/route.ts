@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, projects, eq, desc, sql, saveDatabaseImmediate, ensureDatabaseReady } from '@/storage/database';
+import { db, projects, projectCourses, eq, desc, sql, saveDatabaseImmediate, ensureDatabaseReady } from '@/storage/database';
 import { generateId, getTimestamp } from '@/storage/database';
 
 // GET /api/projects - 获取项目列表
@@ -73,11 +73,31 @@ export async function POST(request: NextRequest) {
         budgetMax: body.budgetMax,
         location: body.location,
         specialRequirements: body.specialRequirements,
-        status: 'draft',
+        status: body.status || 'draft',
         createdAt: now,
       })
       .returning()
       .get();
+
+    // 保存课程数据
+    if (body.courses && Array.isArray(body.courses) && body.courses.length > 0) {
+      for (let i = 0; i < body.courses.length; i++) {
+        const course = body.courses[i];
+        db.insert(projectCourses)
+          .values({
+            id: generateId(),
+            projectId: id,
+            name: course.name,
+            day: course.day,
+            duration: course.duration,
+            description: course.description,
+            teacherId: course.teacherId,
+            order: i,
+            createdAt: now,
+          })
+          .run();
+      }
+    }
 
     // 保存数据库到文件
     saveDatabaseImmediate();
