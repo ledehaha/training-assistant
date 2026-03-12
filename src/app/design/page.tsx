@@ -580,7 +580,7 @@ export default function DesignPage() {
         const analysis = data.data;
         setFormData(prev => ({
           ...prev,
-          name: analysis.name || prev.name,
+          name: analysis.name && analysis.name.trim() ? analysis.name : prev.name,
           trainingTarget: analysis.trainingTarget || prev.trainingTarget,
           targetAudience: analysis.targetAudience || prev.targetAudience,
           participantCount: analysis.participantCount || prev.participantCount,
@@ -600,13 +600,14 @@ export default function DesignPage() {
           setOtherTargetAudience(analysis.targetAudience);
         }
         
+        showToast('success', '需求分析完成，已自动填充表单');
         setShowSmartAnalysis(false);
         setSmartRequirementText('');
         setSmartRequirementFile(null);
       }
     } catch (error) {
       console.error('Smart requirement analysis error:', error);
-      alert('需求分析失败，请重试');
+      showToast('error', '需求分析失败，请重试');
     } finally {
       setAnalyzingRequirement(false);
     }

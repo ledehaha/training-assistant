@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
 ${requirementText}
 
 提取字段：
-- name: 项目名称
+- name: 项目名称（根据需求自动生成一个简洁的项目名称，格式如"2024年XX培训项目"或"XX能力提升培训"）
 - trainingTarget: 培训类型（企业内训/技能培训/管理培训/安全生产培训/新员工培训/专项培训）
 - targetAudience: 目标人群（班组长/中层管理/高层管理/新员工/技术骨干/全员）
 - participantCount: 参训人数（数字）
@@ -46,9 +46,12 @@ ${requirementText}
 - specialRequirements: 特殊要求
 
 返回JSON格式：
-{"name": "", "trainingTarget": "", "targetAudience": "", "participantCount": 0, "trainingDays": 0, "trainingHours": 0, "trainingPeriod": "", "location": "", "specialRequirements": ""}
+{"name": "项目名称", "trainingTarget": "培训类型", "targetAudience": "目标人群", "participantCount": 数字, "trainingDays": 数字, "trainingHours": 数字, "trainingPeriod": "培训周期", "location": "地点", "specialRequirements": "特殊要求"}
 
-无法提取的字段返回null，数字不加引号。只返回JSON。`;
+注意：
+1. name 字段必须根据需求内容自动生成一个有意义的项目名称，不要返回 null 或空字符串
+2. 无法提取的字段返回 null，数字类型不加引号
+3. 只返回 JSON，不要包含其他说明文字`;
 
     const response = await client.invoke([
       { role: 'user', content: prompt }
