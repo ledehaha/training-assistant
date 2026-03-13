@@ -8,26 +8,50 @@ export async function GET(request: NextRequest) {
     await ensureDatabaseReady();
     
     const searchParams = request.nextUrl.searchParams;
-    const status = searchParams.get('status');
+    const statusParam = searchParams.get('status');
     const search = searchParams.get('search');
     
     let results;
     
-    if (status && status !== 'all' && search) {
+    // 解析状态参数（支持逗号分隔的多状态）
+    const statuses = statusParam && statusParam !== 'all' 
+      ? statusParam.split(',').map(s => s.trim()).filter(Boolean)
+      : [];
+    
+    if (statuses.length > 1 && search) {
+      // 多状态 + 搜索
       results = db
         .select()
         .from(projects)
-        .where(sql`${projects.status} = ${status} AND ${projects.name} LIKE ${'%' + search + '%'}`)
+        .where(sql`${projects.status} IN (${sql.raw(statuses.map(s => `'${s}'`).join(', '))}) AND ${projects.name} LIKE ${'%' + search + '%'}`)
         .orderBy(desc(projects.createdAt))
         .all();
-    } else if (status && status !== 'all') {
+    } else if (statuses.length > 1) {
+      // 多状态
       results = db
         .select()
         .from(projects)
-        .where(eq(projects.status, status))
+        .where(sql`${projects.status} IN (${sql.raw(statuses.map(s => `'${s}'`).join(', '))})`)
+        .orderBy(desc(projects.createdAt))
+        .all();
+    } else if (statuses.length === 1 && search) {
+      // 单状态 + 搜索
+      results = db
+        .select()
+        .from(projects)
+        .where(sql`${projects.status} = ${statuses[0]} AND ${projects.name} LIKE ${'%' + search + '%'}`)
+        .orderBy(desc(projects.createdAt))
+        .all();
+    } else if (statuses.length === 1) {
+      // 单状态
+      results = db
+        .select()
+        .from(projects)
+        .where(eq(projects.status, statuses[0]))
         .orderBy(desc(projects.createdAt))
         .all();
     } else if (search) {
+      // 仅搜索
       results = db
         .select()
         .from(projects)
@@ -35,6 +59,7 @@ export async function GET(request: NextRequest) {
         .orderBy(desc(projects.createdAt))
         .all();
     } else {
+      // 全部
       results = db
         .select()
         .from(projects)
