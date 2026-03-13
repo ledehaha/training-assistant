@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FileText, Download, Send, Eye, CheckCircle, Clock } from 'lucide-react';
+import { FileText, Download, Send, Eye, CheckCircle, Clock, Plus } from 'lucide-react';
 
 interface Project {
   id: string;
@@ -75,8 +75,19 @@ export default function DeclarationPage() {
           {/* 项目列表 */}
           <Card className="lg:col-span-1">
             <CardHeader>
-              <CardTitle>待申报项目</CardTitle>
-              <CardDescription>选择需要申报的项目</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>待申报项目</CardTitle>
+                  <CardDescription>选择需要申报的项目</CardDescription>
+                </div>
+                <Button 
+                  size="sm" 
+                  onClick={() => window.location.href = '/design'}
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  新建项目
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -84,7 +95,14 @@ export default function DeclarationPage() {
               ) : projects.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <FileText className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                  <p>暂无待申报项目</p>
+                  <p className="mb-4">暂无待申报项目</p>
+                  <Button 
+                    size="sm" 
+                    onClick={() => window.location.href = '/design'}
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    新建项目
+                  </Button>
                 </div>
               ) : (
                 <div className="space-y-3">

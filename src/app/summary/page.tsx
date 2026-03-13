@@ -19,7 +19,8 @@ import {
   Archive,
   TrendingUp,
   Users,
-  Loader2
+  Loader2,
+  Plus
 } from 'lucide-react';
 
 interface Project {
@@ -170,8 +171,19 @@ export default function SummaryPage() {
           {/* 项目列表 */}
           <Card className="lg:col-span-1">
             <CardHeader>
-              <CardTitle>待总结项目</CardTitle>
-              <CardDescription>选择需要总结的项目</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>待总结项目</CardTitle>
+                  <CardDescription>选择需要总结的项目</CardDescription>
+                </div>
+                <Button 
+                  size="sm" 
+                  onClick={() => window.location.href = '/design'}
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  新建项目
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -179,7 +191,14 @@ export default function SummaryPage() {
               ) : projects.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <ClipboardCheck className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                  <p>暂无待总结项目</p>
+                  <p className="mb-4">暂无待总结项目</p>
+                  <Button 
+                    size="sm" 
+                    onClick={() => window.location.href = '/design'}
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    新建项目
+                  </Button>
                 </div>
               ) : (
                 <div className="space-y-3">

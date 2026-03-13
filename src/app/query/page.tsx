@@ -25,7 +25,8 @@ import {
   Calendar,
   DollarSign,
   Star,
-  FileText
+  FileText,
+  Plus
 } from 'lucide-react';
 
 interface Project {
@@ -115,9 +116,15 @@ export default function QueryPage() {
     <MainLayout>
       <div className="space-y-6">
         {/* 页面标题 */}
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">项目查询</h1>
-          <p className="text-gray-500 mt-1">查询项目数据、生成统计报表</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">项目查询</h1>
+            <p className="text-gray-500 mt-1">查询项目数据、生成统计报表</p>
+          </div>
+          <Button onClick={() => window.location.href = '/design'}>
+            <Plus className="w-4 h-4 mr-2" />
+            新建项目
+          </Button>
         </div>
 
         {/* 统计概览 */}
