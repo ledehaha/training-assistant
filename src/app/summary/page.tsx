@@ -128,6 +128,11 @@ export default function SummaryPage() {
   // 确认对话框
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   
+  // 新建待总结项目对话框
+  const [showNewProjectDialog, setShowNewProjectDialog] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [creatingProject, setCreatingProject] = useState(false);
+  
   // 拖放状态
   const [dragActive, setDragActive] = useState<string | null>(null);
 
@@ -460,6 +465,44 @@ export default function SummaryPage() {
     setLastSaveTime(null);
   };
 
+  // 创建新的待总结项目（补录）
+  const handleCreateNewProject = async () => {
+    if (!newProjectName.trim()) {
+      toast.error('请输入项目名称');
+      return;
+    }
+
+    setCreatingProject(true);
+    try {
+      const res = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newProjectName.trim(),
+          status: 'completed', // 直接设为已完成状态，因为这是补录的项目
+        }),
+      });
+
+      const data = await res.json();
+      if (data.data) {
+        toast.success('项目创建成功', { description: '请上传项目材料' });
+        setShowNewProjectDialog(false);
+        setNewProjectName('');
+        // 自动选中新建的项目
+        handleSelectProject(data.data);
+        // 刷新项目列表
+        loadProjects();
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (error) {
+      console.error('Create project error:', error);
+      toast.error('创建失败', { description: error instanceof Error ? error.message : '创建项目失败' });
+    } finally {
+      setCreatingProject(false);
+    }
+  };
+
   // 返回上一步
   const handlePrevStep = () => {
     if (currentStep > 1) {
@@ -742,11 +785,23 @@ export default function SummaryPage() {
       {/* 待总结项目 */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ClipboardCheck className="w-5 h-5" />
-            待总结项目
-          </CardTitle>
-          <CardDescription>选择需要总结的项目，包括执行中和已完成的项目</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <ClipboardCheck className="w-5 h-5" />
+                待总结项目
+              </CardTitle>
+              <CardDescription>选择需要总结的项目，包括执行中和已完成的项目</CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowNewProjectDialog(true)}
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              新建待总结项目
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -758,9 +813,31 @@ export default function SummaryPage() {
             <div className="text-center py-8 text-gray-500">
               <FolderOpen className="w-12 h-12 mx-auto mb-2 text-gray-300" />
               <p>暂无待总结项目</p>
+              <Button
+                variant="link"
+                className="mt-2"
+                onClick={() => setShowNewProjectDialog(true)}
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                新建一个待总结项目
+              </Button>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* 新建待总结项目卡片 */}
+              <Card
+                className="cursor-pointer border-2 border-dashed hover:border-blue-500 hover:bg-blue-50/50 transition-all"
+                onClick={() => setShowNewProjectDialog(true)}
+              >
+                <CardContent className="p-4 flex flex-col items-center justify-center min-h-[140px]">
+                  <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center mb-3">
+                    <Plus className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <p className="font-medium text-gray-700">新建待总结项目</p>
+                  <p className="text-xs text-gray-500 mt-1">补录历史项目</p>
+                </CardContent>
+              </Card>
+              
               {pendingProjects.map((project) => (
                 <Card
                   key={project.id}
@@ -1153,6 +1230,70 @@ export default function SummaryPage() {
         {/* 内容区域 */}
         {renderContent()}
       </div>
+      
+      {/* 新建待总结项目对话框 */}
+      <Dialog open={showNewProjectDialog} onOpenChange={setShowNewProjectDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="w-5 h-5" />
+              新建待总结项目
+            </DialogTitle>
+            <DialogDescription>
+              创建一个新的项目用于补录历史项目数据。项目创建后将自动进入材料上传步骤。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">
+                项目名称 <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="请输入项目名称"
+                value={newProjectName}
+                onChange={(e) => setNewProjectName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !creatingProject) {
+                    handleCreateNewProject();
+                  }
+                }}
+              />
+              <p className="text-xs text-gray-500">
+                例如：2024年XX公司班组长能力提升培训
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowNewProjectDialog(false);
+                setNewProjectName('');
+              }}
+            >
+              取消
+            </Button>
+            <Button
+              onClick={handleCreateNewProject}
+              disabled={creatingProject || !newProjectName.trim()}
+            >
+              {creatingProject ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  创建中...
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4 mr-2" />
+                  创建项目
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }
