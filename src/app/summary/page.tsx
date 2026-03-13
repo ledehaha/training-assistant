@@ -47,17 +47,30 @@ interface Project {
   participantCount: number;
   avgSatisfaction: string | null;
   surveyResponseRate: string | null;
-  contractFile: string | null;
-  contractFileName: string | null;
-  costFile: string | null;
-  costFileName: string | null;
-  declarationFile: string | null;
-  declarationFileName: string | null;
+  // 合同文件（PDF和Word）
+  contractFilePdf: string | null;
+  contractFileNamePdf: string | null;
+  contractFileWord: string | null;
+  contractFileNameWord: string | null;
+  // 成本测算表（PDF和Word）
+  costFilePdf: string | null;
+  costFileNamePdf: string | null;
+  costFileWord: string | null;
+  costFileNameWord: string | null;
+  // 项目申报书（PDF和Word）
+  declarationFilePdf: string | null;
+  declarationFileNamePdf: string | null;
+  declarationFileWord: string | null;
+  declarationFileNameWord: string | null;
+  // 学员名单
   studentListFile: string | null;
   studentListFileName: string | null;
+  // 其他材料
   otherMaterials: string | null;
+  // 满意度调查
   satisfactionSurveyFile: string | null;
   satisfactionSurveyFileName: string | null;
+  // 总结报告
   summaryReport: string | null;
   createdAt: string;
   updatedAt: string;
@@ -153,17 +166,29 @@ export default function SummaryPage() {
   const getUpdatedProjectData = (fileType: string, data: { fileKey: string; fileName: string }) => {
     const updates: Record<string, string | null> = {};
     switch (fileType) {
-      case 'contract':
-        updates.contractFile = data.fileKey;
-        updates.contractFileName = data.fileName;
+      case 'contractPdf':
+        updates.contractFilePdf = data.fileKey;
+        updates.contractFileNamePdf = data.fileName;
         break;
-      case 'cost':
-        updates.costFile = data.fileKey;
-        updates.costFileName = data.fileName;
+      case 'contractWord':
+        updates.contractFileWord = data.fileKey;
+        updates.contractFileNameWord = data.fileName;
         break;
-      case 'declaration':
-        updates.declarationFile = data.fileKey;
-        updates.declarationFileName = data.fileName;
+      case 'costPdf':
+        updates.costFilePdf = data.fileKey;
+        updates.costFileNamePdf = data.fileName;
+        break;
+      case 'costWord':
+        updates.costFileWord = data.fileKey;
+        updates.costFileNameWord = data.fileName;
+        break;
+      case 'declarationPdf':
+        updates.declarationFilePdf = data.fileKey;
+        updates.declarationFileNamePdf = data.fileName;
+        break;
+      case 'declarationWord':
+        updates.declarationFileWord = data.fileKey;
+        updates.declarationFileNameWord = data.fileName;
         break;
       case 'studentList':
         updates.studentListFile = data.fileKey;
@@ -288,10 +313,14 @@ export default function SummaryPage() {
   };
 
   const getUploadProgress = (project: Project) => {
+    // 计算必须上传的文件数量（合同PDF+Word、成本PDF+Word、申报书PDF+Word、学员名单、满意度调查）
     const files = [
-      project.contractFile,
-      project.costFile,
-      project.declarationFile,
+      project.contractFilePdf,
+      project.contractFileWord,
+      project.costFilePdf,
+      project.costFileWord,
+      project.declarationFilePdf,
+      project.declarationFileWord,
       project.studentListFile,
       project.satisfactionSurveyFile,
     ];
@@ -299,12 +328,204 @@ export default function SummaryPage() {
     return Math.round((uploaded / files.length) * 100);
   };
 
+  // 处理拖放事件
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent, fileType: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      const file = files[0];
+      // 根据文件类型校验
+      if (fileType.endsWith('Pdf') && !file.name.toLowerCase().endsWith('.pdf')) {
+        toast.error('文件格式错误', { description: '请上传PDF格式文件' });
+        return;
+      }
+      if (fileType.endsWith('Word') && !/\.(doc|docx)$/i.test(file.name)) {
+        toast.error('文件格式错误', { description: '请上传Word格式文件' });
+        return;
+      }
+      handleFileUpload(fileType, file);
+    }
+  };
+
+  // 双文件上传组件（PDF + Word）
+  const renderDualFileUploadCard = (
+    title: string,
+    pdfFileType: string,
+    pdfFileName: string | null,
+    pdfFileKey: string | null,
+    wordFileType: string,
+    wordFileName: string | null,
+    wordFileKey: string | null,
+    description: string
+  ) => (
+    <div className="p-4 border rounded-lg">
+      <div className="flex items-center gap-2 mb-2">
+        <FileText className="w-4 h-4 text-gray-500" />
+        <span className="font-medium text-gray-900">{title}</span>
+      </div>
+      <p className="text-sm text-gray-500 mb-4">{description}</p>
+      
+      <div className="grid grid-cols-2 gap-3">
+        {/* PDF版本 */}
+        <div
+          className={`border-2 border-dashed rounded-lg p-3 text-center transition-colors ${
+            uploading === pdfFileType ? 'bg-blue-50 border-blue-300' : 'hover:bg-gray-50 border-gray-200'
+          }`}
+          onDragOver={handleDragOver}
+          onDrop={(e) => handleDrop(e, pdfFileType)}
+        >
+          {pdfFileName ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-center gap-1">
+                <CheckCircle className="w-4 h-4 text-green-500" />
+                <span className="text-xs text-green-600 font-medium">PDF版本已上传</span>
+              </div>
+              <div className="flex items-center justify-center gap-1">
+                <span className="text-xs text-gray-500 truncate max-w-[100px]">{pdfFileName}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-5 w-5 p-0"
+                  onClick={() => pdfFileKey && getFileUrl(pdfFileKey)}
+                >
+                  <Download className="w-3 h-3" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-5 w-5 p-0"
+                  onClick={() => handleFileDelete(pdfFileType)}
+                >
+                  <Trash2 className="w-3 h-3 text-red-500" />
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <input
+                type="file"
+                accept=".pdf"
+                className="hidden"
+                id={`file-${pdfFileType}`}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    handleFileUpload(pdfFileType, file);
+                  }
+                }}
+              />
+              <Upload className="w-5 h-5 mx-auto mb-1 text-gray-400" />
+              <p className="text-xs text-gray-500 mb-2">PDF版本</p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => {
+                  const input = document.getElementById(`file-${pdfFileType}`) as HTMLInputElement;
+                  input?.click();
+                }}
+                disabled={uploading === pdfFileType}
+              >
+                {uploading === pdfFileType ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  '上传'
+                )}
+              </Button>
+              <p className="text-[10px] text-gray-400 mt-1">或拖放文件</p>
+            </div>
+          )}
+        </div>
+
+        {/* Word版本 */}
+        <div
+          className={`border-2 border-dashed rounded-lg p-3 text-center transition-colors ${
+            uploading === wordFileType ? 'bg-blue-50 border-blue-300' : 'hover:bg-gray-50 border-gray-200'
+          }`}
+          onDragOver={handleDragOver}
+          onDrop={(e) => handleDrop(e, wordFileType)}
+        >
+          {wordFileName ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-center gap-1">
+                <CheckCircle className="w-4 h-4 text-green-500" />
+                <span className="text-xs text-green-600 font-medium">Word版本已上传</span>
+              </div>
+              <div className="flex items-center justify-center gap-1">
+                <span className="text-xs text-gray-500 truncate max-w-[100px]">{wordFileName}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-5 w-5 p-0"
+                  onClick={() => wordFileKey && getFileUrl(wordFileKey)}
+                >
+                  <Download className="w-3 h-3" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-5 w-5 p-0"
+                  onClick={() => handleFileDelete(wordFileType)}
+                >
+                  <Trash2 className="w-3 h-3 text-red-500" />
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <input
+                type="file"
+                accept=".doc,.docx"
+                className="hidden"
+                id={`file-${wordFileType}`}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    handleFileUpload(wordFileType, file);
+                  }
+                }}
+              />
+              <Upload className="w-5 h-5 mx-auto mb-1 text-gray-400" />
+              <p className="text-xs text-gray-500 mb-2">Word版本</p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => {
+                  const input = document.getElementById(`file-${wordFileType}`) as HTMLInputElement;
+                  input?.click();
+                }}
+                disabled={uploading === wordFileType}
+              >
+                {uploading === wordFileType ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  '上传'
+                )}
+              </Button>
+              <p className="text-[10px] text-gray-400 mt-1">或拖放文件</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  // 单文件上传组件（支持拖放）
   const renderFileUploadCard = (
     title: string,
     fileType: string,
     fileName: string | null,
     fileKey: string | null,
-    description: string
+    description: string,
+    accept: string = '.pdf,.doc,.docx,.xls,.xlsx'
   ) => (
     <div className="p-4 border rounded-lg">
       <div className="flex items-center justify-between mb-2">
@@ -341,10 +562,16 @@ export default function SummaryPage() {
           </div>
         </div>
       ) : (
-        <div>
+        <div
+          className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+            uploading === fileType ? 'bg-blue-50 border-blue-300' : 'hover:bg-gray-50 border-gray-200'
+          }`}
+          onDragOver={handleDragOver}
+          onDrop={(e) => handleDrop(e, fileType)}
+        >
           <input
             type="file"
-            accept=".pdf,.doc,.docx,.xls,.xlsx"
+            accept={accept}
             className="hidden"
             id={`file-${fileType}`}
             onChange={(e) => {
@@ -354,9 +581,11 @@ export default function SummaryPage() {
               }
             }}
           />
+          <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+          <p className="text-sm text-gray-500 mb-2">点击或拖放文件到此处上传</p>
           <Button
             variant="outline"
-            className="w-full"
+            size="sm"
             onClick={() => {
               const input = document.getElementById(`file-${fileType}`) as HTMLInputElement;
               input?.click();
@@ -371,7 +600,7 @@ export default function SummaryPage() {
             ) : (
               <>
                 <Upload className="w-4 h-4 mr-2" />
-                上传文件
+                选择文件
               </>
             )}
           </Button>
@@ -527,45 +756,54 @@ export default function SummaryPage() {
                         <span className="font-medium text-blue-700">上传说明</span>
                       </div>
                       <p className="text-sm text-gray-600">
-                        请上传项目相关材料，支持PDF、Word、Excel格式。AI将分析材料并生成总结报告。
+                        合同文件、成本测算表、项目申报书需同时上传PDF和Word两个版本。支持拖放上传。
                       </p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {renderFileUploadCard(
+                    {/* 必须上传的材料 - 双版本 */}
+                    <div className="space-y-4">
+                      {renderDualFileUploadCard(
                         '合同文件',
-                        'contract',
-                        selectedProject.contractFileName,
-                        selectedProject.contractFile,
-                        '上传合同扫描件或电子版'
+                        'contractPdf',
+                        selectedProject.contractFileNamePdf,
+                        selectedProject.contractFilePdf,
+                        'contractWord',
+                        selectedProject.contractFileNameWord,
+                        selectedProject.contractFileWord,
+                        '上传合同扫描件或电子版（需同时上传PDF和Word两个版本）'
                       )}
-                      {renderFileUploadCard(
+                      {renderDualFileUploadCard(
                         '成本测算表',
-                        'cost',
-                        selectedProject.costFileName,
-                        selectedProject.costFile,
-                        '上传成本明细表'
+                        'costPdf',
+                        selectedProject.costFileNamePdf,
+                        selectedProject.costFilePdf,
+                        'costWord',
+                        selectedProject.costFileNameWord,
+                        selectedProject.costFileWord,
+                        '上传成本明细表（需同时上传PDF和Word两个版本）'
                       )}
-                      {renderFileUploadCard(
+                      {renderDualFileUploadCard(
                         '项目申报书',
-                        'declaration',
-                        selectedProject.declarationFileName,
-                        selectedProject.declarationFile,
-                        '上传项目申报材料'
+                        'declarationPdf',
+                        selectedProject.declarationFileNamePdf,
+                        selectedProject.declarationFilePdf,
+                        'declarationWord',
+                        selectedProject.declarationFileNameWord,
+                        selectedProject.declarationFileWord,
+                        '上传项目申报材料（需同时上传PDF和Word两个版本）'
                       )}
+                    </div>
+
+                    {/* 其他单文件材料 */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {renderFileUploadCard(
                         '学员名单',
                         'studentList',
                         selectedProject.studentListFileName,
                         selectedProject.studentListFile,
-                        '上传学员名单Excel'
+                        '上传学员名单Excel',
+                        '.xls,.xlsx'
                       )}
-                    </div>
-
-                    <Separator />
-
-                    <div>
-                      <h4 className="font-medium text-gray-900 mb-3">满意度调查</h4>
                       {renderFileUploadCard(
                         '满意度调查结果',
                         'satisfaction',
@@ -577,6 +815,7 @@ export default function SummaryPage() {
 
                     <Separator />
 
+                    {/* 其他材料 */}
                     <div>
                       <h4 className="font-medium text-gray-900 mb-3">其他材料</h4>
                       <div className="space-y-2">
@@ -612,7 +851,11 @@ export default function SummaryPage() {
                             )}
                           </>
                         )}
-                        <div>
+                        <div
+                          className="border-2 border-dashed rounded-lg p-4 text-center hover:bg-gray-50 border-gray-200 transition-colors"
+                          onDragOver={handleDragOver}
+                          onDrop={(e) => handleDrop(e, 'other')}
+                        >
                           <input
                             type="file"
                             accept=".pdf,.doc,.docx,.xls,.xlsx"
@@ -625,9 +868,10 @@ export default function SummaryPage() {
                               }
                             }}
                           />
+                          <Plus className="w-5 h-5 mx-auto mb-1 text-gray-400" />
                           <Button
-                            variant="outline"
-                            className="w-full"
+                            variant="ghost"
+                            size="sm"
                             onClick={() => {
                               const input = document.getElementById('file-other') as HTMLInputElement;
                               input?.click();
@@ -635,15 +879,9 @@ export default function SummaryPage() {
                             disabled={uploading === 'other'}
                           >
                             {uploading === 'other' ? (
-                              <>
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                上传中...
-                              </>
+                              <Loader2 className="w-4 h-4 animate-spin" />
                             ) : (
-                              <>
-                                <Plus className="w-4 h-4 mr-2" />
-                                添加其他材料
-                              </>
+                              '添加其他材料'
                             )}
                           </Button>
                         </div>
@@ -747,10 +985,13 @@ export default function SummaryPage() {
                       <h4 className="font-medium text-gray-900 mb-4">归档清单</h4>
                       <div className="space-y-2">
                         {[
-                          { name: '项目申报表', status: selectedProject.declarationFile ? '已上传' : '待上传' },
+                          { name: '项目申报表PDF', status: selectedProject.declarationFilePdf ? '已上传' : '待上传' },
+                          { name: '项目申报表Word', status: selectedProject.declarationFileWord ? '已上传' : '待上传' },
                           { name: '培训方案', status: '已生成' },
-                          { name: '成本测算表', status: selectedProject.costFile ? '已上传' : '待上传' },
-                          { name: '合同文件', status: selectedProject.contractFile ? '已上传' : '待上传' },
+                          { name: '成本测算表PDF', status: selectedProject.costFilePdf ? '已上传' : '待上传' },
+                          { name: '成本测算表Word', status: selectedProject.costFileWord ? '已上传' : '待上传' },
+                          { name: '合同文件PDF', status: selectedProject.contractFilePdf ? '已上传' : '待上传' },
+                          { name: '合同文件Word', status: selectedProject.contractFileWord ? '已上传' : '待上传' },
                           { name: '学员名单', status: selectedProject.studentListFile ? '已上传' : '待上传' },
                           { name: '满意度调查结果', status: selectedProject.satisfactionSurveyFile ? '已上传' : '待上传' },
                           { name: '项目总结报告', status: summaryReport ? '已生成' : '待生成' },

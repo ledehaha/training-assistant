@@ -60,14 +60,23 @@ export async function POST(request: NextRequest) {
     // 收集上传文件的内容
     const fileContents: Record<string, string> = {};
     
-    if (project.contractFile) {
-      fileContents.contract = await readFileContent(project.contractFile);
+    // 合同文件（优先PDF，其次Word）
+    if (project.contractFilePdf) {
+      fileContents.contract = await readFileContent(project.contractFilePdf);
+    } else if (project.contractFileWord) {
+      fileContents.contract = await readFileContent(project.contractFileWord);
     }
-    if (project.costFile) {
-      fileContents.cost = await readFileContent(project.costFile);
+    // 成本测算表（优先PDF，其次Word）
+    if (project.costFilePdf) {
+      fileContents.cost = await readFileContent(project.costFilePdf);
+    } else if (project.costFileWord) {
+      fileContents.cost = await readFileContent(project.costFileWord);
     }
-    if (project.declarationFile) {
-      fileContents.declaration = await readFileContent(project.declarationFile);
+    // 项目申报书（优先PDF，其次Word）
+    if (project.declarationFilePdf) {
+      fileContents.declaration = await readFileContent(project.declarationFilePdf);
+    } else if (project.declarationFileWord) {
+      fileContents.declaration = await readFileContent(project.declarationFileWord);
     }
     if (project.studentListFile) {
       fileContents.studentList = await readFileContent(project.studentListFile);

@@ -280,6 +280,18 @@ const migrationSQL = `
   ALTER TABLE projects ADD COLUMN satisfaction_survey_file TEXT;
   ALTER TABLE projects ADD COLUMN satisfaction_survey_file_name TEXT;
   ALTER TABLE projects ADD COLUMN summary_report TEXT;
+  ALTER TABLE projects ADD COLUMN contract_file_pdf TEXT;
+  ALTER TABLE projects ADD COLUMN contract_file_name_pdf TEXT;
+  ALTER TABLE projects ADD COLUMN contract_file_word TEXT;
+  ALTER TABLE projects ADD COLUMN contract_file_name_word TEXT;
+  ALTER TABLE projects ADD COLUMN cost_file_pdf TEXT;
+  ALTER TABLE projects ADD COLUMN cost_file_name_pdf TEXT;
+  ALTER TABLE projects ADD COLUMN cost_file_word TEXT;
+  ALTER TABLE projects ADD COLUMN cost_file_name_word TEXT;
+  ALTER TABLE projects ADD COLUMN declaration_file_pdf TEXT;
+  ALTER TABLE projects ADD COLUMN declaration_file_name_pdf TEXT;
+  ALTER TABLE projects ADD COLUMN declaration_file_word TEXT;
+  ALTER TABLE projects ADD COLUMN declaration_file_name_word TEXT;
 `;
 
 // 执行迁移（检查并添加缺失的列）

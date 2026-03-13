@@ -139,18 +139,31 @@ export const projects = sqliteTable(
     avgSatisfaction: real('avg_satisfaction'),
     surveyResponseRate: real('survey_response_rate'),
     // 项目总结相关文件
-    contractFile: text('contract_file'), // 合同文件路径
-    contractFileName: text('contract_file_name'), // 合同文件名
-    costFile: text('cost_file'), // 成本测算表文件路径
-    costFileName: text('cost_file_name'), // 成本测算表文件名
-    declarationFile: text('declaration_file'), // 项目申报书文件路径
-    declarationFileName: text('declaration_file_name'), // 项目申报书文件名
-    studentListFile: text('student_list_file'), // 学员名单文件路径
-    studentListFileName: text('student_list_name'), // 学员名单文件名
-    otherMaterials: text('other_materials'), // 其他材料JSON（报价单、课程安排表、学员手册等）
-    satisfactionSurveyFile: text('satisfaction_survey_file'), // 满意度调查文件路径
-    satisfactionSurveyFileName: text('satisfaction_survey_file_name'), // 满意度调查文件名
-    summaryReport: text('summary_report'), // 总结报告JSON
+    // 合同文件（PDF和Word两个版本）
+    contractFilePdf: text('contract_file_pdf'),
+    contractFileNamePdf: text('contract_file_name_pdf'),
+    contractFileWord: text('contract_file_word'),
+    contractFileNameWord: text('contract_file_name_word'),
+    // 成本测算表（PDF和Word两个版本）
+    costFilePdf: text('cost_file_pdf'),
+    costFileNamePdf: text('cost_file_name_pdf'),
+    costFileWord: text('cost_file_word'),
+    costFileNameWord: text('cost_file_name_word'),
+    // 项目申报书（PDF和Word两个版本）
+    declarationFilePdf: text('declaration_file_pdf'),
+    declarationFileNamePdf: text('declaration_file_name_pdf'),
+    declarationFileWord: text('declaration_file_word'),
+    declarationFileNameWord: text('declaration_file_name_word'),
+    // 学员名单
+    studentListFile: text('student_list_file'),
+    studentListFileName: text('student_list_name'),
+    // 其他材料
+    otherMaterials: text('other_materials'),
+    // 满意度调查
+    satisfactionSurveyFile: text('satisfaction_survey_file'),
+    satisfactionSurveyFileName: text('satisfaction_survey_file_name'),
+    // 总结报告
+    summaryReport: text('summary_report'),
     // 时间戳
     createdAt: text('created_at').default(sql`datetime('now')`).notNull(),
     updatedAt: text('updated_at'),

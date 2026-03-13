@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const projectId = formData.get('projectId') as string;
-    const fileType = formData.get('fileType') as string; // contract, cost, declaration, studentList, satisfaction, other
+    const fileType = formData.get('fileType') as string; // contractPdf, contractWord, costPdf, costWord, declarationPdf, declarationWord, studentList, satisfaction, other
 
     if (!file || !projectId || !fileType) {
       return NextResponse.json({ error: '缺少必要参数' }, { status: 400 });
@@ -42,28 +42,45 @@ export async function POST(request: NextRequest) {
     const updateData: Record<string, string> = {};
 
     switch (fileType) {
-      case 'contract':
-        updateData.contractFile = fileKey;
-        updateData.contractFileName = file.name;
+      // 合同文件
+      case 'contractPdf':
+        updateData.contractFilePdf = fileKey;
+        updateData.contractFileNamePdf = file.name;
         break;
-      case 'cost':
-        updateData.costFile = fileKey;
-        updateData.costFileName = file.name;
+      case 'contractWord':
+        updateData.contractFileWord = fileKey;
+        updateData.contractFileNameWord = file.name;
         break;
-      case 'declaration':
-        updateData.declarationFile = fileKey;
-        updateData.declarationFileName = file.name;
+      // 成本测算表
+      case 'costPdf':
+        updateData.costFilePdf = fileKey;
+        updateData.costFileNamePdf = file.name;
         break;
+      case 'costWord':
+        updateData.costFileWord = fileKey;
+        updateData.costFileNameWord = file.name;
+        break;
+      // 项目申报书
+      case 'declarationPdf':
+        updateData.declarationFilePdf = fileKey;
+        updateData.declarationFileNamePdf = file.name;
+        break;
+      case 'declarationWord':
+        updateData.declarationFileWord = fileKey;
+        updateData.declarationFileNameWord = file.name;
+        break;
+      // 学员名单
       case 'studentList':
         updateData.studentListFile = fileKey;
         updateData.studentListFileName = file.name;
         break;
+      // 满意度调查
       case 'satisfaction':
         updateData.satisfactionSurveyFile = fileKey;
         updateData.satisfactionSurveyFileName = file.name;
         break;
+      // 其他材料
       case 'other':
-        // 其他材料需要特殊处理，存储为JSON数组
         const project = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
         const existingMaterials = project[0]?.otherMaterials ? JSON.parse(project[0].otherMaterials) : [];
         existingMaterials.push({ key: fileKey, name: file.name, uploadedAt: new Date().toISOString() });
@@ -110,33 +127,53 @@ export async function DELETE(request: NextRequest) {
     const updateData: Record<string, string | null> = {};
 
     switch (fileType) {
-      case 'contract':
-        fileKey = project[0].contractFile || '';
-        updateData.contractFile = null;
-        updateData.contractFileName = null;
+      // 合同文件
+      case 'contractPdf':
+        fileKey = project[0].contractFilePdf || '';
+        updateData.contractFilePdf = null;
+        updateData.contractFileNamePdf = null;
         break;
-      case 'cost':
-        fileKey = project[0].costFile || '';
-        updateData.costFile = null;
-        updateData.costFileName = null;
+      case 'contractWord':
+        fileKey = project[0].contractFileWord || '';
+        updateData.contractFileWord = null;
+        updateData.contractFileNameWord = null;
         break;
-      case 'declaration':
-        fileKey = project[0].declarationFile || '';
-        updateData.declarationFile = null;
-        updateData.declarationFileName = null;
+      // 成本测算表
+      case 'costPdf':
+        fileKey = project[0].costFilePdf || '';
+        updateData.costFilePdf = null;
+        updateData.costFileNamePdf = null;
         break;
+      case 'costWord':
+        fileKey = project[0].costFileWord || '';
+        updateData.costFileWord = null;
+        updateData.costFileNameWord = null;
+        break;
+      // 项目申报书
+      case 'declarationPdf':
+        fileKey = project[0].declarationFilePdf || '';
+        updateData.declarationFilePdf = null;
+        updateData.declarationFileNamePdf = null;
+        break;
+      case 'declarationWord':
+        fileKey = project[0].declarationFileWord || '';
+        updateData.declarationFileWord = null;
+        updateData.declarationFileNameWord = null;
+        break;
+      // 学员名单
       case 'studentList':
         fileKey = project[0].studentListFile || '';
         updateData.studentListFile = null;
         updateData.studentListFileName = null;
         break;
+      // 满意度调查
       case 'satisfaction':
         fileKey = project[0].satisfactionSurveyFile || '';
         updateData.satisfactionSurveyFile = null;
         updateData.satisfactionSurveyFileName = null;
         break;
+      // 其他材料
       case 'other':
-        // 删除其他材料中的指定文件
         const existingMaterials = project[0].otherMaterials ? JSON.parse(project[0].otherMaterials) : [];
         if (fileIndex !== undefined && existingMaterials[fileIndex]) {
           fileKey = existingMaterials[fileIndex].key;
