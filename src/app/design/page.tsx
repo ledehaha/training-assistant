@@ -544,7 +544,7 @@ export default function DesignPage() {
         });
         
         setShowDraftList(false);
-        setActiveTab('requirement');
+        // 保持当前 tab 不变，用户在哪个页面打开就在哪个页面显示
       }
     } catch (error) {
       console.error('Load project error:', error);
