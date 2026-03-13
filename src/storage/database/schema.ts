@@ -138,6 +138,19 @@ export const projects = sqliteTable(
     // 满意度信息
     avgSatisfaction: real('avg_satisfaction'),
     surveyResponseRate: real('survey_response_rate'),
+    // 项目总结相关文件
+    contractFile: text('contract_file'), // 合同文件路径
+    contractFileName: text('contract_file_name'), // 合同文件名
+    costFile: text('cost_file'), // 成本测算表文件路径
+    costFileName: text('cost_file_name'), // 成本测算表文件名
+    declarationFile: text('declaration_file'), // 项目申报书文件路径
+    declarationFileName: text('declaration_file_name'), // 项目申报书文件名
+    studentListFile: text('student_list_file'), // 学员名单文件路径
+    studentListFileName: text('student_list_name'), // 学员名单文件名
+    otherMaterials: text('other_materials'), // 其他材料JSON（报价单、课程安排表、学员手册等）
+    satisfactionSurveyFile: text('satisfaction_survey_file'), // 满意度调查文件路径
+    satisfactionSurveyFileName: text('satisfaction_survey_file_name'), // 满意度调查文件名
+    summaryReport: text('summary_report'), // 总结报告JSON
     // 时间戳
     createdAt: text('created_at').default(sql`datetime('now')`).notNull(),
     updatedAt: text('updated_at'),

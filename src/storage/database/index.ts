@@ -123,6 +123,18 @@ const createTablesSQL = `
     actual_cost REAL,
     avg_satisfaction REAL,
     survey_response_rate REAL,
+    contract_file TEXT,
+    contract_file_name TEXT,
+    cost_file TEXT,
+    cost_file_name TEXT,
+    declaration_file TEXT,
+    declaration_file_name TEXT,
+    student_list_file TEXT,
+    student_list_name TEXT,
+    other_materials TEXT,
+    satisfaction_survey_file TEXT,
+    satisfaction_survey_file_name TEXT,
+    summary_report TEXT,
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT,
     completed_at TEXT,
@@ -254,6 +266,54 @@ export function debouncedSave(): void {
   }, 100);
 }
 
+// 数据库迁移SQL - 添加文件存储字段
+const migrationSQL = `
+  ALTER TABLE projects ADD COLUMN contract_file TEXT;
+  ALTER TABLE projects ADD COLUMN contract_file_name TEXT;
+  ALTER TABLE projects ADD COLUMN cost_file TEXT;
+  ALTER TABLE projects ADD COLUMN cost_file_name TEXT;
+  ALTER TABLE projects ADD COLUMN declaration_file TEXT;
+  ALTER TABLE projects ADD COLUMN declaration_file_name TEXT;
+  ALTER TABLE projects ADD COLUMN student_list_file TEXT;
+  ALTER TABLE projects ADD COLUMN student_list_name TEXT;
+  ALTER TABLE projects ADD COLUMN other_materials TEXT;
+  ALTER TABLE projects ADD COLUMN satisfaction_survey_file TEXT;
+  ALTER TABLE projects ADD COLUMN satisfaction_survey_file_name TEXT;
+  ALTER TABLE projects ADD COLUMN summary_report TEXT;
+`;
+
+// 执行迁移（检查并添加缺失的列）
+function runMigrations(db: SqlJsDatabase): void {
+  try {
+    // 获取projects表的列信息
+    const result = db.exec("PRAGMA table_info(projects)");
+    if (result.length === 0) return;
+    
+    const columns = result[0].values.map((row) => row[1] as string);
+    
+    // 检查是否需要添加新列
+    const migrationStatements = migrationSQL
+      .split(';')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    
+    for (const stmt of migrationStatements) {
+      // 提取列名
+      const match = stmt.match(/ADD COLUMN (\w+)/);
+      if (match && !columns.includes(match[1])) {
+        try {
+          db.run(stmt);
+          console.log(`Migration: Added column ${match[1]} to projects table`);
+        } catch (err) {
+          console.warn(`Migration warning for ${match[1]}:`, err);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Migration check failed:', err);
+  }
+}
+
 // 初始化数据库（内部函数）
 async function doInitDatabase(): Promise<void> {
   if (dbInstance) return;
@@ -272,6 +332,12 @@ async function doInitDatabase(): Promise<void> {
   }
   
   sqlite.run(createTablesSQL);
+  
+  // 执行迁移
+  if (sqlite) {
+    runMigrations(sqlite);
+  }
+  
   dbInstance = drizzle(sqlite, { schema });
   saveDatabaseImmediate();
   
