@@ -231,12 +231,13 @@ const TABLES_CONFIG = [
     icon: '📖',
     columns: [
       { key: 'id', label: 'ID', type: 'uuid', editable: false },
-      { key: 'projectId', label: '项目ID', type: 'uuid', editable: true, required: true },
-      { key: 'courseName', label: '课程名称', type: 'text', editable: true },
-      { key: 'teacherId', label: '讲师ID', type: 'uuid', editable: true },
-      { key: 'venueId', label: '场地ID', type: 'uuid', editable: true },
+      { key: 'projectId', label: '项目ID', type: 'uuid', editable: false },
+      { key: 'name', label: '课程名称', type: 'text', editable: true },
+      { key: 'day', label: '培训天数', type: 'number', editable: true },
       { key: 'duration', label: '课时', type: 'number', editable: true },
-      { key: 'sequence', label: '顺序', type: 'number', editable: true },
+      { key: 'teacherId', label: '讲师ID', type: 'uuid', editable: true },
+      { key: 'description', label: '课程描述', type: 'textarea', editable: true },
+      { key: 'order', label: '排序', type: 'number', editable: true },
     ]
   },
   { 
