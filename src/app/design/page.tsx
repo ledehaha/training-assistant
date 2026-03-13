@@ -436,10 +436,15 @@ export default function DesignPage() {
 
   // 新建项目
   const handleNewProject = () => {
+    // 清除项目 ID
     setProjectId(null);
-    projectIdRef.current = null; // 立即更新 ref
-    setOriginalProjectName(''); // 清空原始项目名称
-    setFormData({
+    projectIdRef.current = null;
+    
+    // 清空原始项目名称
+    setOriginalProjectName('');
+    
+    // 重置表单数据
+    const emptyFormData = {
       name: '',
       trainingTarget: '',
       targetAudience: '',
@@ -451,10 +456,17 @@ export default function DesignPage() {
       budgetMax: 12,
       location: '',
       specialRequirements: '',
-    });
+    };
+    setFormData(emptyFormData);
+    formDataRef.current = emptyFormData; // 立即更新 ref
+    
+    // 清空课程、场地、费用预算
     setCourses([]);
+    coursesRef.current = []; // 立即更新 ref
     setSelectedVenue(null);
     setQuotation(null);
+    
+    // 重置其他状态
     setActiveTab('requirement');
     setShowDraftList(false);
     setOtherTrainingTarget('');
@@ -470,9 +482,11 @@ export default function DesignPage() {
   // 加载草稿项目
   const handleLoadProject = async (id: string) => {
     try {
-      // 先清除之前的数据状态，避免残留
+      // 先清除之前的数据状态，避免残留（同时更新 ref）
       setCourses([]);
+      coursesRef.current = []; // 立即更新 ref
       setSelectedVenue(null);
+      setQuotation(null); // 清空费用预算
       setModifySuggestion('');
       setCheckResult(null);
       setCoursesToSplit([]);
@@ -482,10 +496,16 @@ export default function DesignPage() {
       
       if (data.data) {
         const project = data.data;
+        
+        // 更新项目 ID
         setProjectId(project.id);
-        projectIdRef.current = project.id; // 立即更新 ref，确保后续操作使用正确值
-        setOriginalProjectName(project.name || ''); // 记录原始项目名称
-        setFormData({
+        projectIdRef.current = project.id;
+        
+        // 记录原始项目名称
+        setOriginalProjectName(project.name || '');
+        
+        // 构建新的表单数据
+        const newFormData = {
           name: project.name || '',
           trainingTarget: project.trainingTarget || project.training_target || '',
           targetAudience: project.targetAudience || project.target_audience || '',
@@ -497,39 +517,29 @@ export default function DesignPage() {
           budgetMax: project.budgetMax ?? project.budget_max ?? 12,
           location: project.location || '',
           specialRequirements: project.specialRequirements || project.special_requirements || '',
-        });
+        };
         
-        if (project.courses && Array.isArray(project.courses)) {
-          setCourses(project.courses);
-        } else {
-          setCourses([]); // 清空课程数据
-        }
+        setFormData(newFormData);
+        formDataRef.current = newFormData; // 立即更新 ref
         
+        // 更新课程数据
+        const newCourses = project.courses && Array.isArray(project.courses) ? project.courses : [];
+        setCourses(newCourses);
+        coursesRef.current = newCourses; // 立即更新 ref
+        
+        // 更新场地选择
         const venueId = project.venueId || project.selected_venue_id || project.venue_id;
         if (venueId) {
           const venue = venues.find(v => v.id === venueId);
-          if (venue) setSelectedVenue(venue);
-          else setSelectedVenue(null);
+          setSelectedVenue(venue || null);
         } else {
-          setSelectedVenue(null); // 清空场地选择
+          setSelectedVenue(null);
         }
         
-        // 更新已保存数据引用
+        // 更新已保存数据引用（用于后续比较是否需要保存）
         lastSavedDataRef.current = JSON.stringify({
-          formData: {
-            name: project.name || '',
-            trainingTarget: project.trainingTarget || project.training_target || '',
-            targetAudience: project.targetAudience || project.target_audience || '',
-            participantCount: project.participantCount || project.participant_count || 50,
-            trainingDays: project.trainingDays || project.training_days || 4,
-            trainingHours: project.trainingHours || project.training_hours || 32,
-            trainingPeriod: project.trainingPeriod || project.training_period || '',
-            budgetMin: project.budgetMin ?? project.budget_min ?? 8,
-            budgetMax: project.budgetMax ?? project.budget_max ?? 12,
-            location: project.location || '',
-            specialRequirements: project.specialRequirements || project.special_requirements || '',
-          },
-          courses: project.courses || [],
+          formData: newFormData,
+          courses: newCourses,
           selectedVenueId: venueId,
         });
         
