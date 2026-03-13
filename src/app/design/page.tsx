@@ -1243,24 +1243,14 @@ export default function DesignPage() {
     if (!projectId || !originalProjectName) return null;
     
     return (
-      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <FolderOpen className="h-4 w-4 text-blue-600" />
-          <span className="text-sm text-blue-800">
-            正在编辑项目：<strong>{originalProjectName}</strong>
-            {formData.name !== originalProjectName && (
-              <span className="ml-2 text-orange-600">（名称已修改）</span>
-            )}
-          </span>
-        </div>
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          onClick={handleNewProject}
-          className="text-blue-600 hover:text-blue-800"
-        >
-          新建项目
-        </Button>
+      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2">
+        <FolderOpen className="h-4 w-4 text-blue-600" />
+        <span className="text-sm text-blue-800">
+          正在编辑项目：<strong>{originalProjectName}</strong>
+          {formData.name !== originalProjectName && (
+            <span className="ml-2 text-orange-600">（名称已修改）</span>
+          )}
+        </span>
       </div>
     );
   };
