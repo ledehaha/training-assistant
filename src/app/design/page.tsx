@@ -207,6 +207,20 @@ export default function DesignPage() {
   // 使用 ref 存储最新的表单数据，确保 AI 生成时使用最新值
   const formDataRef = useRef(formData);
   const coursesRef = useRef(courses);
+  const projectIdRef = useRef(projectId);
+  
+  // 更新 ref
+  useEffect(() => {
+    formDataRef.current = formData;
+  }, [formData]);
+  
+  useEffect(() => {
+    coursesRef.current = courses;
+  }, [courses]);
+  
+  useEffect(() => {
+    projectIdRef.current = projectId;
+  }, [projectId]);
   
   // 记录原始加载的项目名称，用于判断是否需要新建项目
   const [originalProjectName, setOriginalProjectName] = useState<string>('');
@@ -232,9 +246,10 @@ export default function DesignPage() {
     // 使用 ref 获取最新数据，避免闭包问题
     const currentFormData = formDataRef.current;
     const currentCourses = coursesRef.current;
+    const currentProjectId = projectIdRef.current;
     
     // 检查是否有内容需要保存
-    if (!currentFormData.name?.trim() && !projectId) return;
+    if (!currentFormData.name?.trim() && !currentProjectId) return;
     
     // 检查数据是否变化
     const currentData = JSON.stringify({
@@ -260,8 +275,8 @@ export default function DesignPage() {
         selectedVenueId: selectedVenue?.id,
       };
 
-      if (projectId) {
-        await fetch(`/api/projects/${projectId}`, {
+      if (currentProjectId) {
+        await fetch(`/api/projects/${currentProjectId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(dataToSave),
@@ -275,6 +290,7 @@ export default function DesignPage() {
         const data = await res.json();
         if (data.data?.id) {
           setProjectId(data.data.id);
+          projectIdRef.current = data.data.id; // 立即更新 ref
         }
       }
       
@@ -293,17 +309,19 @@ export default function DesignPage() {
       showToast('error', '保存失败，请重试');
       setTimeout(() => setSaveStatus('idle'), 3000);
     }
-  }, [selectedVenue, projectId, noBudgetLimit, otherTrainingPeriod]);
+  }, [selectedVenue, noBudgetLimit, otherTrainingPeriod]);
 
-  // 优化后的自动保存：防抖 3 秒，且只在数据变化时保存
+  // 优化后的自动保存：防抖 30 秒，且只在数据变化时保存
   useEffect(() => {
     // 清除之前的定时器
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
     }
     
-    // 没有内容不保存
-    if (!formData.name?.trim() && !projectId) return;
+    // 没有内容不保存（使用 ref 获取最新值）
+    const currentFormData = formDataRef.current;
+    const currentProjectId = projectIdRef.current;
+    if (!currentFormData.name?.trim() && !currentProjectId) return;
     
     // 设置新的定时器（30秒防抖）
     saveTimerRef.current = setTimeout(() => {
@@ -315,7 +333,7 @@ export default function DesignPage() {
         clearTimeout(saveTimerRef.current);
       }
     };
-  }, [formData, courses, selectedVenue, performSave, projectId]);
+  }, [formData, courses, selectedVenue, performSave]);
 
   // 保存状态指示器组件
   const SaveIndicator = () => {
@@ -419,6 +437,7 @@ export default function DesignPage() {
   // 新建项目
   const handleNewProject = () => {
     setProjectId(null);
+    projectIdRef.current = null; // 立即更新 ref
     setOriginalProjectName(''); // 清空原始项目名称
     setFormData({
       name: '',
@@ -464,6 +483,7 @@ export default function DesignPage() {
       if (data.data) {
         const project = data.data;
         setProjectId(project.id);
+        projectIdRef.current = project.id; // 立即更新 ref，确保后续操作使用正确值
         setOriginalProjectName(project.name || ''); // 记录原始项目名称
         setFormData({
           name: project.name || '',
@@ -1112,9 +1132,10 @@ export default function DesignPage() {
     // 使用 ref 获取最新状态
     const currentFormData = formDataRef.current;
     const currentCourses = coursesRef.current;
+    const currentProjectId = projectIdRef.current;
     
     // 判断是否需要询问用户（项目名称变化了）
-    if (projectId && originalProjectName && currentFormData.name && currentFormData.name !== originalProjectName) {
+    if (currentProjectId && originalProjectName && currentFormData.name && currentFormData.name !== originalProjectName) {
       setPendingAction('next');
       setShowSaveAsNewDialog(true);
       return;
@@ -1147,6 +1168,7 @@ export default function DesignPage() {
     
     // 清除原项目ID，作为新项目保存
     setProjectId(null);
+    projectIdRef.current = null; // 立即更新 ref，确保 performSave 使用正确值
     setOriginalProjectName(currentFormData.name || '');
     lastSavedDataRef.current = ''; // 强制保存
     
@@ -1173,6 +1195,7 @@ export default function DesignPage() {
   // 处理"更新原项目"
   const handleUpdateOriginalProject = async () => {
     const currentFormData = formDataRef.current;
+    const currentProjectId = projectIdRef.current;
     
     // 更新原始项目名称
     setOriginalProjectName(currentFormData.name || '');
