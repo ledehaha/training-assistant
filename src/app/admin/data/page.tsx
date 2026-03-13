@@ -353,6 +353,9 @@ export default function DataManagementPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchDeleteDialogOpen, setBatchDeleteDialogOpen] = useState(false);
   const [batchDeleting, setBatchDeleting] = useState(false);
+  // 分页状态
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   // 初始化时检查 API Key 状态
   useEffect(() => {
@@ -460,6 +463,18 @@ export default function DataManagementPage() {
       String(val).toLowerCase().includes(searchTerm.toLowerCase())
     );
   });
+
+  // 分页计算
+  const totalPages = Math.ceil(filteredData.length / pageSize);
+  const paginatedData = filteredData.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
+  // 重置页码当数据变化时
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedTable.name, searchTerm]);
 
   // 打开新增对话框
   const handleAdd = () => {
@@ -1379,7 +1394,7 @@ export default function DataManagementPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredData.map((item, idx) => {
+                      {paginatedData.map((item, idx) => {
                         const itemId = String(item.id);
                         const isSelected = selectedIds.has(itemId);
                         return (
@@ -1439,6 +1454,65 @@ export default function DataManagementPage() {
                       })}
                     </TableBody>
                   </Table>
+                  
+                  {/* 分页组件 */}
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                      <div className="text-sm text-muted-foreground">
+                        显示 {(currentPage - 1) * pageSize + 1} - {Math.min(currentPage * pageSize, filteredData.length)} 条，共 {filteredData.length} 条
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCurrentPage(1)}
+                          disabled={currentPage === 1}
+                        >
+                          首页
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                          disabled={currentPage === 1}
+                        >
+                          上一页
+                        </Button>
+                        <span className="text-sm">
+                          第 {currentPage} / {totalPages} 页
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                          disabled={currentPage === totalPages}
+                        >
+                          下一页
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCurrentPage(totalPages)}
+                          disabled={currentPage === totalPages}
+                        >
+                          末页
+                        </Button>
+                        <select
+                          className="h-8 px-2 text-sm border rounded"
+                          value={pageSize}
+                          onChange={(e) => {
+                            setPageSize(Number(e.target.value));
+                            setCurrentPage(1);
+                          }}
+                        >
+                          <option value={10}>10条/页</option>
+                          <option value={20}>20条/页</option>
+                          <option value={50}>50条/页</option>
+                          <option value={100}>100条/页</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
