@@ -78,6 +78,7 @@ const statusMap: Record<string, { label: string; color: string }> = {
 
 export default function SummaryPage() {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [archivedProjects, setArchivedProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState<string | null>(null);
@@ -94,10 +95,18 @@ export default function SummaryPage() {
 
   const loadProjects = async () => {
     try {
+      // 加载待总结项目（执行中、已完成）
       const res = await fetch('/api/projects?status=executing,completed');
       const data = await res.json();
       if (data.data) {
         setProjects(data.data);
+      }
+      
+      // 加载已归档项目
+      const archivedRes = await fetch('/api/projects?status=archived');
+      const archivedData = await archivedRes.json();
+      if (archivedData.data) {
+        setArchivedProjects(archivedData.data);
       }
     } catch (error) {
       console.error('Load projects error:', error);
@@ -381,8 +390,10 @@ export default function SummaryPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* 项目列表 */}
-          <Card className="lg:col-span-1">
+          {/* 左侧项目列表区域 */}
+          <div className="lg:col-span-1 space-y-6">
+            {/* 待总结项目列表 */}
+            <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
@@ -401,11 +412,7 @@ export default function SummaryPage() {
               ) : projects.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <ClipboardCheck className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                  <p className="mb-4">暂无待总结项目</p>
-                  <Button size="sm" onClick={() => window.location.href = '/design'}>
-                    <Plus className="w-4 h-4 mr-1" />
-                    新建项目
-                  </Button>
+                  <p>暂无待总结项目</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -420,7 +427,7 @@ export default function SummaryPage() {
                       onClick={() => {
                         setSelectedProject(project);
                         setAnalysisResult(null);
-                        setSummaryReport(null);
+                        setSummaryReport(project.summaryReport ? JSON.parse(project.summaryReport).report : null);
                       }}
                     >
                       <div className="flex items-start justify-between">
@@ -447,6 +454,55 @@ export default function SummaryPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* 已归档项目列表 */}
+          <Card>
+            <CardHeader>
+              <CardTitle>已归档项目</CardTitle>
+              <CardDescription>点击可查看或补充材料</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="text-center py-4 text-gray-500">加载中...</div>
+              ) : archivedProjects.length === 0 ? (
+                <div className="text-center py-6 text-gray-500">
+                  <Archive className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                  <p className="text-sm">暂无已归档项目</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {archivedProjects.map((project) => (
+                    <div
+                      key={project.id}
+                      className={`p-3 rounded-lg cursor-pointer transition-colors ${
+                        selectedProject?.id === project.id
+                          ? 'bg-blue-50 border-2 border-blue-500'
+                          : 'bg-gray-50 hover:bg-gray-100'
+                      }`}
+                      onClick={() => {
+                        setSelectedProject(project);
+                        setAnalysisResult(null);
+                        setSummaryReport(project.summaryReport ? JSON.parse(project.summaryReport).report : null);
+                      }}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-900 truncate">{project.name}</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {project.participantCount}人参训
+                          </p>
+                        </div>
+                        <Badge className="bg-gray-100 text-gray-500">
+                          已归档
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          </div>
 
           {/* 总结内容 */}
           <Card className="lg:col-span-2">
