@@ -1238,6 +1238,33 @@ export default function DesignPage() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  // 当前编辑项目提示组件（可复用）
+  const CurrentProjectBanner = () => {
+    if (!projectId || !originalProjectName) return null;
+    
+    return (
+      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <FolderOpen className="h-4 w-4 text-blue-600" />
+          <span className="text-sm text-blue-800">
+            正在编辑项目：<strong>{originalProjectName}</strong>
+            {formData.name !== originalProjectName && (
+              <span className="ml-2 text-orange-600">（名称已修改）</span>
+            )}
+          </span>
+        </div>
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={handleNewProject}
+          className="text-blue-600 hover:text-blue-800"
+        >
+          新建项目
+        </Button>
+      </div>
+    );
+  };
+
   return (
     <MainLayout>
       {/* Toast 消息 */}
@@ -1311,27 +1338,7 @@ export default function DesignPage() {
 
           <TabsContent value="requirement" className="mt-6">
             {/* 当前编辑项目提示 */}
-            {projectId && originalProjectName && (
-              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FolderOpen className="h-4 w-4 text-blue-600" />
-                  <span className="text-sm text-blue-800">
-                    正在编辑项目：<strong>{originalProjectName}</strong>
-                    {formData.name !== originalProjectName && (
-                      <span className="ml-2 text-orange-600">（名称已修改）</span>
-                    )}
-                  </span>
-                </div>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={handleNewProject}
-                  className="text-blue-600 hover:text-blue-800"
-                >
-                  新建项目
-                </Button>
-              </div>
-            )}
+            <CurrentProjectBanner />
             <Card>
               <CardHeader>
                 <CardTitle>培训需求</CardTitle>
@@ -1593,6 +1600,7 @@ export default function DesignPage() {
 
           {/* 方案设计、场地选择、费用预算的 Tab 内容省略，保持原有逻辑 */}
           <TabsContent value="scheme" className="mt-6">
+            <CurrentProjectBanner />
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
@@ -1774,6 +1782,7 @@ export default function DesignPage() {
           </TabsContent>
 
           <TabsContent value="venue" className="mt-6">
+            <CurrentProjectBanner />
             <Card>
               <CardHeader>
                 <CardTitle>场地选择</CardTitle>
@@ -1812,6 +1821,7 @@ export default function DesignPage() {
           </TabsContent>
 
           <TabsContent value="quotation" className="mt-6">
+            <CurrentProjectBanner />
             <Card>
               <CardHeader>
                 <CardTitle>费用预算</CardTitle>
