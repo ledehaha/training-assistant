@@ -154,6 +154,22 @@ export default function DesignPage() {
   const [selectedVenue, setSelectedVenue] = useState<Venue | null>(null);
   const [quotation, setQuotation] = useState<Record<string, unknown> | null>(null);
   
+  // 导入原有方案
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [completedProjects, setCompletedProjects] = useState<Array<{
+    id: string;
+    name: string;
+    trainingTarget?: string;
+    targetAudience?: string;
+    participantCount?: number;
+    trainingDays?: number;
+    trainingHours?: number;
+    completedAt?: string;
+    courses: Course[];
+  }>>([]);
+  const [importLoading, setImportLoading] = useState(false);
+  const [selectedImportProject, setSelectedImportProject] = useState<string | null>(null);
+  
   // "其他"选项的文本输入
   const [otherTrainingTarget, setOtherTrainingTarget] = useState('');
   const [otherTargetAudience, setOtherTargetAudience] = useState('');
@@ -422,6 +438,52 @@ export default function DesignPage() {
     } catch (error) {
       console.error('Load draft projects error:', error);
     }
+  };
+
+  // 加载已完成项目列表（用于导入原有方案）
+  const loadCompletedProjects = async () => {
+    setImportLoading(true);
+    try {
+      const res = await fetch('/api/projects/completed');
+      const data = await res.json();
+      if (data.data) {
+        setCompletedProjects(data.data);
+      }
+    } catch (error) {
+      console.error('Load completed projects error:', error);
+      showToast('error', '加载已完成项目失败');
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  // 导入原有培训方案
+  const handleImportScheme = (projectId: string) => {
+    const project = completedProjects.find(p => p.id === projectId);
+    if (project && project.courses) {
+      // 导入课程方案
+      const importedCourses: Course[] = project.courses.map((c, index) => ({
+        id: `imported-${Date.now()}-${index}`,
+        name: c.name,
+        day: c.day || 1,
+        duration: c.duration || 4,
+        description: c.description || '',
+        category: c.category || '',
+        teacherId: c.teacherId,
+        teacherName: c.teacherName,
+        teacherTitle: c.teacherTitle,
+      }));
+      setCourses(importedCourses);
+      showToast('success', `已导入 ${importedCourses.length} 门课程`);
+      setShowImportDialog(false);
+      setSelectedImportProject(null);
+    }
+  };
+
+  // 打开导入对话框
+  const handleOpenImportDialog = () => {
+    setShowImportDialog(true);
+    loadCompletedProjects();
   };
 
   const calculateProgress = (project: Record<string, unknown>): string => {
@@ -1630,6 +1692,15 @@ export default function DesignPage() {
                         </>
                       )}
                     </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleOpenImportDialog}
+                      className="text-green-600 border-green-200 hover:bg-green-50"
+                    >
+                      <BookOpen className="h-4 w-4 mr-2" />
+                      导入原有方案
+                    </Button>
                   </div>
                 </CardTitle>
                 <CardDescription>设计培训课程安排，可使用 AI 智能生成</CardDescription>
@@ -2094,6 +2165,104 @@ export default function DesignPage() {
                 </div>
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* 导入原有方案对话框 */}
+        <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <BookOpen className="h-5 w-5" />
+                导入原有培训方案
+              </DialogTitle>
+              <DialogDescription>
+                从已完成的项目中导入培训方案，可作为新项目的参考
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex-1 overflow-auto">
+              {importLoading ? (
+                <div className="text-center py-12">
+                  <Loader2 className="h-8 w-8 mx-auto animate-spin text-primary mb-4" />
+                  <p className="text-muted-foreground">加载中...</p>
+                </div>
+              ) : completedProjects.length === 0 ? (
+                <div className="text-center py-12">
+                  <BookOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">暂无已完成的项目可导入</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {completedProjects.map((project) => (
+                    <div
+                      key={project.id}
+                      className={`border rounded-lg p-4 cursor-pointer transition-all ${
+                        selectedImportProject === project.id
+                          ? 'border-primary bg-primary/5'
+                          : 'hover:border-gray-300 hover:bg-gray-50'
+                      }`}
+                      onClick={() => setSelectedImportProject(project.id)}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h4 className="font-medium">{project.name}</h4>
+                          <div className="flex flex-wrap gap-2 mt-2 text-sm text-muted-foreground">
+                            {project.trainingTarget && (
+                              <span>培训目标：{project.trainingTarget}</span>
+                            )}
+                            {project.targetAudience && (
+                              <span>• 目标人群：{project.targetAudience}</span>
+                            )}
+                            {project.trainingDays && (
+                              <span>• 培训天数：{project.trainingDays}天</span>
+                            )}
+                            {project.trainingHours && (
+                              <span>• 总课时：{project.trainingHours}课时</span>
+                            )}
+                          </div>
+                          {project.courses && project.courses.length > 0 && (
+                            <div className="mt-3">
+                              <p className="text-sm text-muted-foreground mb-2">
+                                课程方案（{project.courses.length}门课程）：
+                              </p>
+                              <div className="flex flex-wrap gap-1">
+                                {project.courses.slice(0, 6).map((course, idx) => (
+                                  <Badge key={idx} variant="secondary" className="text-xs">
+                                    {course.name}
+                                  </Badge>
+                                ))}
+                                {project.courses.length > 6 && (
+                                  <Badge variant="outline" className="text-xs">
+                                    +{project.courses.length - 6}门
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        {selectedImportProject === project.id && (
+                          <Check className="h-5 w-5 text-primary mt-1" />
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 pt-4 border-t mt-4">
+              <Button variant="outline" onClick={() => {
+                setShowImportDialog(false);
+                setSelectedImportProject(null);
+              }}>
+                取消
+              </Button>
+              <Button 
+                onClick={() => selectedImportProject && handleImportScheme(selectedImportProject)}
+                disabled={!selectedImportProject}
+              >
+                导入方案
+              </Button>
+            </div>
           </DialogContent>
         </Dialog>
       </div>

@@ -37,21 +37,19 @@ export async function POST(request: NextRequest) {
 
     switch (type) {
       case 'courses': {
-        // 获取历史课程数据
+        // 获取所有课程模板
         const courseTemplatesData = db
           .select()
           .from(courseTemplates)
           .where(eq(courseTemplates.isActive, true))
-          .limit(20)
           .all();
         
-        contextData = courseTemplatesData.length > 0 
-          ? `\n\n参考课程模板：\n${JSON.stringify(courseTemplatesData.slice(0, 10).map((c: Record<string, unknown>) => ({
-              name: c.name,
-              category: c.category,
-              targetAudience: c.target_audience
-            })), null, 2)}`
-          : '';
+        // 获取所有讲师
+        const teachersData = db
+          .select()
+          .from(teachers)
+          .where(eq(teachers.isActive, true))
+          .all();
         
         // 获取用户特征库数据（用于个性化推荐）
         const userProfilesData = db
@@ -105,9 +103,120 @@ export async function POST(request: NextRequest) {
           }
         }
         
+        // 匹配课程模板：根据培训目标、目标人群、培训类型进行匹配
+        const trainingTarget = (projectData.trainingTarget as string) || '';
+        const targetAudience = (projectData.targetAudience as string) || '';
+        const projectName = (projectData.name as string) || '';
+        
+        // 计算模板匹配分数
+        const scoredTemplates = courseTemplatesData.map((t: Record<string, unknown>) => {
+          let score = 0;
+          const templateCategory = (t.category as string) || '';
+          const templateTarget = (t.targetAudience as string) || '';
+          const templateName = (t.name as string) || '';
+          
+          // 培训类型匹配
+          if (trainingTarget && templateCategory) {
+            if (templateCategory.includes(trainingTarget) || trainingTarget.includes(templateCategory)) {
+              score += 30;
+            }
+          }
+          
+          // 目标人群匹配
+          if (targetAudience && templateTarget) {
+            if (templateTarget.includes(targetAudience) || targetAudience.includes(templateTarget)) {
+              score += 30;
+            }
+          }
+          
+          // 项目名称关键词匹配
+          if (projectName && templateName) {
+            const projectKeywords = projectName.split(/[，,、\s]+/).filter((k: string) => k.length > 1);
+            projectKeywords.forEach((keyword: string) => {
+              if (templateName.includes(keyword)) {
+                score += 10;
+              }
+            });
+          }
+          
+          // 使用频率加分
+          score += Math.min((t.usageCount as number) || 0, 20);
+          
+          // 评分加分
+          score += ((t.avgRating as number) || 4) * 2;
+          
+          return { template: t, score };
+        });
+        
+        // 筛选高匹配度的模板（分数 >= 30）
+        const matchedTemplates = scoredTemplates
+          .filter(st => st.score >= 30)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 10)
+          .map(st => st.template);
+        
+        // 为匹配的模板匹配合适的讲师
+        const templatesWithTeachers = matchedTemplates.map((t: Record<string, unknown>) => {
+          const templateCategory = (t.category as string) || '';
+          const templateDesc = (t.description as string) || '';
+          
+          // 匹配讲师：根据专业方向
+          const matchingTeachers = teachersData.filter((teacher: Record<string, unknown>) => {
+            const teacherExpertise = (teacher.expertise as string) || '';
+            const teacherTitle = (teacher.title as string) || '';
+            return (
+              teacherExpertise.includes(templateCategory) ||
+              templateCategory.includes(teacherExpertise) ||
+              teacherExpertise.includes(templateDesc) ||
+              templateDesc.includes(teacherExpertise) ||
+              // 管理类培训匹配
+              (templateCategory.includes('管理') && (teacherTitle.includes('教授') || teacherTitle.includes('研究员'))) ||
+              // 技能类培训匹配
+              (templateCategory.includes('技能') && (teacherTitle.includes('工程师') || teacherTitle.includes('技师')))
+            );
+          });
+          
+          // 选择评分最高的讲师
+          const bestTeacher = matchingTeachers.sort((a: Record<string, unknown>, b: Record<string, unknown>) => {
+            const ratingA = (a.rating as number) || 0;
+            const ratingB = (b.rating as number) || 0;
+            return ratingB - ratingA;
+          })[0];
+          
+          return {
+            ...t,
+            matchedTeacher: bestTeacher ? {
+              id: bestTeacher.id,
+              name: bestTeacher.name,
+              title: bestTeacher.title,
+            } : null,
+          };
+        });
+        
+        const totalHours = projectData.trainingHours || 32;
+        const trainingDays = projectData.trainingDays || 4;
+        const avgHoursPerDay = Math.round((totalHours / trainingDays) * 10) / 10;
+        
         const budgetStr = projectData.noBudgetLimit || (!projectData.budgetMin && !projectData.budgetMax)
           ? '无预算限制'
           : `${projectData.budgetMin || 0} - ${projectData.budgetMax || 0}万元`;
+        
+        // 如果有足够的匹配模板，优先使用模板组合方案
+        let templateContext = '';
+        if (templatesWithTeachers.length > 0) {
+          templateContext = `\n\n【优先使用以下匹配的课程模板】（已按匹配度排序）：
+${templatesWithTeachers.map((t: Record<string, unknown>, idx: number) => {
+  const template = t as Record<string, unknown>;
+  const teacher = template.matchedTeacher as Record<string, unknown> | null;
+  return `${idx + 1}. ${template.name}
+   - 类别：${template.category || '未分类'}
+   - 课时：${template.duration || 4}课时
+   - 目标人群：${template.targetAudience || '不限'}
+   - 可用讲师：${teacher ? `${teacher.name}（${teacher.title}）` : '需AI推荐'}`;
+}).join('\n')}
+
+【重要】请优先从上述模板中选择课程组合方案，如果模板课程总课时不足，再自行设计补充课程。`;
+        }
         
         prompt = `你是培训方案设计专家。请为以下培训项目设计课程安排：
 
@@ -115,35 +224,38 @@ export async function POST(request: NextRequest) {
 培训类型：${projectData.trainingTarget || '未指定'}
 目标人群：${projectData.targetAudience || '未指定'}
 参训人数：${projectData.participantCount || 0}人
-培训天数：${projectData.trainingDays || 0}天
-总课时：${projectData.trainingHours || 0}课时
-平均每天课时：${projectData.trainingHours && projectData.trainingDays ? Math.round((projectData.trainingHours / projectData.trainingDays) * 10) / 10 : '未指定'}
+培训天数：${trainingDays}天
+总课时：${totalHours}课时
+平均每天课时：${avgHoursPerDay}
 预算：${budgetStr}
 特殊要求：${projectData.specialRequirements || '无'}
-${contextData}${userProfileContext}
+${templateContext}${userProfileContext}
 
 要求：
-1. 所有课程必须紧扣培训主题，不要生成无关课程
-2. 总课时必须严格等于${projectData.trainingHours || 32}课时，不能多也不能少
-3. 【重要】根据"平均每天课时"合理安排每天的课时量：
+1. 【优先使用模板】如果上述有匹配的课程模板，请优先选择模板课程组合方案
+2. 所有课程必须紧扣培训主题，不要生成无关课程
+3. 总课时必须严格等于${totalHours}课时，不能多也不能少
+4. 【重要】根据"平均每天课时"合理安排每天的课时量：
    - 如果平均每天≤4课时：每天安排半天课程即可
    - 如果平均每天在5-8课时：安排上午+下午的课程
    - 如果平均每天>8课时：可以考虑安排晚上课程
    - 不要机械地每天安排相同课时，可以有适当变化
-4. 每门课程时长必须是4课时或2课时：
+5. 每门课程时长必须是4课时或2课时：
    - 4课时 = 半天（上午或下午的标准单位）
    - 2课时 = 短课程（如晚上课程）
    - 禁止生成6、8、10、12课时的单门课程
    - 如果内容较多需要拆分为多门课程，命名使用"（上）"、"（下）"、"（中）"区分
-5. 每门课程标注建议讲师职称
-6. 考虑目标人群的特征偏好进行个性化设计
+6. 每门课程标注建议讲师职称
+7. 如果使用了模板中的讲师，在 teacherName 字段中标注讲师姓名
+8. 考虑目标人群的特征偏好进行个性化设计
 
 返回JSON格式：
 {
   "courses": [
-    {"day": 1, "name": "课程名", "duration": 4, "description": "内容概述", "category": "类别", "teacherTitle": "讲师职称"}
+    {"day": 1, "name": "课程名", "duration": 4, "description": "内容概述", "category": "类别", "teacherTitle": "讲师职称", "teacherName": "讲师姓名（如使用模板讲师）"}
   ],
-  "summary": "方案说明"
+  "summary": "方案说明",
+  "templateUsage": {"used": 3, "total": 5}
 }
 
 只返回JSON。`;
