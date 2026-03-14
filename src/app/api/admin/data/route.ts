@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { 
   db, teachers, venues, courseTemplates, normativeDocuments, 
-  projects, projectCourses, satisfactionSurveys, eq, desc, sql,
+  projects, projectCourses, satisfactionSurveys, visitSites,
+  eq, desc, sql,
   saveDatabaseImmediate, ensureDatabaseReady
 } from '@/storage/database';
 import { generateId, getTimestamp } from '@/storage/database';
@@ -15,6 +16,7 @@ const tableMap = {
   projects,
   project_courses: projectCourses,
   satisfaction_surveys: satisfactionSurveys,
+  visit_sites: visitSites,
 } as const;
 
 type TableName = keyof typeof tableMap;

@@ -255,6 +255,31 @@ const TABLES_CONFIG = [
     ]
   },
   { 
+    name: 'visit_sites', 
+    label: '参访基地', 
+    icon: '🏛️',
+    columns: [
+      { key: 'id', label: 'ID', type: 'uuid', editable: false },
+      { key: 'name', label: '单位名称', type: 'text', editable: true, required: true },
+      { key: 'type', label: '类型', type: 'select', options: ['企业', '政府部门', '事业单位', '其他'], editable: true },
+      { key: 'industry', label: '行业领域', type: 'text', editable: true },
+      { key: 'address', label: '地址', type: 'text', editable: true },
+      { key: 'contactPerson', label: '联系人', type: 'text', editable: true },
+      { key: 'contactPhone', label: '联系电话', type: 'text', editable: true },
+      { key: 'contactEmail', label: '联系邮箱', type: 'text', editable: true },
+      { key: 'description', label: '单位简介', type: 'textarea', editable: true },
+      { key: 'visitContent', label: '参观内容', type: 'textarea', editable: true },
+      { key: 'visitDuration', label: '建议时长(小时)', type: 'number', editable: true },
+      { key: 'maxVisitors', label: '最大接待人数', type: 'number', editable: true },
+      { key: 'visitFee', label: '参观费用(元/人)', type: 'number', editable: true },
+      { key: 'facilities', label: '配套设施', type: 'text', editable: true },
+      { key: 'requirements', label: '参观要求', type: 'textarea', editable: true },
+      { key: 'rating', label: '评分', type: 'number', editable: true },
+      { key: 'visitCount', label: '接待次数', type: 'number', editable: true },
+      { key: 'isActive', label: '状态', type: 'boolean', editable: true },
+    ]
+  },
+  { 
     name: 'user_profiles', 
     label: '用户特征', 
     icon: '👥',

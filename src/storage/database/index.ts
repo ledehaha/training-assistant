@@ -199,6 +199,39 @@ const createTablesSQL = `
   );
   CREATE INDEX IF NOT EXISTS venues_name_idx ON venues(name);
   CREATE INDEX IF NOT EXISTS venues_location_idx ON venues(location);
+  CREATE TABLE IF NOT EXISTS visit_sites (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL,
+    industry TEXT,
+    address TEXT,
+    contact_person TEXT,
+    contact_phone TEXT,
+    contact_email TEXT,
+    description TEXT,
+    visit_content TEXT,
+    visit_duration INTEGER,
+    max_visitors INTEGER,
+    visit_fee REAL,
+    facilities TEXT,
+    requirements TEXT,
+    rating REAL DEFAULT 4.0,
+    visit_count INTEGER DEFAULT 0,
+    is_active INTEGER DEFAULT 1,
+    is_verified INTEGER DEFAULT 0,
+    created_by TEXT,
+    created_by_department TEXT,
+    verified_by TEXT,
+    verified_at TEXT,
+    verify_comment TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT
+  );
+  CREATE INDEX IF NOT EXISTS visit_sites_name_idx ON visit_sites(name);
+  CREATE INDEX IF NOT EXISTS visit_sites_type_idx ON visit_sites(type);
+  CREATE INDEX IF NOT EXISTS visit_sites_industry_idx ON visit_sites(industry);
+  CREATE INDEX IF NOT EXISTS visit_sites_is_verified_idx ON visit_sites(is_verified);
+  CREATE INDEX IF NOT EXISTS visit_sites_created_by_department_idx ON visit_sites(created_by_department);
   CREATE TABLE IF NOT EXISTS course_templates (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -305,6 +338,8 @@ const createTablesSQL = `
     project_id TEXT NOT NULL,
     course_template_id TEXT,
     teacher_id TEXT,
+    visit_site_id TEXT,
+    type TEXT DEFAULT 'course',
     name TEXT NOT NULL,
     day INTEGER,
     start_time TEXT,
@@ -313,9 +348,12 @@ const createTablesSQL = `
     description TEXT,
     "order" INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    FOREIGN KEY (visit_site_id) REFERENCES visit_sites(id)
   );
   CREATE INDEX IF NOT EXISTS project_courses_project_id_idx ON project_courses(project_id);
+  CREATE INDEX IF NOT EXISTS project_courses_visit_site_id_idx ON project_courses(visit_site_id);
+  CREATE INDEX IF NOT EXISTS project_courses_type_idx ON project_courses(type);
   CREATE TABLE IF NOT EXISTS satisfaction_surveys (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL,
@@ -670,6 +708,22 @@ async function initializeSeedData(): Promise<void> {
     `INSERT OR IGNORE INTO users (id, username, password_hash, name, employee_id, department_id, role_id, status, approved_by, approved_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', 'system', ?, ?)`,
     ['user_admin', 'admin', adminPasswordHash, '系统管理员', '00000000001', null, 'role_admin', now, now]
   );
+  
+  // 6. 初始化参访基地示例数据
+  const visitSites = [
+    ['visit_001', '华为技术有限公司', 'enterprise', '信息技术', '深圳市龙岗区坂田华为基地', '张经理', '13800138001', 'zhang@huawei.com', '全球领先的ICT基础设施和智能终端提供商', '数据中心参观、研发中心参观、企业文化展厅、数字化转型案例分享', 3, 50, 0, '会议室、停车场、餐厅', '需提前1周预约，需提供身份信息备案', 4.8, 10, 1, 1, null, null, null, now],
+    ['visit_002', '比亚迪股份有限公司', 'enterprise', '新能源汽车', '深圳市坪山区比亚迪路', '李主任', '13800138002', 'li@byd.com', '中国领先的新能源汽车制造商', '新能源汽车生产线、电池技术展示、智能驾驶演示、绿色制造实践', 4, 40, 50, '会议室、停车场', '需提前预约，禁止拍照区域请勿拍摄', 4.6, 8, 1, 1, null, null, null, now],
+    ['visit_003', '深圳市市场监督管理局', 'government', '市场监管', '深圳市福田区深南大道', '王科长', '13800138003', 'wang@sz.gov.cn', '负责市场综合监督管理', '政务服务大厅、市场监管大数据中心、食品安全检测实验室', 2, 30, 0, '会议室', '需公函预约，着装整洁', 4.5, 5, 1, 1, null, null, null, now],
+    ['visit_004', '深圳湾创业广场', 'institution', '创新创业', '深圳市南山区科技园', '陈经理', '13800138004', 'chen@szwgc.com', '国家级创业孵化基地', '创业孵化器、众创空间、路演中心、创业企业交流', 3, 60, 0, '会议室、咖啡厅、停车场', '适合创新创业主题培训', 4.7, 15, 1, 1, null, null, null, now],
+    ['visit_005', '腾讯滨海大厦', 'enterprise', '互联网', '深圳市南山区科技园', '周助理', '13800138005', 'zhou@tencent.com', '中国领先的互联网科技公司', '腾讯展厅、智慧办公体验、AI技术展示、数字文创体验', 2.5, 35, 100, '会议室、餐厅', '需提前2周预约，需签署保密协议', 4.9, 20, 1, 1, null, null, null, now],
+  ];
+  
+  for (const site of visitSites) {
+    sqlite.run(
+      `INSERT OR IGNORE INTO visit_sites (id, name, type, industry, address, contact_person, contact_phone, contact_email, description, visit_content, visit_duration, max_visitors, visit_fee, facilities, requirements, rating, visit_count, is_active, is_verified, created_by, verified_by, verified_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      site
+    );
+  }
   
   console.log('Seed data initialized successfully');
 }

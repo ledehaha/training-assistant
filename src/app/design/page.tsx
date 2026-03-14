@@ -33,7 +33,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Loader2, Sparkles, Save, ArrowRight, User, MapPin, BookOpen, DollarSign, X, FolderOpen, Plus, Clock, Check, AlertCircle, Wand2, RefreshCw } from 'lucide-react';
+import { Loader2, Sparkles, Save, ArrowRight, User, MapPin, BookOpen, DollarSign, X, FolderOpen, Plus, Clock, Check, CheckCircle, AlertCircle, Wand2, RefreshCw } from 'lucide-react';
 import ApiKeyCheckDialog, { checkApiKeyConfigured } from '@/components/api-key-check-dialog';
 
 interface ProjectFormData {
@@ -61,6 +61,13 @@ interface Course {
   teacherName?: string;
   teacherTitle?: string;
   location?: string;
+  // 参访相关字段
+  type?: 'course' | 'visit' | 'break' | 'other';
+  visitSiteId?: string;
+  visitSiteName?: string;
+  visitSiteAddress?: string;
+  visitDuration?: number;
+  visitFee?: number;
 }
 
 interface Teacher {
@@ -79,6 +86,26 @@ interface Venue {
   capacity: number;
   daily_rate: string;
   rating: string;
+}
+
+interface VisitSite {
+  id: string;
+  name: string;
+  type: string;
+  industry: string;
+  address: string;
+  contactPerson: string;
+  contactPhone: string;
+  description: string;
+  visitContent: string;
+  visitDuration: number;
+  maxVisitors: number;
+  visitFee: number;
+  facilities: string;
+  requirements: string;
+  rating: number;
+  visitCount: number;
+  isActive: boolean;
 }
 
 const trainingTargets = [
@@ -151,7 +178,9 @@ export default function DesignPage() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [venues, setVenues] = useState<Venue[]>([]);
+  const [visitSites, setVisitSites] = useState<VisitSite[]>([]);
   const [selectedVenue, setSelectedVenue] = useState<Venue | null>(null);
+  const [selectedVisitSites, setSelectedVisitSites] = useState<VisitSite[]>([]);
   const [quotation, setQuotation] = useState<Record<string, unknown> | null>(null);
   
   // 导入原有方案
@@ -401,15 +430,18 @@ export default function DesignPage() {
   useEffect(() => {
     const loadResources = async () => {
       try {
-        const [teachersRes, venuesRes] = await Promise.all([
+        const [teachersRes, venuesRes, visitSitesRes] = await Promise.all([
           fetch('/api/teachers'),
           fetch('/api/venues'),
+          fetch('/api/admin/data?table=visit_sites'),
         ]);
         const teachersData = await teachersRes.json();
         const venuesData = await venuesRes.json();
+        const visitSitesData = await visitSitesRes.json();
         
         if (teachersData.data) setTeachers(teachersData.data);
         if (venuesData.data) setVenues(venuesData.data);
+        if (visitSitesData.data) setVisitSites(visitSitesData.data.filter((s: VisitSite) => s.isActive));
       } catch (error) {
         console.error('Load resources error:', error);
       }
@@ -1381,9 +1413,10 @@ export default function DesignPage() {
           }
           setActiveTab(value);
         }}>
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="requirement">需求录入</TabsTrigger>
             <TabsTrigger value="scheme">方案设计</TabsTrigger>
+            <TabsTrigger value="visit">参访安排</TabsTrigger>
             <TabsTrigger value="venue">场地选择</TabsTrigger>
             <TabsTrigger value="quotation">费用预算</TabsTrigger>
           </TabsList>
@@ -1834,6 +1867,147 @@ export default function DesignPage() {
                             </>
                           )}
                         </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="visit" className="mt-6">
+            <CurrentProjectBanner />
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <span className="text-2xl">🏛️</span>
+                  参访安排
+                </CardTitle>
+                <CardDescription>
+                  选择培训期间的参访基地，如企业参观、政府部门交流等
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {visitSites.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p>暂无参访基地数据</p>
+                    <p className="text-sm mt-2">请先在"数据管理"中添加参访基地</p>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* 已选参访基地 */}
+                    {selectedVisitSites.length > 0 && (
+                      <div>
+                        <h4 className="font-medium mb-3 flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                          已选参访基地 ({selectedVisitSites.length}个)
+                        </h4>
+                        <div className="space-y-2">
+                          {selectedVisitSites.map((site, index) => (
+                            <div key={site.id} className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200">
+                              <div className="flex items-center gap-3">
+                                <span className="w-6 h-6 rounded-full bg-green-500 text-white text-xs flex items-center justify-center">
+                                  {index + 1}
+                                </span>
+                                <div>
+                                  <p className="font-medium">{site.name}</p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {site.type === 'enterprise' ? '企业' : site.type === 'government' ? '政府部门' : site.type === 'institution' ? '事业单位' : '其他'}
+                                    {site.industry && ` · ${site.industry}`}
+                                    {site.visitDuration && ` · 建议时长${site.visitDuration}小时`}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {site.visitFee > 0 && (
+                                  <span className="text-sm text-orange-600">¥{site.visitFee}/人</span>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedVisitSites(selectedVisitSites.filter(s => s.id !== site.id));
+                                  }}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 可选参访基地列表 */}
+                    <div>
+                      <h4 className="font-medium mb-3">可选参访基地</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {visitSites
+                          .filter(site => !selectedVisitSites.find(s => s.id === site.id))
+                          .map((site) => (
+                            <Card 
+                              key={site.id}
+                              className="cursor-pointer hover:shadow-md transition-all"
+                              onClick={() => {
+                                setSelectedVisitSites([...selectedVisitSites, site]);
+                                // 同时添加到课程列表中作为参访环节
+                                const visitCourse: Course = {
+                                  id: `visit_${Date.now()}`,
+                                  name: `参访：${site.name}`,
+                                  day: courses.length + 1,
+                                  duration: site.visitDuration || 3,
+                                  description: site.visitContent,
+                                  category: '参访',
+                                  type: 'visit',
+                                  visitSiteId: site.id,
+                                  visitSiteName: site.name,
+                                  visitSiteAddress: site.address,
+                                  visitDuration: site.visitDuration,
+                                  visitFee: site.visitFee,
+                                  location: site.address,
+                                };
+                                setCourses([...courses, visitCourse]);
+                              }}
+                            >
+                              <CardContent className="p-4">
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <h5 className="font-medium">{site.name}</h5>
+                                    <div className="flex flex-wrap gap-2 mt-2">
+                                      <Badge variant="outline">
+                                        {site.type === 'enterprise' ? '企业' : site.type === 'government' ? '政府部门' : site.type === 'institution' ? '事业单位' : '其他'}
+                                      </Badge>
+                                      {site.industry && (
+                                        <Badge variant="secondary">{site.industry}</Badge>
+                                      )}
+                                      {site.rating > 0 && (
+                                        <Badge variant="outline" className="text-yellow-600">
+                                          ⭐ {site.rating}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
+                                      {site.description}
+                                    </p>
+                                    <div className="flex flex-wrap gap-3 mt-2 text-xs text-muted-foreground">
+                                      {site.visitDuration && (
+                                        <span>时长：{site.visitDuration}小时</span>
+                                      )}
+                                      {site.maxVisitors && (
+                                        <span>最多{site.maxVisitors}人</span>
+                                      )}
+                                      {site.visitFee > 0 ? (
+                                        <span className="text-orange-600 font-medium">¥{site.visitFee}/人</span>
+                                      ) : (
+                                        <span className="text-green-600">免费</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <Plus className="h-5 w-5 text-muted-foreground" />
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
                       </div>
                     </div>
                   </div>

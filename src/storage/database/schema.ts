@@ -223,6 +223,47 @@ export const venues = sqliteTable(
   ]
 );
 
+// 参访基地/参访单位表
+export const visitSites = sqliteTable(
+  'visit_sites',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(), // 单位名称
+    type: text('type').notNull(), // 'enterprise'(企业) / 'government'(政府部门) / 'institution'(事业单位) / 'other'(其他)
+    industry: text('industry'), // 行业领域
+    address: text('address'), // 详细地址
+    contactPerson: text('contact_person'), // 联系人
+    contactPhone: text('contact_phone'), // 联系电话
+    contactEmail: text('contact_email'), // 联系邮箱
+    description: text('description'), // 单位简介
+    visitContent: text('visit_content'), // 可参观学习内容
+    visitDuration: integer('visit_duration'), // 建议参观时长（小时）
+    maxVisitors: integer('max_visitors'), // 最大接待人数
+    visitFee: real('visit_fee'), // 参观费用（元/人）
+    facilities: text('facilities'), // 配套设施（会议室、停车场等）
+    requirements: text('requirements'), // 参观要求/注意事项
+    rating: real('rating').default(4.0), // 评价评分
+    visitCount: integer('visit_count').default(0), // 累计接待次数
+    isActive: integer('is_active', { mode: 'boolean' }).default(true), // 是否可用
+    // 审核相关
+    isVerified: integer('is_verified', { mode: 'boolean' }).default(false),
+    createdBy: text('created_by'),
+    createdByDepartment: text('created_by_department'),
+    verifiedBy: text('verified_by'),
+    verifiedAt: text('verified_at'),
+    verifyComment: text('verify_comment'),
+    createdAt: text('created_at').default(sql`datetime('now')`).notNull(),
+    updatedAt: text('updated_at'),
+  },
+  (table) => [
+    index('visit_sites_name_idx').on(table.name),
+    index('visit_sites_type_idx').on(table.type),
+    index('visit_sites_industry_idx').on(table.industry),
+    index('visit_sites_is_verified_idx').on(table.isVerified),
+    index('visit_sites_created_by_department_idx').on(table.createdByDepartment),
+  ]
+);
+
 // 课程模板表
 export const courseTemplates = sqliteTable(
   'course_templates',
@@ -363,6 +404,8 @@ export const projectCourses = sqliteTable(
     projectId: text('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
     courseTemplateId: text('course_template_id').references(() => courseTemplates.id),
     teacherId: text('teacher_id').references(() => teachers.id),
+    visitSiteId: text('visit_site_id').references(() => visitSites.id), // 参访基地ID（参访环节用）
+    type: text('type').default('course'), // 'course'(课程) / 'visit'(参访) / 'break'(休息) / 'other'(其他)
     name: text('name').notNull(),
     day: integer('day'),
     startTime: text('start_time'),
@@ -375,6 +418,8 @@ export const projectCourses = sqliteTable(
   (table) => [
     index('project_courses_project_id_idx').on(table.projectId),
     index('project_courses_teacher_id_idx').on(table.teacherId),
+    index('project_courses_visit_site_id_idx').on(table.visitSiteId),
+    index('project_courses_type_idx').on(table.type),
   ]
 );
 
