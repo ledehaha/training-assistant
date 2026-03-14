@@ -39,12 +39,25 @@ export function useAuth() {
   const [authenticated, setAuthenticated] = useState(false);
   const lastActivityRef = useRef<number>(Date.now());
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const fetchedRef = useRef(false);
 
   // 获取用户信息
   const fetchUser = useCallback(async () => {
+    // 防止重复调用
+    if (fetchedRef.current) {
+      return;
+    }
+    fetchedRef.current = true;
+
+    console.log('[useAuth] fetchUser called');
+    
     try {
-      const res = await fetch('/api/auth/me');
+      const res = await fetch('/api/auth/me', {
+        credentials: 'include', // 确保发送 cookie
+      });
       const data = await res.json();
+      
+      console.log('[useAuth] API response:', data);
       
       if (data.authenticated && data.user) {
         setUser(data.user);
@@ -55,11 +68,12 @@ export function useAuth() {
         setAuthenticated(false);
       }
     } catch (error) {
-      console.error('Fetch user error:', error);
+      console.error('[useAuth] Fetch user error:', error);
       setUser(null);
       setAuthenticated(false);
     } finally {
       setLoading(false);
+      console.log('[useAuth] Loading set to false');
     }
   }, []);
 
@@ -73,6 +87,7 @@ export function useAuth() {
     
     setUser(null);
     setAuthenticated(false);
+    fetchedRef.current = false;
     
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -84,10 +99,11 @@ export function useAuth() {
     }
   }, [router]);
 
-  // 初始化获取用户信息
+  // 初始化获取用户信息 - 使用空依赖数组确保只执行一次
   useEffect(() => {
     fetchUser();
-  }, [fetchUser]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 自动登出检测
   useEffect(() => {
@@ -129,7 +145,11 @@ export function useAuth() {
     user,
     loading,
     authenticated,
-    refetch: fetchUser,
+    refetch: () => {
+      fetchedRef.current = false;
+      setLoading(true);
+      fetchUser();
+    },
     logout,
   };
 }
@@ -170,33 +190,5 @@ export function usePermission(user?: UserInfo | null, authenticated?: boolean) {
     }, [authenticated, user, isManagement]),
     user,
     authenticated,
-  };
-}
-
-// 需要登录的高阶组件
-export function withAuth<P extends object>(Component: React.ComponentType<P>) {
-  return function AuthenticatedComponent(props: P) {
-    const { authenticated, loading } = useAuth();
-    const router = useRouter();
-    
-    useEffect(() => {
-      if (!loading && !authenticated) {
-        router.push('/login');
-      }
-    }, [loading, authenticated, router]);
-    
-    if (loading) {
-      return (
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        </div>
-      );
-    }
-    
-    if (!authenticated) {
-      return null;
-    }
-    
-    return <Component {...props} />;
   };
 }
