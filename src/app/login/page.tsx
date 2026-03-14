@@ -112,9 +112,10 @@ export default function LoginPage() {
           </div>
           
           <div className="mt-4 p-3 bg-blue-50 rounded-lg text-xs text-gray-600">
-            <p className="font-medium mb-1">测试账号：</p>
+            <p className="font-medium mb-1">系统调试账号：</p>
             <p>用户名：admin</p>
             <p>密码：123456</p>
+            <p className="mt-1 text-gray-400">（该账号仅供开发调试使用）</p>
           </div>
         </CardContent>
       </Card>

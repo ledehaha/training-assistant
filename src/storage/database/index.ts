@@ -664,11 +664,11 @@ async function initializeSeedData(): Promise<void> {
     );
   }
   
-  // 5. 初始化管理员账号
+  // 5. 初始化管理员账号（系统调试账号，不属于任何部门）
   const adminPasswordHash = hashPassword('123456');
   sqlite.run(
     `INSERT OR IGNORE INTO users (id, username, password_hash, name, employee_id, department_id, role_id, status, approved_by, approved_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', 'system', ?, ?)`,
-    ['user_admin', 'admin', adminPasswordHash, '系统管理员', '00000000001', 'dept_academic', 'role_admin', now, now]
+    ['user_admin', 'admin', adminPasswordHash, '系统管理员', '00000000001', null, 'role_admin', now, now]
   );
   
   console.log('Seed data initialized successfully');

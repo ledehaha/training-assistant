@@ -55,7 +55,9 @@ export async function POST(request: NextRequest) {
     
     // 获取角色和部门信息
     const roleList = await db.select().from(roles).where(eq(roles.id, user.roleId)).limit(1);
-    const deptList = await db.select().from(departments).where(eq(departments.id, user.departmentId)).limit(1);
+    const deptList = user.departmentId 
+      ? await db.select().from(departments).where(eq(departments.id, user.departmentId)).limit(1)
+      : [];
     
     const role = roleList[0];
     const department = deptList[0];

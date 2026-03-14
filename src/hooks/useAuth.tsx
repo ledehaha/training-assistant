@@ -110,9 +110,10 @@ export function useAuth() {
     }
     
     if (redirectToLogin) {
-      router.push('/login');
+      // 使用 window.location 进行完整页面刷新，避免状态混乱
+      window.location.href = '/login';
     }
-  }, [router]);
+  }, []);
 
   // 初始化获取用户信息
   useEffect(() => {

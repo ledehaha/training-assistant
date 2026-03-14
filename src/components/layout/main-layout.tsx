@@ -182,7 +182,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">{user.name}</p>
-                  <p className="text-xs text-gray-500 truncate">{user.department?.name}</p>
+                  <p className="text-xs text-gray-500 truncate">{user.department?.name || '系统管理员'}</p>
                 </div>
               </div>
             </div>
@@ -234,7 +234,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
                       <div className="p-3 border-b">
                         <p className="text-sm font-medium text-gray-900">{user.name}</p>
                         <p className="text-xs text-gray-500">{user.role?.name}</p>
-                        <p className="text-xs text-gray-400">{user.department?.name}</p>
+                        <p className="text-xs text-gray-400">{user.department?.name || '系统管理员'}</p>
                       </div>
                       <div className="p-2">
                         <button

@@ -88,7 +88,7 @@ export const users = sqliteTable(
     passwordHash: text('password_hash').notNull(), // 密码哈希
     name: text('name').notNull(), // 真实姓名
     employeeId: text('employee_id').notNull().unique(), // 工号（11位纯数字）
-    departmentId: text('department_id').notNull().references(() => departments.id),
+    departmentId: text('department_id').references(() => departments.id), // 所属部门（系统管理员可为null）
     roleId: text('role_id').notNull().references(() => roles.id), // 用户主角色
     phone: text('phone'),
     email: text('email'),
