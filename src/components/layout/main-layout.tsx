@@ -17,6 +17,7 @@ import {
   Users,
   LogOut,
   ChevronDown,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -34,9 +35,44 @@ export default function MainLayout({ children }: MainLayoutProps) {
   const { user, authenticated, loading, logout } = useAuth();
   const { canApproveUser, isAdmin } = usePermission();
 
-  // 登录页和注册页不需要布局
-  if (pathname === '/login' || pathname === '/register') {
+  // 不需要登录的页面
+  const publicPages = ['/login', '/register'];
+  const isPublicPage = publicPages.includes(pathname);
+
+  // 登录状态检查
+  useEffect(() => {
+    if (!loading && !authenticated && !isPublicPage) {
+      router.push('/login');
+    }
+  }, [loading, authenticated, isPublicPage, router]);
+
+  // 公共页面直接渲染，不需要布局
+  if (isPublicPage) {
     return <>{children}</>;
+  }
+
+  // 加载中状态
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
+          <p className="text-sm text-gray-500">加载中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 未登录状态（等待跳转）
+  if (!authenticated) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
+          <p className="text-sm text-gray-500">正在跳转到登录页面...</p>
+        </div>
+      </div>
+    );
   }
 
   const navigation = [

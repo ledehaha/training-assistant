@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
 // 用户信息类型
@@ -35,6 +35,11 @@ export interface AuthState {
   error: string | null;
 }
 
+// 自动登出时间（30分钟，单位毫秒）
+const AUTO_LOGOUT_TIME = 30 * 60 * 1000;
+// 检查间隔（1分钟）
+const CHECK_INTERVAL = 60 * 1000;
+
 // 获取当前用户信息
 export function useAuth() {
   const router = useRouter();
@@ -44,6 +49,11 @@ export function useAuth() {
     authenticated: false,
     error: null,
   });
+  
+  // 最后活动时间
+  const lastActivityRef = useRef<number>(Date.now());
+  // 定时器引用
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // 获取用户信息
   const fetchUser = useCallback(async () => {
@@ -60,6 +70,8 @@ export function useAuth() {
           authenticated: true,
           error: null,
         });
+        // 登录成功后更新最后活动时间
+        lastActivityRef.current = Date.now();
       } else {
         setState({
           user: null,
@@ -79,7 +91,7 @@ export function useAuth() {
   }, []);
 
   // 登出
-  const logout = useCallback(async () => {
+  const logout = useCallback(async (redirectToLogin = true) => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
       setState({
@@ -88,21 +100,86 @@ export function useAuth() {
         authenticated: false,
         error: null,
       });
-      router.push('/login');
+      // 清除定时器
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      if (redirectToLogin) {
+        router.push('/login');
+      }
     } catch (error) {
       console.error('Logout error:', error);
     }
   }, [router]);
+
+  // 更新活动时间
+  const updateActivity = useCallback(() => {
+    lastActivityRef.current = Date.now();
+  }, []);
+
+  // 检查是否超时
+  const checkTimeout = useCallback(() => {
+    const now = Date.now();
+    const lastActivity = lastActivityRef.current;
+    const timeDiff = now - lastActivity;
+    
+    if (timeDiff >= AUTO_LOGOUT_TIME) {
+      console.log('Session timeout, logging out...');
+      logout(true);
+    }
+  }, [logout]);
 
   // 初始化时获取用户信息
   useEffect(() => {
     fetchUser();
   }, [fetchUser]);
 
+  // 设置自动登出检测
+  useEffect(() => {
+    if (!state.authenticated) {
+      // 未登录时清除定时器
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      return;
+    }
+
+    // 更新最后活动时间
+    lastActivityRef.current = Date.now();
+
+    // 监听用户活动事件
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+    const handleActivity = () => {
+      lastActivityRef.current = Date.now();
+    };
+
+    events.forEach(event => {
+      document.addEventListener(event, handleActivity, { passive: true });
+    });
+
+    // 启动定时检查
+    timerRef.current = setInterval(checkTimeout, CHECK_INTERVAL);
+
+    return () => {
+      // 清理事件监听
+      events.forEach(event => {
+        document.removeEventListener(event, handleActivity);
+      });
+      // 清理定时器
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [state.authenticated, checkTimeout]);
+
   return {
     ...state,
     refetch: fetchUser,
     logout,
+    updateActivity,
   };
 }
 
