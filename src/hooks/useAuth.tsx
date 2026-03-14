@@ -40,23 +40,36 @@ const AUTO_LOGOUT_TIME = 30 * 60 * 1000;
 // 检查间隔（1分钟）
 const CHECK_INTERVAL = 60 * 1000;
 
+// 全局状态，避免重复请求
+let globalAuthState: AuthState = {
+  user: null,
+  loading: true,
+  authenticated: false,
+  error: null,
+};
+let globalFetchPromise: Promise<void> | null = null;
+
 // 获取当前用户信息
 export function useAuth() {
   const router = useRouter();
-  const [state, setState] = useState<AuthState>({
-    user: null,
-    loading: true,
-    authenticated: false,
-    error: null,
-  });
+  const [state, setState] = useState<AuthState>(globalAuthState);
   
   // 最后活动时间
   const lastActivityRef = useRef<number>(Date.now());
   // 定时器引用
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  // 是否已挂载
+  const mountedRef = useRef(false);
 
   // 获取用户信息
-  const fetchUser = useCallback(async () => {
+  const fetchUser = useCallback(async (force = false) => {
+    // 如果已经在加载中且不是强制刷新，跳过
+    if (!force && globalAuthState.loading && globalFetchPromise) {
+      await globalFetchPromise;
+      setState(globalAuthState);
+      return;
+    }
+
     try {
       setState(prev => ({ ...prev, loading: true, error: null }));
       
@@ -64,29 +77,32 @@ export function useAuth() {
       const data = await res.json();
       
       if (data.authenticated && data.user) {
-        setState({
+        globalAuthState = {
           user: data.user,
           loading: false,
           authenticated: true,
           error: null,
-        });
+        };
         // 登录成功后更新最后活动时间
         lastActivityRef.current = Date.now();
       } else {
-        setState({
+        globalAuthState = {
           user: null,
           loading: false,
           authenticated: false,
           error: data.error || '未登录',
-        });
+        };
       }
+      
+      setState(globalAuthState);
     } catch (error) {
-      setState({
+      globalAuthState = {
         user: null,
         loading: false,
         authenticated: false,
         error: '获取用户信息失败',
-      });
+      };
+      setState(globalAuthState);
     }
   }, []);
 
@@ -94,17 +110,22 @@ export function useAuth() {
   const logout = useCallback(async (redirectToLogin = true) => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
-      setState({
+      
+      globalAuthState = {
         user: null,
         loading: false,
         authenticated: false,
         error: null,
-      });
+      };
+      
+      setState(globalAuthState);
+      
       // 清除定时器
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
+      
       if (redirectToLogin) {
         router.push('/login');
       }
@@ -113,26 +134,12 @@ export function useAuth() {
     }
   }, [router]);
 
-  // 更新活动时间
-  const updateActivity = useCallback(() => {
-    lastActivityRef.current = Date.now();
-  }, []);
-
-  // 检查是否超时
-  const checkTimeout = useCallback(() => {
-    const now = Date.now();
-    const lastActivity = lastActivityRef.current;
-    const timeDiff = now - lastActivity;
-    
-    if (timeDiff >= AUTO_LOGOUT_TIME) {
-      console.log('Session timeout, logging out...');
-      logout(true);
-    }
-  }, [logout]);
-
-  // 初始化时获取用户信息
+  // 初始化时获取用户信息（只执行一次）
   useEffect(() => {
-    fetchUser();
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      fetchUser();
+    }
   }, [fetchUser]);
 
   // 设置自动登出检测
@@ -160,7 +167,16 @@ export function useAuth() {
     });
 
     // 启动定时检查
-    timerRef.current = setInterval(checkTimeout, CHECK_INTERVAL);
+    timerRef.current = setInterval(() => {
+      const now = Date.now();
+      const lastActivity = lastActivityRef.current;
+      const timeDiff = now - lastActivity;
+      
+      if (timeDiff >= AUTO_LOGOUT_TIME) {
+        console.log('Session timeout, logging out...');
+        logout(true);
+      }
+    }, CHECK_INTERVAL);
 
     return () => {
       // 清理事件监听
@@ -173,13 +189,12 @@ export function useAuth() {
         timerRef.current = null;
       }
     };
-  }, [state.authenticated, checkTimeout]);
+  }, [state.authenticated, logout]);
 
   return {
     ...state,
-    refetch: fetchUser,
+    refetch: () => fetchUser(true),
     logout,
-    updateActivity,
   };
 }
 
@@ -282,19 +297,3 @@ export function withAuth<P extends object>(Component: React.ComponentType<P>) {
     return <Component {...props} />;
   };
 }
-
-// 角色代码枚举
-export const RoleCode = {
-  ADMIN: 'admin',
-  DEPT_HEAD: 'dept_head',
-  DEPT_STAFF: 'dept_staff',
-  COLLEGE_ADMIN: 'college_admin',
-  COLLEGE_STAFF: 'college_staff',
-  HR_AUDITOR: 'hr_auditor',
-} as const;
-
-// 部门类型枚举
-export const DepartmentType = {
-  MANAGEMENT: 'management',
-  COLLEGE: 'college',
-} as const;

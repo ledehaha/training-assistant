@@ -34,7 +34,7 @@ import {
   Loader2, Search, RefreshCw, Shield, Building2
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useAuth, usePermission, RoleCode } from '@/hooks/useAuth';
+import { useAuth, usePermission } from '@/hooks/useAuth';
 
 interface User {
   id: string;
