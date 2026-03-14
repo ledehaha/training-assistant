@@ -99,6 +99,9 @@ export async function POST(request: NextRequest) {
         location: body.location,
         specialRequirements: body.specialRequirements,
         status: body.status || 'draft',
+        // 临时使用默认值，认证系统完成后从session获取
+        departmentId: body.departmentId || 'dept_labor',
+        createdById: body.createdById || 'user_admin',
         createdAt: now,
       })
       .returning()

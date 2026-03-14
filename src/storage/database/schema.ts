@@ -3,6 +3,166 @@ import { sql } from 'drizzle-orm';
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod';
 import { z } from 'zod';
 
+// ==================== 用户权限相关表 ====================
+
+// 部门表
+export const departments = sqliteTable(
+  'departments',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    code: text('code').notNull().unique(), // 部门代码
+    type: text('type').notNull(), // 'management'(管理部门) / 'college'(学院)
+    parentId: text('parent_id'), // 上级部门ID
+    level: integer('level').default(1), // 层级：1=顶级(教务处), 2=二级部门
+    sortOrder: integer('sort_order').default(0), // 排序
+    description: text('description'),
+    status: text('status').default('active'), // 'active' / 'disabled'
+    createdAt: text('created_at').default(sql`datetime('now')`).notNull(),
+    updatedAt: text('updated_at'),
+  },
+  (table) => [
+    index('departments_type_idx').on(table.type),
+    index('departments_parent_id_idx').on(table.parentId),
+    index('departments_code_idx').on(table.code),
+  ]
+);
+
+// 角色表
+export const roles = sqliteTable(
+  'roles',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    code: text('code').notNull().unique(), // 角色代码
+    description: text('description'),
+    level: integer('level').default(1), // 角色级别，数值越大权限越高
+    isSystem: integer('is_system', { mode: 'boolean' }).default(false), // 是否系统内置角色
+    status: text('status').default('active'),
+    createdAt: text('created_at').default(sql`datetime('now')`).notNull(),
+    updatedAt: text('updated_at'),
+  },
+  (table) => [
+    index('roles_code_idx').on(table.code),
+  ]
+);
+
+// 权限表
+export const permissions = sqliteTable(
+  'permissions',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    code: text('code').notNull().unique(), // 权限代码，如 'project:create'
+    module: text('module').notNull(), // 模块：project/user/data/system
+    description: text('description'),
+    createdAt: text('created_at').default(sql`datetime('now')`).notNull(),
+  },
+  (table) => [
+    index('permissions_module_idx').on(table.module),
+    index('permissions_code_idx').on(table.code),
+  ]
+);
+
+// 角色权限关联表
+export const rolePermissions = sqliteTable(
+  'role_permissions',
+  {
+    id: text('id').primaryKey(),
+    roleId: text('role_id').notNull().references(() => roles.id, { onDelete: 'cascade' }),
+    permissionId: text('permission_id').notNull().references(() => permissions.id, { onDelete: 'cascade' }),
+    createdAt: text('created_at').default(sql`datetime('now')`).notNull(),
+  },
+  (table) => [
+    index('role_permissions_role_id_idx').on(table.roleId),
+    index('role_permissions_permission_id_idx').on(table.permissionId),
+  ]
+);
+
+// 用户表
+export const users = sqliteTable(
+  'users',
+  {
+    id: text('id').primaryKey(),
+    username: text('username').notNull().unique(), // 登录账号
+    passwordHash: text('password_hash').notNull(), // 密码哈希
+    name: text('name').notNull(), // 真实姓名
+    employeeId: text('employee_id').notNull().unique(), // 工号（11位纯数字）
+    departmentId: text('department_id').notNull().references(() => departments.id),
+    roleId: text('role_id').notNull().references(() => roles.id), // 用户主角色
+    phone: text('phone'),
+    email: text('email'),
+    avatar: text('avatar'), // 头像URL
+    status: text('status').default('pending'), // 'pending'(待审批) / 'active'(正常) / 'disabled'(禁用)
+    approvedBy: text('approved_by'), // 审批人ID
+    approvedAt: text('approved_at'), // 审批时间
+    lastLoginAt: text('last_login_at'),
+    lastLoginIp: text('last_login_ip'),
+    createdAt: text('created_at').default(sql`datetime('now')`).notNull(),
+    updatedAt: text('updated_at'),
+  },
+  (table) => [
+    index('users_username_idx').on(table.username),
+    index('users_employee_id_idx').on(table.employeeId),
+    index('users_department_id_idx').on(table.departmentId),
+    index('users_role_id_idx').on(table.roleId),
+    index('users_status_idx').on(table.status),
+  ]
+);
+
+// 项目审批记录表
+export const projectApprovals = sqliteTable(
+  'project_approvals',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+    departmentId: text('department_id').notNull().references(() => departments.id), // 审批部门
+    approverId: text('approver_id').notNull().references(() => users.id), // 审批人
+    stage: text('stage').notNull(), // 审批阶段：'legal'(法务) / 'finance'(财务) / 'academic'(教务处终审)
+    status: text('status').notNull(), // 'pending'(待审批) / 'approved'(通过) / 'rejected'(拒绝)
+    comment: text('comment'), // 审批意见
+    approvedAt: text('approved_at'),
+    createdAt: text('created_at').default(sql`datetime('now')`).notNull(),
+  },
+  (table) => [
+    index('project_approvals_project_id_idx').on(table.projectId),
+    index('project_approvals_department_id_idx').on(table.departmentId),
+    index('project_approvals_status_idx').on(table.status),
+    index('project_approvals_stage_idx').on(table.stage),
+  ]
+);
+
+// 资源共享请求表
+export const shareRequests = sqliteTable(
+  'share_requests',
+  {
+    id: text('id').primaryKey(),
+    resourceType: text('resource_type').notNull(), // 'project'(项目) / 'course'(课程方案) / 'document'(文档)
+    resourceId: text('resource_id').notNull(), // 资源ID
+    resourceName: text('resource_name'), // 资源名称（冗余，方便显示）
+    requesterId: text('requester_id').notNull().references(() => users.id), // 请求人
+    requesterDepartmentId: text('requester_department_id').notNull().references(() => departments.id), // 请求人部门
+    ownerId: text('owner_id').notNull().references(() => users.id), // 资源所有者（项目负责人）
+    ownerDepartmentId: text('owner_department_id').notNull().references(() => departments.id), // 所有者部门
+    purpose: text('purpose'), // 申请用途
+    status: text('status').default('pending'), // 'pending'(待审批) / 'approved'(已通过) / 'rejected'(已拒绝) / 'expired'(已过期)
+    approvedBy: text('approved_by').references(() => users.id),
+    approvedAt: text('approved_at'),
+    expireAt: text('expire_at'), // 过期时间（7天后）
+    createdAt: text('created_at').default(sql`datetime('now')`).notNull(),
+    updatedAt: text('updated_at'),
+  },
+  (table) => [
+    index('share_requests_resource_type_idx').on(table.resourceType),
+    index('share_requests_resource_id_idx').on(table.resourceId),
+    index('share_requests_requester_id_idx').on(table.requesterId),
+    index('share_requests_owner_id_idx').on(table.ownerId),
+    index('share_requests_status_idx').on(table.status),
+  ]
+);
+
+// ==================== 原有业务表 ====================
+
 // 系统表
 export const healthCheck = sqliteTable('health_check', {
   id: integer().primaryKey({ autoIncrement: true }),
@@ -23,12 +183,21 @@ export const teachers = sqliteTable(
     rating: real('rating').default(4.5),
     teachingCount: integer('teaching_count').default(0),
     isActive: integer('is_active', { mode: 'boolean' }).default(true),
+    // 审核相关字段
+    isVerified: integer('is_verified', { mode: 'boolean' }).default(false), // 是否已审核确认
+    createdBy: text('created_by'), // 创建人ID
+    createdByDepartment: text('created_by_department'), // 创建人部门
+    verifiedBy: text('verified_by'), // 审核人ID（人事处）
+    verifiedAt: text('verified_at'), // 审核时间
+    verifyComment: text('verify_comment'), // 审核备注
     createdAt: text('created_at').default(sql`datetime('now')`).notNull(),
     updatedAt: text('updated_at'),
   },
   (table) => [
     index('teachers_name_idx').on(table.name),
     index('teachers_title_idx').on(table.title),
+    index('teachers_is_verified_idx').on(table.isVerified),
+    index('teachers_created_by_department_idx').on(table.createdByDepartment),
   ]
 );
 
@@ -108,7 +277,13 @@ export const projects = sqliteTable(
   {
     id: text('id').primaryKey(),
     name: text('name').notNull(),
-    status: text('status').default('draft'),
+    status: text('status').default('draft'), // draft/executing/completed/archived/pending_approval/approved/rejected
+    // 所属部门和创建人
+    departmentId: text('department_id').notNull().references(() => departments.id), // 所属学院/部门
+    createdById: text('created_by_id').notNull().references(() => users.id), // 创建人
+    // 审批相关
+    approvalStatus: text('approval_status'), // pending_legal/pending_finance/pending_academic/approved/rejected
+    submittedAt: text('submitted_at'), // 提交审批时间
     // 需求信息
     trainingTarget: text('training_target'),
     targetAudience: text('target_audience'),
@@ -172,6 +347,9 @@ export const projects = sqliteTable(
   },
   (table) => [
     index('projects_status_idx').on(table.status),
+    index('projects_department_id_idx').on(table.departmentId),
+    index('projects_created_by_id_idx').on(table.createdById),
+    index('projects_approval_status_idx').on(table.approvalStatus),
     index('projects_training_target_idx').on(table.trainingTarget),
     index('projects_created_at_idx').on(table.createdAt),
   ]

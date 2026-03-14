@@ -31,6 +31,135 @@ const createTablesSQL = `
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     updated_at TEXT DEFAULT (datetime('now'))
   );
+  
+  -- 用户权限相关表
+  CREATE TABLE IF NOT EXISTS departments (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    code TEXT NOT NULL UNIQUE,
+    type TEXT NOT NULL,
+    parent_id TEXT,
+    level INTEGER DEFAULT 1,
+    sort_order INTEGER DEFAULT 0,
+    description TEXT,
+    status TEXT DEFAULT 'active',
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT
+  );
+  CREATE INDEX IF NOT EXISTS departments_type_idx ON departments(type);
+  CREATE INDEX IF NOT EXISTS departments_parent_id_idx ON departments(parent_id);
+  CREATE INDEX IF NOT EXISTS departments_code_idx ON departments(code);
+  
+  CREATE TABLE IF NOT EXISTS roles (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    code TEXT NOT NULL UNIQUE,
+    description TEXT,
+    level INTEGER DEFAULT 1,
+    is_system INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'active',
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT
+  );
+  CREATE INDEX IF NOT EXISTS roles_code_idx ON roles(code);
+  
+  CREATE TABLE IF NOT EXISTS permissions (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    code TEXT NOT NULL UNIQUE,
+    module TEXT NOT NULL,
+    description TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS permissions_module_idx ON permissions(module);
+  CREATE INDEX IF NOT EXISTS permissions_code_idx ON permissions(code);
+  
+  CREATE TABLE IF NOT EXISTS role_permissions (
+    id TEXT PRIMARY KEY,
+    role_id TEXT NOT NULL,
+    permission_id TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
+    FOREIGN KEY (permission_id) REFERENCES permissions(id) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS role_permissions_role_id_idx ON role_permissions(role_id);
+  CREATE INDEX IF NOT EXISTS role_permissions_permission_id_idx ON role_permissions(permission_id);
+  
+  CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    name TEXT NOT NULL,
+    employee_id TEXT NOT NULL UNIQUE,
+    department_id TEXT NOT NULL,
+    role_id TEXT NOT NULL,
+    phone TEXT,
+    email TEXT,
+    avatar TEXT,
+    status TEXT DEFAULT 'pending',
+    approved_by TEXT,
+    approved_at TEXT,
+    last_login_at TEXT,
+    last_login_ip TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT,
+    FOREIGN KEY (department_id) REFERENCES departments(id),
+    FOREIGN KEY (role_id) REFERENCES roles(id)
+  );
+  CREATE INDEX IF NOT EXISTS users_username_idx ON users(username);
+  CREATE INDEX IF NOT EXISTS users_employee_id_idx ON users(employee_id);
+  CREATE INDEX IF NOT EXISTS users_department_id_idx ON users(department_id);
+  CREATE INDEX IF NOT EXISTS users_role_id_idx ON users(role_id);
+  CREATE INDEX IF NOT EXISTS users_status_idx ON users(status);
+  
+  CREATE TABLE IF NOT EXISTS project_approvals (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    department_id TEXT NOT NULL,
+    approver_id TEXT NOT NULL,
+    stage TEXT NOT NULL,
+    status TEXT NOT NULL,
+    comment TEXT,
+    approved_at TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    FOREIGN KEY (department_id) REFERENCES departments(id),
+    FOREIGN KEY (approver_id) REFERENCES users(id)
+  );
+  CREATE INDEX IF NOT EXISTS project_approvals_project_id_idx ON project_approvals(project_id);
+  CREATE INDEX IF NOT EXISTS project_approvals_department_id_idx ON project_approvals(department_id);
+  CREATE INDEX IF NOT EXISTS project_approvals_status_idx ON project_approvals(status);
+  CREATE INDEX IF NOT EXISTS project_approvals_stage_idx ON project_approvals(stage);
+  
+  CREATE TABLE IF NOT EXISTS share_requests (
+    id TEXT PRIMARY KEY,
+    resource_type TEXT NOT NULL,
+    resource_id TEXT NOT NULL,
+    resource_name TEXT,
+    requester_id TEXT NOT NULL,
+    requester_department_id TEXT NOT NULL,
+    owner_id TEXT NOT NULL,
+    owner_department_id TEXT NOT NULL,
+    purpose TEXT,
+    status TEXT DEFAULT 'pending',
+    approved_by TEXT,
+    approved_at TEXT,
+    expire_at TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT,
+    FOREIGN KEY (requester_id) REFERENCES users(id),
+    FOREIGN KEY (requester_department_id) REFERENCES departments(id),
+    FOREIGN KEY (owner_id) REFERENCES users(id),
+    FOREIGN KEY (owner_department_id) REFERENCES departments(id),
+    FOREIGN KEY (approved_by) REFERENCES users(id)
+  );
+  CREATE INDEX IF NOT EXISTS share_requests_resource_type_idx ON share_requests(resource_type);
+  CREATE INDEX IF NOT EXISTS share_requests_resource_id_idx ON share_requests(resource_id);
+  CREATE INDEX IF NOT EXISTS share_requests_requester_id_idx ON share_requests(requester_id);
+  CREATE INDEX IF NOT EXISTS share_requests_owner_id_idx ON share_requests(owner_id);
+  CREATE INDEX IF NOT EXISTS share_requests_status_idx ON share_requests(status);
+  
+  -- 讲师表
   CREATE TABLE IF NOT EXISTS teachers (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -42,11 +171,19 @@ const createTablesSQL = `
     rating REAL DEFAULT 4.5,
     teaching_count INTEGER DEFAULT 0,
     is_active INTEGER DEFAULT 1,
+    is_verified INTEGER DEFAULT 0,
+    created_by TEXT,
+    created_by_department TEXT,
+    verified_by TEXT,
+    verified_at TEXT,
+    verify_comment TEXT,
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT
   );
   CREATE INDEX IF NOT EXISTS teachers_name_idx ON teachers(name);
   CREATE INDEX IF NOT EXISTS teachers_title_idx ON teachers(title);
+  CREATE INDEX IF NOT EXISTS teachers_is_verified_idx ON teachers(is_verified);
+  CREATE INDEX IF NOT EXISTS teachers_created_by_department_idx ON teachers(created_by_department);
   CREATE TABLE IF NOT EXISTS venues (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -98,6 +235,10 @@ const createTablesSQL = `
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     status TEXT DEFAULT 'draft',
+    department_id TEXT NOT NULL,
+    created_by_id TEXT NOT NULL,
+    approval_status TEXT,
+    submitted_at TEXT,
     training_target TEXT,
     target_audience TEXT,
     participant_count INTEGER,
@@ -135,12 +276,29 @@ const createTablesSQL = `
     satisfaction_survey_file TEXT,
     satisfaction_survey_file_name TEXT,
     summary_report TEXT,
+    contract_file_pdf TEXT,
+    contract_file_name_pdf TEXT,
+    contract_file_word TEXT,
+    contract_file_name_word TEXT,
+    cost_file_pdf TEXT,
+    cost_file_name_pdf TEXT,
+    cost_file_word TEXT,
+    cost_file_name_word TEXT,
+    declaration_file_pdf TEXT,
+    declaration_file_name_pdf TEXT,
+    declaration_file_word TEXT,
+    declaration_file_name_word TEXT,
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT,
     completed_at TEXT,
-    archived_at TEXT
+    archived_at TEXT,
+    FOREIGN KEY (department_id) REFERENCES departments(id),
+    FOREIGN KEY (created_by_id) REFERENCES users(id)
   );
   CREATE INDEX IF NOT EXISTS projects_status_idx ON projects(status);
+  CREATE INDEX IF NOT EXISTS projects_department_id_idx ON projects(department_id);
+  CREATE INDEX IF NOT EXISTS projects_created_by_id_idx ON projects(created_by_id);
+  CREATE INDEX IF NOT EXISTS projects_approval_status_idx ON projects(approval_status);
   CREATE INDEX IF NOT EXISTS projects_created_at_idx ON projects(created_at);
   CREATE TABLE IF NOT EXISTS project_courses (
     id TEXT PRIMARY KEY,
@@ -351,9 +509,169 @@ async function doInitDatabase(): Promise<void> {
   }
   
   dbInstance = drizzle(sqlite, { schema });
+  
+  // 初始化种子数据（部门、角色、权限、管理员账号）
+  await initializeSeedData();
+  
   saveDatabaseImmediate();
   
   console.log('Database initialized successfully');
+}
+
+// 生成ID（种子数据内部使用）
+function createId(): string {
+  return `${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+// 简单密码哈希（测试阶段使用，生产环境应使用bcrypt）
+function hashPassword(password: string): string {
+  // 简单的Base64编码，仅用于测试阶段
+  // 生产环境应使用bcrypt或其他安全哈希算法
+  return Buffer.from(`hash_${password}_salt`).toString('base64');
+}
+
+// 初始化种子数据
+async function initializeSeedData(): Promise<void> {
+  if (!sqlite) return;
+  
+  const now = new Date().toISOString();
+  
+  // 检查是否已初始化
+  const deptCount = sqlite.exec("SELECT COUNT(*) FROM departments");
+  if (deptCount.length > 0 && deptCount[0].values[0][0] as number > 0) {
+    console.log('Seed data already initialized');
+    return;
+  }
+  
+  console.log('Initializing seed data...');
+  
+  // 1. 初始化部门
+  const departments = [
+    // 管理部门 (level 1: 教务处作为顶级)
+    { id: 'dept_academic', name: '教务处', code: 'academic_affairs', type: 'management', parentId: null, level: 1, sortOrder: 1 },
+    // 管理部门 (level 2)
+    { id: 'dept_finance', name: '财务处', code: 'finance', type: 'management', parentId: 'dept_academic', level: 2, sortOrder: 2 },
+    { id: 'dept_audit', name: '审计处', code: 'audit', type: 'management', parentId: 'dept_academic', level: 2, sortOrder: 3 },
+    { id: 'dept_planning', name: '发展规划处', code: 'planning', type: 'management', parentId: 'dept_academic', level: 2, sortOrder: 4 },
+    { id: 'dept_legal', name: '法务部', code: 'legal', type: 'management', parentId: 'dept_academic', level: 2, sortOrder: 5 },
+    { id: 'dept_hr', name: '人事处', code: 'hr', type: 'management', parentId: 'dept_academic', level: 2, sortOrder: 6 },
+    { id: 'dept_security', name: '保卫处', code: 'security', type: 'management', parentId: 'dept_academic', level: 2, sortOrder: 7 },
+    { id: 'dept_logistics', name: '后勤服务中心', code: 'logistics', type: 'management', parentId: 'dept_academic', level: 2, sortOrder: 8 },
+    { id: 'dept_it', name: '信息中心', code: 'it', type: 'management', parentId: 'dept_academic', level: 2, sortOrder: 9 },
+    // 学院
+    { id: 'dept_labor', name: '劳模学院', code: 'labor_college', type: 'college', parentId: null, level: 1, sortOrder: 10 },
+    { id: 'dept_adult', name: '成人与继续教育学院', code: 'adult_college', type: 'college', parentId: null, level: 1, sortOrder: 11 },
+    { id: 'dept_teacher', name: '职业师资教育学院', code: 'teacher_college', type: 'college', parentId: null, level: 1, sortOrder: 12 },
+  ];
+  
+  for (const dept of departments) {
+    sqlite.run(
+      `INSERT OR IGNORE INTO departments (id, name, code, type, parent_id, level, sort_order, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?)`,
+      [dept.id, dept.name, dept.code, dept.type, dept.parentId, dept.level, dept.sortOrder, now]
+    );
+  }
+  
+  // 2. 初始化角色
+  const roles = [
+    { id: 'role_admin', name: '系统管理员', code: 'admin', level: 100, description: '系统最高权限，负责用户管理和系统配置' },
+    { id: 'role_dept_head', name: '部门负责人', code: 'dept_head', level: 50, description: '管理部门业务审批，查看所有项目' },
+    { id: 'role_dept_staff', name: '部门员工', code: 'dept_staff', level: 40, description: '协助处理本部门业务，查看所有项目' },
+    { id: 'role_college_admin', name: '学院负责人', code: 'college_admin', level: 30, description: '本学院项目管理，审批共享请求' },
+    { id: 'role_college_staff', name: '学院员工', code: 'college_staff', level: 20, description: '本学院项目填报，查看公开项目' },
+    { id: 'role_hr_auditor', name: '人事处审核员', code: 'hr_auditor', level: 45, description: '师资信息审核' },
+  ];
+  
+  for (const role of roles) {
+    sqlite.run(
+      `INSERT OR IGNORE INTO roles (id, name, code, level, description, is_system, status, created_at) VALUES (?, ?, ?, ?, ?, 1, 'active', ?)`,
+      [role.id, role.name, role.code, role.level, role.description, now]
+    );
+  }
+  
+  // 3. 初始化权限
+  const permissions = [
+    // 项目模块
+    { id: 'perm_project_create', name: '创建项目', code: 'project:create', module: 'project' },
+    { id: 'perm_project_view', name: '查看项目', code: 'project:view', module: 'project' },
+    { id: 'perm_project_edit', name: '编辑项目', code: 'project:edit', module: 'project' },
+    { id: 'perm_project_delete', name: '删除项目', code: 'project:delete', module: 'project' },
+    { id: 'perm_project_approve', name: '审批项目', code: 'project:approve', module: 'project' },
+    { id: 'perm_project_summary', name: '项目总结', code: 'project:summary', module: 'project' },
+    { id: 'perm_project_share', name: '共享项目', code: 'project:share', module: 'project' },
+    // 用户模块
+    { id: 'perm_user_create', name: '创建用户', code: 'user:create', module: 'user' },
+    { id: 'perm_user_view', name: '查看用户', code: 'user:view', module: 'user' },
+    { id: 'perm_user_edit', name: '编辑用户', code: 'user:edit', module: 'user' },
+    { id: 'perm_user_approve', name: '审批用户', code: 'user:approve', module: 'user' },
+    // 数据模块
+    { id: 'perm_data_view', name: '查看数据', code: 'data:view', module: 'data' },
+    { id: 'perm_data_edit', name: '编辑数据', code: 'data:edit', module: 'data' },
+    { id: 'perm_data_export', name: '导出数据', code: 'data:export', module: 'data' },
+    // 师资模块
+    { id: 'perm_teacher_create', name: '添加师资', code: 'teacher:create', module: 'teacher' },
+    { id: 'perm_teacher_verify', name: '审核师资', code: 'teacher:verify', module: 'teacher' },
+    // 场地模块
+    { id: 'perm_venue_create', name: '添加场地', code: 'venue:create', module: 'venue' },
+    // 系统模块
+    { id: 'perm_system_config', name: '系统配置', code: 'system:config', module: 'system' },
+  ];
+  
+  for (const perm of permissions) {
+    sqlite.run(
+      `INSERT OR IGNORE INTO permissions (id, name, code, module, created_at) VALUES (?, ?, ?, ?, ?)`,
+      [perm.id, perm.name, perm.code, perm.module, now]
+    );
+  }
+  
+  // 4. 初始化角色权限
+  const rolePermissions = [
+    // 系统管理员 - 所有权限
+    ['role_admin', 'perm_project_create'], ['role_admin', 'perm_project_view'], ['role_admin', 'perm_project_edit'],
+    ['role_admin', 'perm_project_delete'], ['role_admin', 'perm_project_approve'], ['role_admin', 'perm_project_summary'],
+    ['role_admin', 'perm_project_share'], ['role_admin', 'perm_user_create'], ['role_admin', 'perm_user_view'],
+    ['role_admin', 'perm_user_edit'], ['role_admin', 'perm_user_approve'], ['role_admin', 'perm_data_view'],
+    ['role_admin', 'perm_data_edit'], ['role_admin', 'perm_data_export'], ['role_admin', 'perm_teacher_create'],
+    ['role_admin', 'perm_teacher_verify'], ['role_admin', 'perm_venue_create'], ['role_admin', 'perm_system_config'],
+    
+    // 部门负责人 - 查看所有项目，审批权限
+    ['role_dept_head', 'perm_project_view'], ['role_dept_head', 'perm_project_approve'],
+    ['role_dept_head', 'perm_data_view'], ['role_dept_head', 'perm_data_export'],
+    
+    // 部门员工 - 查看所有项目
+    ['role_dept_staff', 'perm_project_view'], ['role_dept_staff', 'perm_data_view'],
+    
+    // 学院负责人 - 项目管理权限
+    ['role_college_admin', 'perm_project_create'], ['role_college_admin', 'perm_project_view'],
+    ['role_college_admin', 'perm_project_edit'], ['role_college_admin', 'perm_project_summary'],
+    ['role_college_admin', 'perm_project_share'], ['role_college_admin', 'perm_data_view'],
+    ['role_college_admin', 'perm_data_export'], ['role_college_admin', 'perm_teacher_create'],
+    ['role_college_admin', 'perm_venue_create'],
+    
+    // 学院员工 - 项目填报权限
+    ['role_college_staff', 'perm_project_create'], ['role_college_staff', 'perm_project_view'],
+    ['role_college_staff', 'perm_project_edit'], ['role_college_staff', 'perm_data_view'],
+    ['role_college_staff', 'perm_teacher_create'], ['role_college_staff', 'perm_venue_create'],
+    
+    // 人事处审核员 - 师资审核权限
+    ['role_hr_auditor', 'perm_project_view'], ['role_hr_auditor', 'perm_teacher_create'],
+    ['role_hr_auditor', 'perm_teacher_verify'], ['role_hr_auditor', 'perm_user_approve'],
+  ];
+  
+  for (const [roleId, permId] of rolePermissions) {
+    sqlite.run(
+      `INSERT OR IGNORE INTO role_permissions (id, role_id, permission_id, created_at) VALUES (?, ?, ?, ?)`,
+      [createId(), roleId, permId, now]
+    );
+  }
+  
+  // 5. 初始化管理员账号
+  const adminPasswordHash = hashPassword('123456');
+  sqlite.run(
+    `INSERT OR IGNORE INTO users (id, username, password_hash, name, employee_id, department_id, role_id, status, approved_by, approved_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', 'system', ?, ?)`,
+    ['user_admin', 'admin', adminPasswordHash, '系统管理员', '00000000001', 'dept_academic', 'role_admin', now, now]
+  );
+  
+  console.log('Seed data initialized successfully');
 }
 
 // 确保数据库就绪
