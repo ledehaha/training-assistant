@@ -84,9 +84,9 @@ export function useAuth() {
       setAuthenticated(false);
     } finally {
       setLoading(false);
-      console.log('[useAuth] Loading set to false, authenticated:', authenticated);
+      console.log('[useAuth] Loading set to false');
     }
-  }, [authenticated]);
+  }, []);
 
   // 登出
   const logout = useCallback(async (redirectToLogin = true) => {

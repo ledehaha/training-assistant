@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,10 +13,46 @@ import Link from 'next/link';
 export default function LoginPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(true);
   const [formData, setFormData] = useState({
     username: '',
     password: '',
   });
+
+  // 检查是否已登录，如果已登录则跳转到首页
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const sessionToken = localStorage.getItem('session_token');
+        if (!sessionToken) {
+          setChecking(false);
+          return;
+        }
+
+        const res = await fetch('/api/auth/me', {
+          headers: {
+            'Authorization': `Bearer ${sessionToken}`,
+          },
+        });
+        
+        const data = await res.json();
+        
+        if (data.authenticated) {
+          // 已登录，跳转到首页
+          window.location.href = '/';
+        } else {
+          // 清除无效的 token
+          localStorage.removeItem('session_token');
+          setChecking(false);
+        }
+      } catch (error) {
+        console.error('Auth check error:', error);
+        setChecking(false);
+      }
+    };
+
+    checkAuth();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,6 +91,18 @@ export default function LoginPage() {
     }
     // 注意：登录成功时不调用 setLoading(false)，因为页面即将跳转
   };
+
+  // 检查登录状态中
+  if (checking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
+          <p className="text-sm text-gray-500">检查登录状态...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
