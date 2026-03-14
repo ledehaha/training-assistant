@@ -1,8 +1,8 @@
 'use client';
 
-import { ReactNode, useState } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   FolderKanban,
@@ -14,26 +14,40 @@ import {
   X,
   GraduationCap,
   Database,
+  Users,
+  LogOut,
+  ChevronDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useAuth, usePermission } from '@/hooks/useAuth';
 
 interface MainLayoutProps {
   children: ReactNode;
 }
 
-const navigation = [
-  { name: '仪表盘', href: '/', icon: LayoutDashboard },
-  { name: '项目设计', href: '/design', icon: FolderKanban },
-  { name: '项目申报', href: '/declaration', icon: FileText },
-  { name: '项目总结', href: '/summary', icon: ClipboardCheck },
-  { name: '项目查询', href: '/query', icon: Search },
-  { name: '数据管理', href: '/admin/data', icon: Database },
-];
-
 export default function MainLayout({ children }: MainLayoutProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const { user, authenticated, loading, logout } = useAuth();
+  const { canApproveUser, isAdmin } = usePermission();
+
+  // 登录页和注册页不需要布局
+  if (pathname === '/login' || pathname === '/register') {
+    return <>{children}</>;
+  }
+
+  const navigation = [
+    { name: '仪表盘', href: '/', icon: LayoutDashboard },
+    { name: '项目设计', href: '/design', icon: FolderKanban },
+    { name: '项目申报', href: '/declaration', icon: FileText },
+    { name: '项目总结', href: '/summary', icon: ClipboardCheck },
+    { name: '项目查询', href: '/query', icon: Search },
+    { name: '数据管理', href: '/admin/data', icon: Database },
+    ...(canApproveUser ? [{ name: '用户管理', href: '/admin/users', icon: Users }] : []),
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -120,6 +134,21 @@ export default function MainLayout({ children }: MainLayoutProps) {
               设置
             </Link>
           </div>
+          
+          {/* 用户信息（桌面端） */}
+          {authenticated && user && (
+            <div className="p-4 border-t">
+              <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-gray-50">
+                <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-medium">
+                  {user.name.charAt(0)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">{user.name}</p>
+                  <p className="text-xs text-gray-500 truncate">{user.department?.name}</p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -137,9 +166,59 @@ export default function MainLayout({ children }: MainLayoutProps) {
           </Button>
           <div className="flex-1 lg:flex-none" />
           <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-gray-500 hidden sm:inline">
               非学历培训全周期管理系统
             </span>
+            
+            {/* 用户菜单 */}
+            {loading ? (
+              <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse" />
+            ) : authenticated && user ? (
+              <div className="relative">
+                <button
+                  onClick={() => setUserMenuOpen(!userMenuOpen)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-medium">
+                    {user.name.charAt(0)}
+                  </div>
+                  <span className="text-sm font-medium text-gray-700 hidden sm:inline">{user.name}</span>
+                  <ChevronDown className="w-4 h-4 text-gray-400" />
+                </button>
+                
+                {userMenuOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-10"
+                      onClick={() => setUserMenuOpen(false)}
+                    />
+                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border z-20">
+                      <div className="p-3 border-b">
+                        <p className="text-sm font-medium text-gray-900">{user.name}</p>
+                        <p className="text-xs text-gray-500">{user.role?.name}</p>
+                        <p className="text-xs text-gray-400">{user.department?.name}</p>
+                      </div>
+                      <div className="p-2">
+                        <button
+                          onClick={() => {
+                            logout();
+                            setUserMenuOpen(false);
+                          }}
+                          className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          <LogOut className="w-4 h-4" />
+                          退出登录
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              <Link href="/login">
+                <Button size="sm">登录</Button>
+              </Link>
+            )}
           </div>
         </header>
 
