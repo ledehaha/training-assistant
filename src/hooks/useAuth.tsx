@@ -39,21 +39,14 @@ export function useAuth() {
   const [authenticated, setAuthenticated] = useState(false);
   const lastActivityRef = useRef<number>(Date.now());
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const fetchedRef = useRef(false);
 
   // 获取用户信息
   const fetchUser = useCallback(async () => {
-    // 防止重复调用
-    if (fetchedRef.current) {
-      return;
-    }
-    fetchedRef.current = true;
-
     console.log('[useAuth] fetchUser called');
     
     try {
       const res = await fetch('/api/auth/me', {
-        credentials: 'include', // 确保发送 cookie
+        credentials: 'include',
       });
       const data = await res.json();
       
@@ -73,7 +66,7 @@ export function useAuth() {
       setAuthenticated(false);
     } finally {
       setLoading(false);
-      console.log('[useAuth] Loading set to false');
+      console.log('[useAuth] Loading set to false, authenticated:', !authenticated);
     }
   }, []);
 
@@ -87,7 +80,6 @@ export function useAuth() {
     
     setUser(null);
     setAuthenticated(false);
-    fetchedRef.current = false;
     
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -99,11 +91,10 @@ export function useAuth() {
     }
   }, [router]);
 
-  // 初始化获取用户信息 - 使用空依赖数组确保只执行一次
+  // 初始化获取用户信息
   useEffect(() => {
     fetchUser();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchUser]);
 
   // 自动登出检测
   useEffect(() => {
@@ -145,11 +136,7 @@ export function useAuth() {
     user,
     loading,
     authenticated,
-    refetch: () => {
-      fetchedRef.current = false;
-      setLoading(true);
-      fetchUser();
-    },
+    refetch: fetchUser,
     logout,
   };
 }

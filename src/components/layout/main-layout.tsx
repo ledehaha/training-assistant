@@ -41,10 +41,12 @@ export default function MainLayout({ children }: MainLayoutProps) {
 
   // 登录状态检查
   useEffect(() => {
+    console.log('[MainLayout] State:', { loading, authenticated, isPublicPage, pathname });
     if (!loading && !authenticated && !isPublicPage) {
+      console.log('[MainLayout] Redirecting to login');
       router.push('/login');
     }
-  }, [loading, authenticated, isPublicPage, router]);
+  }, [loading, authenticated, isPublicPage, router, pathname]);
 
   // 公共页面直接渲染，不需要布局
   if (isPublicPage) {
