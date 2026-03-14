@@ -33,7 +33,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const { user, authenticated, loading, logout } = useAuth();
-  const { canApproveUser, isAdmin } = usePermission();
+  const { canApproveUser, isAdmin } = usePermission(user, authenticated);
 
   // 不需要登录的页面
   const publicPages = ['/login', '/register'];

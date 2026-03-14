@@ -62,7 +62,7 @@ interface User {
 
 export default function UserManagementPage() {
   const { user, authenticated, loading: authLoading } = useAuth();
-  const { canApproveUser, isAdmin } = usePermission();
+  const { canApproveUser, isAdmin } = usePermission(user, authenticated);
   
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);

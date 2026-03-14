@@ -183,9 +183,8 @@ export function useAuth() {
   };
 }
 
-// 权限检查Hook
-export function usePermission() {
-  const { user, authenticated } = useAuth();
+// 权限检查Hook - 接受 user 和 authenticated 参数，避免重复调用 useAuth
+export function usePermission(user?: UserInfo | null, authenticated?: boolean) {
   
   // 检查是否有特定权限
   const hasPermission = useCallback((permissionCode: string): boolean => {

@@ -39,15 +39,17 @@ export default function LoginPage() {
       
       if (data.success) {
         toast.success('登录成功', { description: `欢迎回来，${data.user.name}` });
-        router.push('/');
+        // 使用 window.location 进行完整页面刷新，确保 cookie 被正确读取
+        window.location.href = '/';
       } else {
         toast.error('登录失败', { description: data.error });
+        setLoading(false);
       }
     } catch (error) {
       toast.error('登录失败', { description: '网络错误，请稍后重试' });
-    } finally {
       setLoading(false);
     }
+    // 注意：登录成功时不调用 setLoading(false)，因为页面即将跳转
   };
 
   return (
