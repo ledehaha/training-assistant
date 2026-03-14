@@ -27,65 +27,39 @@ export interface UserInfo {
   lastLoginAt?: string;
 }
 
-// 认证状态
-export interface AuthState {
-  user: UserInfo | null;
-  loading: boolean;
-  authenticated: boolean;
-  error: string | null;
-}
-
-// 自动登出时间（30分钟，单位毫秒）
+// 自动登出时间（30分钟）
 const AUTO_LOGOUT_TIME = 30 * 60 * 1000;
-// 检查间隔（1分钟）
 const CHECK_INTERVAL = 60 * 1000;
 
 // 获取当前用户信息
 export function useAuth() {
   const router = useRouter();
-  const [state, setState] = useState<AuthState>({
-    user: null,
-    loading: true,
-    authenticated: false,
-    error: null,
-  });
-  
-  // 最后活动时间
+  const [user, setUser] = useState<UserInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [authenticated, setAuthenticated] = useState(false);
   const lastActivityRef = useRef<number>(Date.now());
-  // 定时器引用
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // 获取用户信息
   const fetchUser = useCallback(async () => {
     try {
-      setState(prev => ({ ...prev, loading: true, error: null }));
-      
       const res = await fetch('/api/auth/me');
       const data = await res.json();
       
       if (data.authenticated && data.user) {
-        setState({
-          user: data.user,
-          loading: false,
-          authenticated: true,
-          error: null,
-        });
+        setUser(data.user);
+        setAuthenticated(true);
         lastActivityRef.current = Date.now();
       } else {
-        setState({
-          user: null,
-          loading: false,
-          authenticated: false,
-          error: data.error || '未登录',
-        });
+        setUser(null);
+        setAuthenticated(false);
       }
     } catch (error) {
-      setState({
-        user: null,
-        loading: false,
-        authenticated: false,
-        error: '获取用户信息失败',
-      });
+      console.error('Fetch user error:', error);
+      setUser(null);
+      setAuthenticated(false);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -93,35 +67,31 @@ export function useAuth() {
   const logout = useCallback(async (redirectToLogin = true) => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
-      
-      setState({
-        user: null,
-        loading: false,
-        authenticated: false,
-        error: null,
-      });
-      
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-      
-      if (redirectToLogin) {
-        router.push('/login');
-      }
     } catch (error) {
       console.error('Logout error:', error);
     }
+    
+    setUser(null);
+    setAuthenticated(false);
+    
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    
+    if (redirectToLogin) {
+      router.push('/login');
+    }
   }, [router]);
 
-  // 初始化时获取用户信息
+  // 初始化获取用户信息
   useEffect(() => {
     fetchUser();
   }, [fetchUser]);
 
-  // 设置自动登出检测
+  // 自动登出检测
   useEffect(() => {
-    if (!state.authenticated) {
+    if (!authenticated) {
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
@@ -129,24 +99,17 @@ export function useAuth() {
       return;
     }
 
-    lastActivityRef.current = Date.now();
-
-    // 监听用户活动事件
-    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
     const handleActivity = () => {
       lastActivityRef.current = Date.now();
     };
 
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
     events.forEach(event => {
       document.addEventListener(event, handleActivity, { passive: true });
     });
 
-    // 启动定时检查
     timerRef.current = setInterval(() => {
-      const now = Date.now();
-      const timeDiff = now - lastActivityRef.current;
-      
-      if (timeDiff >= AUTO_LOGOUT_TIME) {
+      if (Date.now() - lastActivityRef.current >= AUTO_LOGOUT_TIME) {
         logout(true);
       }
     }, CHECK_INTERVAL);
@@ -160,23 +123,21 @@ export function useAuth() {
         timerRef.current = null;
       }
     };
-  }, [state.authenticated, logout]);
+  }, [authenticated, logout]);
 
   return {
-    ...state,
+    user,
+    loading,
+    authenticated,
     refetch: fetchUser,
     logout,
   };
 }
 
-// 权限检查Hook - 接受 user 和 authenticated 参数
+// 权限检查Hook
 export function usePermission(user?: UserInfo | null, authenticated?: boolean) {
-  
-  // 检查是否有特定权限
   const hasPermission = useCallback((permissionCode: string): boolean => {
     if (!authenticated || !user?.role) return false;
-    
-    // 系统管理员拥有所有权限
     if (user.role.code === 'admin') return true;
     
     const rolePermissions: Record<string, string[]> = {
@@ -187,34 +148,26 @@ export function usePermission(user?: UserInfo | null, authenticated?: boolean) {
       hr_auditor: ['project:view', 'teacher:create', 'teacher:verify', 'user:approve'],
     };
     
-    const permissions = rolePermissions[user.role.code] || [];
-    return permissions.includes(permissionCode);
+    return (rolePermissions[user.role.code] || []).includes(permissionCode);
   }, [authenticated, user]);
   
   const isAdmin = user?.role?.code === 'admin';
   const isManagement = user?.department?.type === 'management';
   const isCollege = user?.department?.type === 'college';
-  const canApproveProject = hasPermission('project:approve');
-  const canVerifyTeacher = hasPermission('teacher:verify');
-  const canApproveUser = hasPermission('user:approve');
-  
-  const canEditProject = useCallback((projectDepartmentId?: string, projectCreatedById?: string): boolean => {
-    if (!authenticated || !user) return false;
-    if (isManagement) return false;
-    if (projectDepartmentId === user.department?.id) return true;
-    if (projectCreatedById === user.id) return true;
-    return false;
-  }, [authenticated, user, isManagement]);
   
   return {
     hasPermission,
     isAdmin,
     isManagement,
     isCollege,
-    canApproveProject,
-    canVerifyTeacher,
-    canApproveUser,
-    canEditProject,
+    canApproveProject: hasPermission('project:approve'),
+    canVerifyTeacher: hasPermission('teacher:verify'),
+    canApproveUser: hasPermission('user:approve'),
+    canEditProject: useCallback((projectDeptId?: string, projectCreatorId?: string): boolean => {
+      if (!authenticated || !user) return false;
+      if (isManagement) return false;
+      return projectDeptId === user.department?.id || projectCreatorId === user.id;
+    }, [authenticated, user, isManagement]),
     user,
     authenticated,
   };
