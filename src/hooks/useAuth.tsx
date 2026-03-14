@@ -40,36 +40,23 @@ const AUTO_LOGOUT_TIME = 30 * 60 * 1000;
 // 检查间隔（1分钟）
 const CHECK_INTERVAL = 60 * 1000;
 
-// 全局状态，避免重复请求
-let globalAuthState: AuthState = {
-  user: null,
-  loading: true,
-  authenticated: false,
-  error: null,
-};
-let globalFetchPromise: Promise<void> | null = null;
-
 // 获取当前用户信息
 export function useAuth() {
   const router = useRouter();
-  const [state, setState] = useState<AuthState>(globalAuthState);
+  const [state, setState] = useState<AuthState>({
+    user: null,
+    loading: true,
+    authenticated: false,
+    error: null,
+  });
   
   // 最后活动时间
   const lastActivityRef = useRef<number>(Date.now());
   // 定时器引用
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  // 是否已挂载
-  const mountedRef = useRef(false);
 
   // 获取用户信息
-  const fetchUser = useCallback(async (force = false) => {
-    // 如果已经在加载中且不是强制刷新，跳过
-    if (!force && globalAuthState.loading && globalFetchPromise) {
-      await globalFetchPromise;
-      setState(globalAuthState);
-      return;
-    }
-
+  const fetchUser = useCallback(async () => {
     try {
       setState(prev => ({ ...prev, loading: true, error: null }));
       
@@ -77,32 +64,28 @@ export function useAuth() {
       const data = await res.json();
       
       if (data.authenticated && data.user) {
-        globalAuthState = {
+        setState({
           user: data.user,
           loading: false,
           authenticated: true,
           error: null,
-        };
-        // 登录成功后更新最后活动时间
+        });
         lastActivityRef.current = Date.now();
       } else {
-        globalAuthState = {
+        setState({
           user: null,
           loading: false,
           authenticated: false,
           error: data.error || '未登录',
-        };
+        });
       }
-      
-      setState(globalAuthState);
     } catch (error) {
-      globalAuthState = {
+      setState({
         user: null,
         loading: false,
         authenticated: false,
         error: '获取用户信息失败',
-      };
-      setState(globalAuthState);
+      });
     }
   }, []);
 
@@ -111,16 +94,13 @@ export function useAuth() {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
       
-      globalAuthState = {
+      setState({
         user: null,
         loading: false,
         authenticated: false,
         error: null,
-      };
+      });
       
-      setState(globalAuthState);
-      
-      // 清除定时器
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
@@ -134,18 +114,14 @@ export function useAuth() {
     }
   }, [router]);
 
-  // 初始化时获取用户信息（只执行一次）
+  // 初始化时获取用户信息
   useEffect(() => {
-    if (!mountedRef.current) {
-      mountedRef.current = true;
-      fetchUser();
-    }
+    fetchUser();
   }, [fetchUser]);
 
   // 设置自动登出检测
   useEffect(() => {
     if (!state.authenticated) {
-      // 未登录时清除定时器
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
@@ -153,7 +129,6 @@ export function useAuth() {
       return;
     }
 
-    // 更新最后活动时间
     lastActivityRef.current = Date.now();
 
     // 监听用户活动事件
@@ -169,21 +144,17 @@ export function useAuth() {
     // 启动定时检查
     timerRef.current = setInterval(() => {
       const now = Date.now();
-      const lastActivity = lastActivityRef.current;
-      const timeDiff = now - lastActivity;
+      const timeDiff = now - lastActivityRef.current;
       
       if (timeDiff >= AUTO_LOGOUT_TIME) {
-        console.log('Session timeout, logging out...');
         logout(true);
       }
     }, CHECK_INTERVAL);
 
     return () => {
-      // 清理事件监听
       events.forEach(event => {
         document.removeEventListener(event, handleActivity);
       });
-      // 清理定时器
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
@@ -193,12 +164,12 @@ export function useAuth() {
 
   return {
     ...state,
-    refetch: () => fetchUser(true),
+    refetch: fetchUser,
     logout,
   };
 }
 
-// 权限检查Hook - 接受 user 和 authenticated 参数，避免重复调用 useAuth
+// 权限检查Hook - 接受 user 和 authenticated 参数
 export function usePermission(user?: UserInfo | null, authenticated?: boolean) {
   
   // 检查是否有特定权限
@@ -208,8 +179,6 @@ export function usePermission(user?: UserInfo | null, authenticated?: boolean) {
     // 系统管理员拥有所有权限
     if (user.role.code === 'admin') return true;
     
-    // 这里可以根据实际的权限配置进行检查
-    // 目前使用简单的角色判断
     const rolePermissions: Record<string, string[]> = {
       dept_head: ['project:view', 'project:approve', 'data:view', 'data:export'],
       dept_staff: ['project:view', 'data:view'],
@@ -222,37 +191,18 @@ export function usePermission(user?: UserInfo | null, authenticated?: boolean) {
     return permissions.includes(permissionCode);
   }, [authenticated, user]);
   
-  // 检查是否是管理员
   const isAdmin = user?.role?.code === 'admin';
-  
-  // 检查是否是管理部门
   const isManagement = user?.department?.type === 'management';
-  
-  // 检查是否是学院
   const isCollege = user?.department?.type === 'college';
-  
-  // 检查是否可以审批项目
   const canApproveProject = hasPermission('project:approve');
-  
-  // 检查是否可以审核师资
   const canVerifyTeacher = hasPermission('teacher:verify');
-  
-  // 检查是否可以审批用户
   const canApproveUser = hasPermission('user:approve');
   
-  // 检查是否可以编辑项目（自己的项目）
   const canEditProject = useCallback((projectDepartmentId?: string, projectCreatedById?: string): boolean => {
     if (!authenticated || !user) return false;
-    
-    // 管理部门不能编辑项目，只能审批
     if (isManagement) return false;
-    
-    // 学院用户可以编辑自己部门的项目
     if (projectDepartmentId === user.department?.id) return true;
-    
-    // 项目创建者可以编辑
     if (projectCreatedById === user.id) return true;
-    
     return false;
   }, [authenticated, user, isManagement]);
   
