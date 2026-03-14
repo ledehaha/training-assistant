@@ -38,6 +38,10 @@ export default function LoginPage() {
       const data = await res.json();
       
       if (data.success) {
+        // 存储 session token 到 localStorage
+        if (data.sessionToken) {
+          localStorage.setItem('session_token', data.sessionToken);
+        }
         toast.success('登录成功', { description: `欢迎回来，${data.user.name}` });
         // 使用 window.location 进行完整页面刷新，确保 cookie 被正确读取
         window.location.href = '/';

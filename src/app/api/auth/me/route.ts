@@ -1,25 +1,60 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { db, users, roles, departments, ensureDatabaseReady } from '@/storage/database';
 import { eq } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 
 // GET /api/auth/me - 获取当前登录用户信息
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     await ensureDatabaseReady();
     
     const cookieStore = await cookies();
     const sessionCookie = cookieStore.get('session');
     
-    if (!sessionCookie) {
-      return NextResponse.json({ error: '未登录', authenticated: false }, { status: 401 });
+    // 调试日志
+    const host = request.headers.get('host') || 'localhost';
+    const forwardedHost = request.headers.get('x-forwarded-host');
+    const forwardedProto = request.headers.get('x-forwarded-proto');
+    const cookieHeader = request.headers.get('cookie');
+    const authHeader = request.headers.get('authorization');
+    
+    console.log('[/api/auth/me] Host:', host);
+    console.log('[/api/auth/me] Forwarded-Host:', forwardedHost);
+    console.log('[/api/auth/me] Forwarded-Proto:', forwardedProto);
+    console.log('[/api/auth/me] Request Cookie Header:', cookieHeader ? 'exists' : 'none');
+    console.log('[/api/auth/me] Session Cookie:', sessionCookie ? 'exists' : 'none');
+    console.log('[/api/auth/me] Authorization Header:', authHeader ? 'exists' : 'none');
+    
+    // 尝试从 Cookie 或 Authorization header 获取 session
+    let session = null;
+    
+    // 优先从 Cookie 获取
+    if (sessionCookie?.value) {
+      try {
+        session = JSON.parse(sessionCookie.value);
+        console.log('[/api/auth/me] Session from cookie:', session?.username);
+      } catch (e) {
+        console.log('[/api/auth/me] Failed to parse session cookie');
+      }
     }
     
-    let session;
-    try {
-      session = JSON.parse(sessionCookie.value);
-    } catch {
-      return NextResponse.json({ error: '会话无效', authenticated: false }, { status: 401 });
+    // 如果 Cookie 没有，尝试从 Authorization header 获取
+    if (!session && authHeader?.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.substring(7);
+        // 解码 token (base64 encoded session data)
+        const decoded = Buffer.from(token, 'base64').toString('utf-8');
+        session = JSON.parse(decoded);
+        console.log('[/api/auth/me] Session from token:', session?.username);
+      } catch (e) {
+        console.log('[/api/auth/me] Failed to parse token');
+      }
+    }
+    
+    // 如果还是没有 session，返回未登录
+    if (!session?.userId) {
+      console.log('[/api/auth/me] No valid session found');
+      return NextResponse.json({ error: '未登录', authenticated: false }, { status: 401 });
     }
     
     // 获取完整的用户信息

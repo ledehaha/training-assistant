@@ -2,11 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db, users, roles, departments, ensureDatabaseReady, generateId, getTimestamp } from '@/storage/database';
 import { eq } from 'drizzle-orm';
 import { cookies } from 'next/headers';
+import crypto from 'crypto';
 
 // 密码验证函数（测试阶段使用简单哈希）
 function verifyPassword(password: string, hash: string): boolean {
   const testHash = Buffer.from(`hash_${password}_salt`).toString('base64');
   return testHash === hash;
+}
+
+// 生成 session token
+function generateSessionToken(): string {
+  return crypto.randomBytes(32).toString('hex');
 }
 
 // POST /api/auth/login - 用户登录
@@ -75,17 +81,38 @@ export async function POST(request: NextRequest) {
       departmentName: department?.name,
     };
     
+    // 生成 session token (base64 encoded session data)
+    const sessionToken = Buffer.from(JSON.stringify(sessionData)).toString('base64');
+    
     const cookieStore = await cookies();
+    
+    // 获取请求的主机信息
+    const host = request.headers.get('host') || 'localhost';
+    const origin = request.headers.get('origin') || '';
+    const forwardedHost = request.headers.get('x-forwarded-host');
+    const forwardedProto = request.headers.get('x-forwarded-proto');
+    const cookieHeader = request.headers.get('cookie');
+    
+    console.log('[/api/auth/login] Host:', host);
+    console.log('[/api/auth/login] Origin:', origin);
+    console.log('[/api/auth/login] Forwarded-Host:', forwardedHost);
+    console.log('[/api/auth/login] Forwarded-Proto:', forwardedProto);
+    console.log('[/api/auth/login] Request Cookie:', cookieHeader || 'none');
+    
+    // 设置 session cookie（双重保障：Cookie + Token）
     cookieStore.set('session', JSON.stringify(sessionData), {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: forwardedProto === 'https',
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 7, // 7天
       path: '/',
     });
     
+    console.log('[/api/auth/login] Cookie set successfully');
+    
     return NextResponse.json({
       success: true,
+      sessionToken, // 返回 token 供前端存储
       user: {
         id: user.id,
         username: user.username,

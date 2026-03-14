@@ -45,8 +45,22 @@ export function useAuth() {
     console.log('[useAuth] fetchUser called');
     
     try {
+      // 从 localStorage 获取 session token
+      const sessionToken = typeof window !== 'undefined' ? localStorage.getItem('session_token') : null;
+      
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      
+      // 如果有 token，添加到 Authorization header
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`;
+        console.log('[useAuth] Using token from localStorage');
+      }
+      
       const res = await fetch('/api/auth/me', {
         credentials: 'include',
+        headers,
       });
       const data = await res.json();
       
@@ -59,6 +73,10 @@ export function useAuth() {
       } else {
         setUser(null);
         setAuthenticated(false);
+        // 清除无效的 token
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('session_token');
+        }
       }
     } catch (error) {
       console.error('[useAuth] Fetch user error:', error);
@@ -66,9 +84,9 @@ export function useAuth() {
       setAuthenticated(false);
     } finally {
       setLoading(false);
-      console.log('[useAuth] Loading set to false, authenticated:', !authenticated);
+      console.log('[useAuth] Loading set to false, authenticated:', authenticated);
     }
-  }, []);
+  }, [authenticated]);
 
   // 登出
   const logout = useCallback(async (redirectToLogin = true) => {
@@ -76,6 +94,11 @@ export function useAuth() {
       await fetch('/api/auth/logout', { method: 'POST' });
     } catch (error) {
       console.error('Logout error:', error);
+    }
+    
+    // 清除 localStorage 中的 token
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('session_token');
     }
     
     setUser(null);
