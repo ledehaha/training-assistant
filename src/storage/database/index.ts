@@ -91,7 +91,7 @@ const createTablesSQL = `
     password_hash TEXT NOT NULL,
     name TEXT NOT NULL,
     employee_id TEXT NOT NULL UNIQUE,
-    department_id TEXT NOT NULL,
+    department_id TEXT,
     role_id TEXT NOT NULL,
     phone TEXT,
     email TEXT,
