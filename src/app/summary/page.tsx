@@ -236,7 +236,7 @@ export default function SummaryPage() {
       {
         name: '满意度调查结果',
         uploaded: !!project.satisfactionSurveyFile,
-        required: true,
+        required: false, // 非必选
       },
       {
         name: '会签单',
@@ -1260,11 +1260,11 @@ export default function SummaryPage() {
             '.xls,.xlsx'
           )}
           {renderSingleFileUpload(
-            '满意度调查结果 *',
+            '满意度调查结果',
             'satisfaction',
             selectedProject.satisfactionSurveyFileName,
             selectedProject.satisfactionSurveyFile,
-            '上传满意度调查原始数据'
+            '上传满意度调查原始数据（非必传）'
           )}
         </div>
 

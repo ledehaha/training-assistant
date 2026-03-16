@@ -481,6 +481,8 @@ const migrationSQL = `
   ALTER TABLE projects ADD COLUMN declaration_file_name TEXT;
   ALTER TABLE projects ADD COLUMN student_list_file TEXT;
   ALTER TABLE projects ADD COLUMN student_list_name TEXT;
+  ALTER TABLE projects ADD COLUMN countersign_file TEXT;
+  ALTER TABLE projects ADD COLUMN countersign_file_name TEXT;
   ALTER TABLE projects ADD COLUMN other_materials TEXT;
   ALTER TABLE projects ADD COLUMN satisfaction_survey_file TEXT;
   ALTER TABLE projects ADD COLUMN satisfaction_survey_file_name TEXT;
@@ -556,6 +558,14 @@ async function doInitDatabase(): Promise<void> {
   // 执行迁移
   if (sqlite) {
     runMigrations(sqlite);
+  }
+  
+  // 清理错误的默认数据（会签单字段错误值）
+  try {
+    sqlite.run(`UPDATE projects SET countersign_file = NULL, countersign_file_name = NULL WHERE countersign_file = 'countersign_file'`);
+    console.log('Cleaned up invalid countersign_file data');
+  } catch (err) {
+    console.warn('Failed to clean countersign data:', err);
   }
   
   dbInstance = drizzle(sqlite, { schema });
@@ -880,6 +890,11 @@ export { eq, and, or, desc, asc, sql, inArray };
 
 // 导出 schema
 export * from './schema';
+
+// 获取原始 sqlite 实例（用于执行原始 SQL）
+export function getSqlite(): SqlJsDatabase | null {
+  return sqlite;
+}
 
 // 初始化数据库
 export async function initDatabase(): Promise<void> {

@@ -1,11 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, projects, projectCourses, eq, desc, sql, saveDatabaseImmediate, ensureDatabaseReady } from '@/storage/database';
+import { db, projects, projectCourses, eq, desc, sql, saveDatabaseImmediate, ensureDatabaseReady, getSqlite } from '@/storage/database';
 import { generateId, getTimestamp } from '@/storage/database';
+
+// 一次性数据清理标志
+let dataCleaned = false;
+
+// 清理错误的默认数据
+function cleanupInvalidData() {
+  if (dataCleaned) return;
+  
+  try {
+    const sqlite = getSqlite();
+    if (sqlite) {
+      // 先检查并添加缺失的列
+      try {
+        sqlite.run('ALTER TABLE projects ADD COLUMN countersign_file TEXT');
+        sqlite.run('ALTER TABLE projects ADD COLUMN countersign_file_name TEXT');
+      } catch {
+        // 列已存在，忽略错误
+      }
+      
+      // 清理会签单字段的错误默认值
+      sqlite.run(`UPDATE projects SET countersign_file = NULL, countersign_file_name = NULL WHERE countersign_file = 'countersign_file'`);
+      saveDatabaseImmediate();
+      console.log('Cleaned up invalid countersign_file data');
+    }
+    dataCleaned = true;
+  } catch (err) {
+    console.warn('Failed to clean countersign data:', err);
+    // 即使失败也标记为已尝试，避免重复报错
+    dataCleaned = true;
+  }
+}
 
 // GET /api/projects - 获取项目列表
 export async function GET(request: NextRequest) {
   try {
     await ensureDatabaseReady();
+    
+    // 清理错误数据
+    cleanupInvalidData();
     
     const searchParams = request.nextUrl.searchParams;
     const statusParam = searchParams.get('status');
