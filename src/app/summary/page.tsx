@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import MainLayout from '@/components/layout/main-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +15,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   ClipboardCheck,
   Upload,
@@ -36,6 +43,11 @@ import {
   Check,
   Clock,
   FolderOpen,
+  Calendar,
+  Filter,
+  PlayCircle,
+  FileCheck,
+  Inbox,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -77,6 +89,7 @@ interface Project {
   satisfactionSurveyFileName: string | null;
   // 总结报告
   summaryReport: string | null;
+  archivedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -87,11 +100,20 @@ interface FileInfo {
   uploadedAt: string;
 }
 
+// 状态映射
 const statusMap: Record<string, { label: string; color: string }> = {
   executing: { label: '执行中', color: 'bg-indigo-100 text-indigo-700' },
   completed: { label: '已完成', color: 'bg-emerald-100 text-emerald-700' },
   archived: { label: '已归档', color: 'bg-gray-100 text-gray-500' },
 };
+
+// 时间筛选选项
+const TIME_FILTERS = [
+  { value: 'all', label: '全部' },
+  { value: 'month', label: '当月' },
+  { value: 'quarter', label: '近三个月' },
+  { value: 'year', label: '近一年' },
+];
 
 // 步骤定义
 const STEPS = [
@@ -108,10 +130,12 @@ export default function SummaryPage() {
   const [currentStep, setCurrentStep] = useState(1);
   
   // 项目列表
-  const [pendingProjects, setPendingProjects] = useState<Project[]>([]);
-  const [archivedProjects, setArchivedProjects] = useState<Project[]>([]);
+  const [allProjects, setAllProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  // 时间筛选
+  const [timeFilter, setTimeFilter] = useState<string>('all');
   
   // 文件上传状态
   const [uploading, setUploading] = useState<string | null>(null);
@@ -136,52 +160,51 @@ export default function SummaryPage() {
   // 拖放状态
   const [dragActive, setDragActive] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadProjects();
-  }, []);
-
   // 加载项目列表
   const loadProjects = async () => {
-    setLoading(true);
     try {
-      // 加载待总结项目（执行中、已完成）
-      const pendingRes = await fetch('/api/projects?status=executing,completed');
-      const pendingData = await pendingRes.json();
-      if (pendingData.data) {
-        setPendingProjects(pendingData.data);
-      }
-      
-      // 加载已归档项目
-      const archivedRes = await fetch('/api/projects?status=archived');
-      const archivedData = await archivedRes.json();
-      if (archivedData.data) {
-        setArchivedProjects(archivedData.data);
+      setLoading(true);
+      const res = await fetch('/api/projects');
+      if (res.ok) {
+        const data = await res.json();
+        setAllProjects(data.projects || []);
       }
     } catch (error) {
-      console.error('Load projects error:', error);
+      console.error('加载项目失败:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  // 选择项目并进入下一步
-  const handleSelectProject = (project: Project) => {
-    setSelectedProject(project);
-    // 如果已有报告，加载报告
-    if (project.summaryReport) {
-      try {
-        const reportData = JSON.parse(project.summaryReport);
-        setSummaryReport(reportData.report || null);
-        setExtractedData(reportData.extractedData || {});
-      } catch {
-        setSummaryReport(null);
-        setExtractedData({});
-      }
-    } else {
-      setSummaryReport(null);
-      setExtractedData({});
+  useEffect(() => {
+    loadProjects();
+  }, []);
+
+  // 时间过滤函数
+  const filterByTime = (projects: Project[], filter: string): Project[] => {
+    if (filter === 'all') return projects;
+    
+    const now = new Date();
+    let startDate: Date;
+    
+    switch (filter) {
+      case 'month':
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        break;
+      case 'quarter':
+        startDate = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+        break;
+      case 'year':
+        startDate = new Date(now.getFullYear() - 1, now.getMonth(), 1);
+        break;
+      default:
+        return projects;
     }
-    setCurrentStep(2);
+    
+    return projects.filter(p => {
+      const projectDate = new Date(p.createdAt);
+      return projectDate >= startDate;
+    });
   };
 
   // 检查归档必要文件是否已上传
@@ -218,6 +241,70 @@ export default function SummaryPage() {
     const isComplete = missingFiles.length === 0;
     
     return { isComplete, missingFiles, requirements };
+  };
+
+  // 分类项目
+  const categorizedProjects = useMemo(() => {
+    const filtered = filterByTime(allProjects, timeFilter);
+    
+    // 执行中待总结
+    const executingProjects = filtered.filter(p => p.status === 'executing');
+    
+    // 已完成待归档
+    const completedProjects = filtered.filter(p => p.status === 'completed');
+    
+    // 已归档（满足条件）
+    const archivedComplete = filtered.filter(p => {
+      if (p.status !== 'archived') return false;
+      const { isComplete } = checkArchiveRequirements(p);
+      return isComplete;
+    });
+    
+    // 待补充（已标记归档但不满足条件）
+    const archivedIncomplete = filtered.filter(p => {
+      if (p.status !== 'archived') return false;
+      const { isComplete } = checkArchiveRequirements(p);
+      return !isComplete;
+    });
+    
+    return {
+      executingProjects,
+      completedProjects,
+      archivedComplete,
+      archivedIncomplete,
+      // 待总结 = 执行中 + 已完成
+      pendingProjects: [...executingProjects, ...completedProjects],
+      // 已归档（包含满足条件和不满足条件的）
+      archivedProjects: [...archivedComplete, ...archivedIncomplete],
+    };
+  }, [allProjects, timeFilter]);
+
+  // 统计数据
+  const stats = useMemo(() => ({
+    executing: categorizedProjects.executingProjects.length,
+    completed: categorizedProjects.completedProjects.length,
+    archivedComplete: categorizedProjects.archivedComplete.length,
+    archivedIncomplete: categorizedProjects.archivedIncomplete.length,
+  }), [categorizedProjects]);
+
+  // 选择项目并进入下一步
+  const handleSelectProject = (project: Project) => {
+    setSelectedProject(project);
+    // 如果已有报告，加载报告
+    if (project.summaryReport) {
+      try {
+        const reportData = JSON.parse(project.summaryReport);
+        setSummaryReport(reportData.report || null);
+        setExtractedData(reportData.extractedData || {});
+      } catch {
+        setSummaryReport(null);
+        setExtractedData({});
+      }
+    } else {
+      setSummaryReport(null);
+      setExtractedData({});
+    }
+    setCurrentStep(2);
   };
 
   // 计算上传进度
@@ -820,7 +907,49 @@ export default function SummaryPage() {
   // 渲染第一步：选择项目
   const renderStep1 = () => (
     <div className="space-y-6">
-      {/* 待总结项目 */}
+      {/* 时间筛选和统计概览 */}
+      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+        <div className="flex items-center gap-3">
+          <Filter className="w-4 h-4 text-gray-500" />
+          <Select value={timeFilter} onValueChange={setTimeFilter}>
+            <SelectTrigger className="w-[140px]">
+              <Calendar className="w-4 h-4 mr-2" />
+              <SelectValue placeholder="选择时间范围" />
+            </SelectTrigger>
+            <SelectContent>
+              {TIME_FILTERS.map(filter => (
+                <SelectItem key={filter.value} value={filter.value}>
+                  {filter.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        
+        {/* 统计概览 */}
+        <div className="flex flex-wrap gap-3">
+          <Badge variant="outline" className="px-3 py-1.5 text-sm">
+            <PlayCircle className="w-3.5 h-3.5 mr-1.5 text-indigo-600" />
+            执行中：{stats.executing}
+          </Badge>
+          <Badge variant="outline" className="px-3 py-1.5 text-sm">
+            <FileCheck className="w-3.5 h-3.5 mr-1.5 text-emerald-600" />
+            已完成待归档：{stats.completed}
+          </Badge>
+          <Badge variant="outline" className="px-3 py-1.5 text-sm">
+            <Archive className="w-3.5 h-3.5 mr-1.5 text-gray-600" />
+            已归档：{stats.archivedComplete}
+          </Badge>
+          {stats.archivedIncomplete > 0 && (
+            <Badge variant="outline" className="px-3 py-1.5 text-sm border-orange-300 text-orange-600">
+              <AlertCircle className="w-3.5 h-3.5 mr-1.5" />
+              待补充：{stats.archivedIncomplete}
+            </Badge>
+          )}
+        </div>
+      </div>
+
+      {/* 待总结项目（执行中 + 已完成） */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -829,7 +958,9 @@ export default function SummaryPage() {
                 <ClipboardCheck className="w-5 h-5" />
                 待总结项目
               </CardTitle>
-              <CardDescription>选择需要总结的项目，包括执行中和已完成的项目</CardDescription>
+              <CardDescription>
+                执行中待总结 ({stats.executing}) + 已完成待归档 ({stats.completed})
+              </CardDescription>
             </div>
             <Button
               variant="outline"
@@ -837,7 +968,7 @@ export default function SummaryPage() {
               onClick={() => setShowNewProjectDialog(true)}
             >
               <Plus className="w-4 h-4 mr-1" />
-              新建待总结项目
+              新建
             </Button>
           </div>
         </CardHeader>
@@ -847,9 +978,9 @@ export default function SummaryPage() {
               <Loader2 className="w-6 h-6 mx-auto animate-spin" />
               <p className="mt-2">加载中...</p>
             </div>
-          ) : pendingProjects.length === 0 ? (
+          ) : categorizedProjects.pendingProjects.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
-              <FolderOpen className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+              <Inbox className="w-12 h-12 mx-auto mb-2 text-gray-300" />
               <p>暂无待总结项目</p>
               <Button
                 variant="link"
@@ -861,48 +992,87 @@ export default function SummaryPage() {
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {/* 新建待总结项目卡片 */}
-              <Card
-                className="cursor-pointer border-2 border-dashed hover:border-blue-500 hover:bg-blue-50/50 transition-all"
-                onClick={() => setShowNewProjectDialog(true)}
-              >
-                <CardContent className="p-4 flex flex-col items-center justify-center min-h-[140px]">
-                  <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center mb-3">
-                    <Plus className="w-6 h-6 text-blue-600" />
+            <div className="space-y-4">
+              {/* 执行中项目 */}
+              {categorizedProjects.executingProjects.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                    <PlayCircle className="w-4 h-4 text-indigo-600" />
+                    执行中待总结
+                    <Badge variant="secondary" className="text-xs">{categorizedProjects.executingProjects.length}</Badge>
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                    {categorizedProjects.executingProjects.map((project) => (
+                      <Card
+                        key={project.id}
+                        className="cursor-pointer hover:border-indigo-500 hover:shadow-md transition-all"
+                        onClick={() => handleSelectProject(project)}
+                      >
+                        <CardContent className="p-3">
+                          <div className="flex items-start justify-between mb-1.5">
+                            <h5 className="font-medium text-gray-900 text-sm line-clamp-1">{project.name}</h5>
+                            <Badge className="bg-indigo-100 text-indigo-700 text-xs">执行中</Badge>
+                          </div>
+                          <div className="text-xs text-gray-500 space-y-0.5">
+                            <p>参训：{project.participantCount || '-'}人</p>
+                            {project.trainingDays && <p>天数：{project.trainingDays}天</p>}
+                          </div>
+                          <div className="mt-2">
+                            <div className="flex items-center justify-between text-xs text-gray-400 mb-0.5">
+                              <span>材料</span>
+                              <span>{getUploadProgress(project)}%</span>
+                            </div>
+                            <Progress value={getUploadProgress(project)} className="h-1" />
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
                   </div>
-                  <p className="font-medium text-gray-700">新建待总结项目</p>
-                  <p className="text-xs text-gray-500 mt-1">补录历史项目</p>
-                </CardContent>
-              </Card>
+                </div>
+              )}
               
-              {pendingProjects.map((project) => (
-                <Card
-                  key={project.id}
-                  className="cursor-pointer hover:border-blue-500 hover:shadow-md transition-all"
-                  onClick={() => handleSelectProject(project)}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between mb-2">
-                      <h4 className="font-medium text-gray-900 line-clamp-1">{project.name}</h4>
-                      <Badge className={statusMap[project.status]?.color}>
-                        {statusMap[project.status]?.label}
-                      </Badge>
-                    </div>
-                    <div className="space-y-1 text-sm text-gray-500">
-                      <p>参训人数：{project.participantCount || '-'}人</p>
-                      {project.trainingDays && <p>培训天数：{project.trainingDays}天</p>}
-                    </div>
-                    <div className="mt-3">
-                      <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-                        <span>材料上传进度</span>
-                        <span>{getUploadProgress(project)}%</span>
-                      </div>
-                      <Progress value={getUploadProgress(project)} className="h-1.5" />
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+              {/* 已完成项目 */}
+              {categorizedProjects.completedProjects.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                    <FileCheck className="w-4 h-4 text-emerald-600" />
+                    已完成待归档
+                    <Badge variant="secondary" className="text-xs">{categorizedProjects.completedProjects.length}</Badge>
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                    {categorizedProjects.completedProjects.map((project) => {
+                      const { isComplete } = checkArchiveRequirements(project);
+                      return (
+                        <Card
+                          key={project.id}
+                          className={`cursor-pointer hover:shadow-md transition-all ${isComplete ? 'hover:border-emerald-500' : 'border-orange-300 bg-orange-50'}`}
+                          onClick={() => handleSelectProject(project)}
+                        >
+                          <CardContent className="p-3">
+                            <div className="flex items-start justify-between mb-1.5">
+                              <h5 className="font-medium text-gray-900 text-sm line-clamp-1">{project.name}</h5>
+                              <Badge className={isComplete ? 'bg-emerald-100 text-emerald-700 text-xs' : 'bg-orange-100 text-orange-600 text-xs'}>
+                                {isComplete ? '可归档' : '待上传'}
+                              </Badge>
+                            </div>
+                            <div className="text-xs text-gray-500 space-y-0.5">
+                              <p>参训：{project.participantCount || '-'}人</p>
+                              {project.trainingDays && <p>天数：{project.trainingDays}天</p>}
+                            </div>
+                            <div className="mt-2">
+                              <div className="flex items-center justify-between text-xs text-gray-400 mb-0.5">
+                                <span>材料</span>
+                                <span>{getUploadProgress(project)}%</span>
+                              </div>
+                              <Progress value={getUploadProgress(project)} className="h-1" />
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
@@ -911,73 +1081,118 @@ export default function SummaryPage() {
       {/* 已归档项目 */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Archive className="w-5 h-5" />
-            已归档项目
-          </CardTitle>
-          <CardDescription>点击可查看详情或补充材料</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Archive className="w-5 h-5" />
+                已归档项目
+              </CardTitle>
+              <CardDescription>
+                已归档 ({stats.archivedComplete}) + 待补充 ({stats.archivedIncomplete})
+              </CardDescription>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="text-center py-4 text-gray-500">加载中...</div>
-          ) : archivedProjects.length === 0 ? (
+          ) : categorizedProjects.archivedProjects.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               <Archive className="w-12 h-12 mx-auto mb-2 text-gray-300" />
               <p>暂无已归档项目</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {archivedProjects.map((project) => {
-                const { isComplete, missingFiles } = checkArchiveRequirements(project);
-                return (
-                  <Card
-                    key={project.id}
-                    className={`cursor-pointer hover:border-blue-500 hover:shadow-md transition-all ${isComplete ? 'opacity-80 hover:opacity-100' : 'border-orange-300 bg-orange-50'}`}
-                    onClick={() => handleSelectProject(project)}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <h4 className="font-medium text-gray-900 line-clamp-1">{project.name}</h4>
-                        <Badge className={isComplete ? 'bg-gray-100 text-gray-500' : 'bg-orange-100 text-orange-600'}>
-                          {isComplete ? '已归档' : '待补充'}
-                        </Badge>
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        <p>参训人数：{project.participantCount || '-'}人</p>
-                      </div>
-                      {isComplete ? (
-                        <div className="mt-3 flex items-center gap-2 text-xs text-gray-400">
-                          <CheckCircle className="w-3 h-3" />
-                          <span>已完成总结</span>
-                        </div>
-                      ) : (
-                        <div className="mt-3">
-                          <div className="flex items-center gap-2 text-xs text-orange-600 mb-1">
-                            <AlertCircle className="w-3 h-3" />
-                            <span>缺少：{missingFiles.map(f => f.name).join('、')}</span>
+            <div className="space-y-4">
+              {/* 待补充项目（已标记归档但不满足条件） */}
+              {categorizedProjects.archivedIncomplete.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium text-orange-700 mb-2 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4" />
+                    待补充材料
+                    <Badge className="bg-orange-100 text-orange-600 text-xs">{categorizedProjects.archivedIncomplete.length}</Badge>
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                    {categorizedProjects.archivedIncomplete.map((project) => {
+                      const { missingFiles } = checkArchiveRequirements(project);
+                      return (
+                        <Card
+                          key={project.id}
+                          className="cursor-pointer border-orange-300 bg-orange-50 hover:shadow-md transition-all"
+                          onClick={() => handleSelectProject(project)}
+                        >
+                          <CardContent className="p-3">
+                            <div className="flex items-start justify-between mb-1.5">
+                              <h5 className="font-medium text-gray-900 text-sm line-clamp-1">{project.name}</h5>
+                              <Badge className="bg-orange-100 text-orange-600 text-xs">待补充</Badge>
+                            </div>
+                            <div className="text-xs text-gray-500 mb-2">
+                              <p className="text-orange-600">缺少：{missingFiles.slice(0, 2).map(f => f.name).join('、')}{missingFiles.length > 2 ? '...' : ''}</p>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex-1 text-xs"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSelectProject(project);
+                                }}
+                              >
+                                上传材料
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-xs text-gray-500"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleUnarchive(project);
+                                }}
+                              >
+                                取消归档
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              
+              {/* 已归档项目（满足条件） */}
+              {categorizedProjects.archivedComplete.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-gray-500" />
+                    已完成归档
+                    <Badge variant="secondary" className="text-xs">{categorizedProjects.archivedComplete.length}</Badge>
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                    {categorizedProjects.archivedComplete.map((project) => (
+                      <Card
+                        key={project.id}
+                        className="cursor-pointer hover:shadow-md transition-all opacity-80 hover:opacity-100"
+                        onClick={() => handleSelectProject(project)}
+                      >
+                        <CardContent className="p-3">
+                          <div className="flex items-start justify-between mb-1.5">
+                            <h5 className="font-medium text-gray-900 text-sm line-clamp-1">{project.name}</h5>
+                            <Badge className="bg-gray-100 text-gray-500 text-xs">已归档</Badge>
                           </div>
-                          <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-                            <span>材料上传进度</span>
-                            <span>{getUploadProgress(project)}%</span>
+                          <div className="text-xs text-gray-500">
+                            <p>参训：{project.participantCount || '-'}人</p>
                           </div>
-                          <Progress value={getUploadProgress(project)} className="h-1.5" />
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="w-full mt-2 text-xs"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleUnarchive(project);
-                            }}
-                          >
-                            取消归档，转为待总结
-                          </Button>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                );
-              })}
+                          <div className="mt-2 flex items-center gap-1 text-xs text-gray-400">
+                            <CheckCircle className="w-3 h-3" />
+                            <span>已完成总结</span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
