@@ -725,6 +725,79 @@ async function initializeSeedData(): Promise<void> {
     );
   }
   
+  // 7. 初始化师资示例数据
+  const teachers = [
+    { id: 'teacher_001', name: '张明远', title: '教授', expertise: '企业战略管理', organization: '清华大学经济管理学院', bio: '资深企业管理专家，曾为多家世界500强企业提供战略咨询', hourlyRate: 1000, rating: 4.9, teachingCount: 156, isVerified: 1, isActive: 1 },
+    { id: 'teacher_002', name: '李华', title: '副教授', expertise: '数字化转型', organization: '北京大学光华管理学院', bio: '数字化领域专家，专注企业数字化转型理论与实践', hourlyRate: 500, rating: 4.7, teachingCount: 89, isVerified: 1, isActive: 1 },
+    { id: 'teacher_003', name: '王芳', title: '高级工程师', expertise: '人工智能应用', organization: '华为技术有限公司', bio: 'AI技术专家，拥有丰富的企业AI落地实施经验', hourlyRate: 500, rating: 4.8, teachingCount: 67, isVerified: 1, isActive: 1 },
+    { id: 'teacher_004', name: '刘强', title: '正高级工程师', expertise: '新能源技术', organization: '比亚迪股份有限公司', bio: '新能源汽车技术专家，参与多项国家重点研发项目', hourlyRate: 1000, rating: 4.6, teachingCount: 45, isVerified: 1, isActive: 1 },
+    { id: 'teacher_005', name: '陈静', title: '副教授', expertise: '人力资源管理', organization: '中国人民大学劳动人事学院', bio: '人力资源领域知名学者，擅长组织发展与人才管理', hourlyRate: 500, rating: 4.8, teachingCount: 112, isVerified: 1, isActive: 1 },
+    { id: 'teacher_006', name: '赵伟', title: '高级经济师', expertise: '金融风险管理', organization: '中国建设银行总行', bio: '金融风险管理专家，具有丰富的银行风控实战经验', hourlyRate: 500, rating: 4.5, teachingCount: 78, isVerified: 1, isActive: 1 },
+    { id: 'teacher_007', name: '孙丽', title: '研究员', expertise: '创新创业管理', organization: '中国科学院大学', bio: '创新创业领域专家，孵化多个成功创业项目', hourlyRate: 1000, rating: 4.9, teachingCount: 134, isVerified: 1, isActive: 1 },
+    { id: 'teacher_008', name: '周军', title: '讲师', expertise: '安全生产管理', organization: '中国安全生产科学研究院', bio: '安全生产领域资深专家，主讲企业安全管理与应急处理', hourlyRate: 500, rating: 4.6, teachingCount: 98, isVerified: 0, isActive: 1 },
+  ];
+  
+  for (const teacher of teachers) {
+    sqlite.run(
+      `INSERT OR IGNORE INTO teachers (id, name, title, expertise, organization, bio, hourly_rate, rating, teaching_count, is_verified, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [teacher.id, teacher.name, teacher.title, teacher.expertise, teacher.organization, teacher.bio, teacher.hourlyRate, teacher.rating, teacher.teachingCount, teacher.isVerified, teacher.isActive, now]
+    );
+  }
+  
+  // 8. 初始化场地示例数据
+  const venues = [
+    { id: 'venue_001', name: '学术报告厅', location: '培训中心A栋1楼', capacity: 200, dailyRate: 2000, facilities: '投影仪、音响系统、演讲台、空调、WiFi', rating: 4.8, usageCount: 156, isActive: 1 },
+    { id: 'venue_002', name: '多媒体教室1', location: '培训中心B栋2楼', capacity: 50, dailyRate: 800, facilities: '投影仪、电脑、白板、空调、WiFi', rating: 4.6, usageCount: 234, isActive: 1 },
+    { id: 'venue_003', name: '多媒体教室2', location: '培训中心B栋2楼', capacity: 50, dailyRate: 800, facilities: '投影仪、电脑、白板、空调、WiFi', rating: 4.5, usageCount: 189, isActive: 1 },
+    { id: 'venue_004', name: '研讨室A', location: '培训中心C栋3楼', capacity: 20, dailyRate: 500, facilities: '投影仪、白板、空调、WiFi', rating: 4.7, usageCount: 312, isActive: 1 },
+    { id: 'venue_005', name: '研讨室B', location: '培训中心C栋3楼', capacity: 20, dailyRate: 500, facilities: '投影仪、白板、空调、WiFi', rating: 4.6, usageCount: 287, isActive: 1 },
+    { id: 'venue_006', name: '计算机实训室', location: '培训中心D栋1楼', capacity: 40, dailyRate: 1500, facilities: '电脑40台、投影仪、空调、WiFi', rating: 4.9, usageCount: 178, isActive: 1 },
+    { id: 'venue_007', name: '多功能厅', location: '培训中心A栋2楼', capacity: 100, dailyRate: 1500, facilities: '投影仪、音响系统、舞台、空调、WiFi', rating: 4.7, usageCount: 145, isActive: 1 },
+    { id: 'venue_008', name: 'VIP会议室', location: '培训中心A栋3楼', capacity: 15, dailyRate: 1000, facilities: '投影仪、会议桌、茶水服务、空调、WiFi', rating: 4.9, usageCount: 89, isActive: 1 },
+  ];
+  
+  for (const venue of venues) {
+    sqlite.run(
+      `INSERT OR IGNORE INTO venues (id, name, location, capacity, daily_rate, facilities, rating, usage_count, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [venue.id, venue.name, venue.location, venue.capacity, venue.dailyRate, venue.facilities, venue.rating, venue.usageCount, venue.isActive, now]
+    );
+  }
+  
+  // 9. 初始化课程模板示例数据
+  const courseTemplates = [
+    { id: 'course_tpl_001', name: '企业战略管理', category: '管理能力', duration: 16, description: '培养企业中高层管理者的战略思维能力，掌握战略分析工具、制定企业发展战略', targetAudience: '企业中高层管理者', difficulty: '高级', usageCount: 45, avgRating: 4.8, isActive: 1 },
+    { id: 'course_tpl_002', name: '数字化转型实务', category: '信息技术', duration: 12, description: '帮助企业理解并推进数字化转型，理解数字化转型理念、掌握实施路径', targetAudience: '企业管理者、IT负责人', difficulty: '中级', usageCount: 38, avgRating: 4.7, isActive: 1 },
+    { id: 'course_tpl_003', name: '人工智能应用入门', category: '信息技术', duration: 8, description: '了解AI技术原理及企业应用场景，理解AI基础概念、识别应用场景', targetAudience: '企业各层级员工', difficulty: '初级', usageCount: 56, avgRating: 4.6, isActive: 1 },
+    { id: 'course_tpl_004', name: '人力资源管理实务', category: '人力资源', duration: 12, description: '提升人力资源管理专业能力，掌握招聘、培训、绩效等核心模块', targetAudience: 'HR从业者、部门管理者', difficulty: '中级', usageCount: 42, avgRating: 4.7, isActive: 1 },
+    { id: 'course_tpl_005', name: '安全生产管理', category: '安全管理', duration: 8, description: '强化安全生产意识和管理能力，掌握安全生产法规、隐患排查方法', targetAudience: '安全管理人员、生产管理者', difficulty: '中级', usageCount: 67, avgRating: 4.5, isActive: 1 },
+    { id: 'course_tpl_006', name: '领导力提升', category: '管理能力', duration: 16, description: '培养卓越领导力和团队管理能力，提升领导艺术、团队激励能力', targetAudience: '中高层管理者', difficulty: '高级', usageCount: 34, avgRating: 4.9, isActive: 1 },
+    { id: 'course_tpl_007', name: '项目管理实战', category: '管理能力', duration: 12, description: '掌握项目管理方法论和工具，学会项目规划、执行、监控和收尾', targetAudience: '项目经理、业务骨干', difficulty: '中级', usageCount: 51, avgRating: 4.6, isActive: 1 },
+    { id: 'course_tpl_008', name: '创新创业思维', category: '创新创业', duration: 8, description: '培养创新创业意识和方法论，掌握创新方法、创业流程', targetAudience: '创业者、创新业务负责人', difficulty: '中级', usageCount: 29, avgRating: 4.7, isActive: 1 },
+  ];
+  
+  for (const template of courseTemplates) {
+    sqlite.run(
+      `INSERT OR IGNORE INTO course_templates (id, name, category, duration, description, target_audience, difficulty, usage_count, avg_rating, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [template.id, template.name, template.category, template.duration, template.description, template.targetAudience, template.difficulty, template.usageCount, template.avgRating, template.isActive, now]
+    );
+  }
+  
+  // 10. 初始化规范性文件示例数据
+  const normativeDocs = [
+    { id: 'norm_001', name: '《非学历教育培训管理办法》', issuer: '教务处', issueDate: '2024-01-01', effectiveDate: '2024-02-01', isEffective: 1, summary: '规范非学历教育培训项目的申报、审批、执行和总结流程' },
+    { id: 'norm_002', name: '《培训经费管理规定》', issuer: '财务处', issueDate: '2024-01-15', effectiveDate: '2024-02-15', isEffective: 1, summary: '明确培训经费的使用范围、审批流程和报销标准' },
+    { id: 'norm_003', name: '《师资聘用管理办法》', issuer: '人事处', issueDate: '2024-03-01', effectiveDate: '2024-04-01', isEffective: 1, summary: '规范外聘师资的选聘、考核和薪酬管理' },
+    { id: 'norm_004', name: '《安全生产培训规定》', issuer: '保卫处', issueDate: '2024-02-01', effectiveDate: '2024-03-01', isEffective: 1, summary: '安全生产培训的内容要求、学时标准和考核方式' },
+    { id: 'norm_005', name: '《培训场地管理规定》', issuer: '后勤服务中心', issueDate: '2024-01-20', effectiveDate: '2024-02-20', isEffective: 1, summary: '培训场地的预约、使用、维护和安全管理规范' },
+  ];
+  
+  for (const doc of normativeDocs) {
+    sqlite.run(
+      `INSERT OR IGNORE INTO normative_documents (id, name, issuer, issue_date, effective_date, is_effective, summary, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [doc.id, doc.name, doc.issuer, doc.issueDate, doc.effectiveDate, doc.isEffective, doc.summary, now]
+    );
+  }
+  
   console.log('Seed data initialized successfully');
 }
 
