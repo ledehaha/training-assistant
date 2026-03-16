@@ -961,6 +961,17 @@ export default function SummaryPage() {
                             <span>{getUploadProgress(project)}%</span>
                           </div>
                           <Progress value={getUploadProgress(project)} className="h-1.5" />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full mt-2 text-xs"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleUnarchive(project);
+                            }}
+                          >
+                            取消归档，转为待总结
+                          </Button>
                         </div>
                       )}
                     </CardContent>
@@ -973,6 +984,28 @@ export default function SummaryPage() {
       </Card>
     </div>
   );
+
+  // 取消归档（将项目状态改回 completed）
+  const handleUnarchive = async (project: Project) => {
+    try {
+      const res = await fetch(`/api/projects/${project.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'completed' }),
+      });
+
+      if (res.ok) {
+        toast.success('已取消归档', { description: '项目已转为待总结状态' });
+        loadProjects();
+      } else {
+        const data = await res.json();
+        throw new Error(data.error);
+      }
+    } catch (error) {
+      console.error('Unarchive error:', error);
+      toast.error('操作失败', { description: error instanceof Error ? error.message : '取消归档失败' });
+    }
+  };
 
   // 渲染第二步：上传材料
   const renderStep2 = () => {

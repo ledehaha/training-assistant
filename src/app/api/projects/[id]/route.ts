@@ -2,6 +2,39 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db, projects, projectCourses, projectDocuments, eq, asc, desc, saveDatabaseImmediate, ensureDatabaseReady } from '@/storage/database';
 import { generateId, getTimestamp } from '@/storage/database';
 
+// 检查项目是否满足归档条件
+function checkArchiveRequirements(project: Record<string, unknown>): { isComplete: boolean; missingFiles: string[] } {
+  const requirements = [
+    {
+      name: '合同文件',
+      uploaded: !!(project.contractFilePdf || project.contractFileWord),
+    },
+    {
+      name: '成本测算表',
+      uploaded: !!(project.costFilePdf || project.costFileWord),
+    },
+    {
+      name: '项目申报书',
+      uploaded: !!(project.declarationFilePdf || project.declarationFileWord),
+    },
+    {
+      name: '学员名单',
+      uploaded: !!project.studentListFile,
+    },
+    {
+      name: '满意度调查结果',
+      uploaded: !!project.satisfactionSurveyFile,
+    },
+  ];
+  
+  const missingFiles = requirements.filter(r => !r.uploaded).map(r => r.name);
+  
+  return {
+    isComplete: missingFiles.length === 0,
+    missingFiles,
+  };
+}
+
 // GET /api/projects/[id] - 获取项目详情
 export async function GET(
   request: NextRequest,
@@ -99,6 +132,16 @@ export async function PUT(
       surveyResponseRate: 'surveyResponseRate',
       completedAt: 'completedAt',
       archivedAt: 'archivedAt',
+      summaryReport: 'summaryReport',
+      // 文件字段映射
+      contractFilePdf: 'contractFilePdf',
+      contractFileWord: 'contractFileWord',
+      costFilePdf: 'costFilePdf',
+      costFileWord: 'costFileWord',
+      declarationFilePdf: 'declarationFilePdf',
+      declarationFileWord: 'declarationFileWord',
+      studentListFile: 'studentListFile',
+      satisfactionSurveyFile: 'satisfactionSurveyFile',
     };
 
     Object.entries(fieldMapping).forEach(([bodyKey, dbKey]) => {
@@ -106,6 +149,31 @@ export async function PUT(
         updateData[dbKey] = body[bodyKey];
       }
     });
+
+    // 归档验证：如果状态要变为 archived，检查是否满足归档条件
+    if (body.status === 'archived') {
+      // 获取当前项目信息
+      const currentProject = db
+        .select()
+        .from(projects)
+        .where(eq(projects.id, id))
+        .get();
+
+      if (currentProject) {
+        // 合并当前项目数据和新上传的文件数据
+        const projectToCheck = { ...currentProject, ...updateData };
+        const { isComplete, missingFiles } = checkArchiveRequirements(projectToCheck as Record<string, unknown>);
+        
+        if (!isComplete) {
+          return NextResponse.json({ 
+            error: `无法归档：缺少必要文件（${missingFiles.join('、')}），请先上传这些文件后再进行归档` 
+          }, { status: 400 });
+        }
+        
+        // 满足条件，设置归档时间
+        updateData.archivedAt = now;
+      }
+    }
 
     const result = db
       .update(projects)

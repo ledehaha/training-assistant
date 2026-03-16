@@ -27,6 +27,39 @@ function isValidTable(table: string): table is TableName {
   return table in tableMap;
 }
 
+// 检查项目是否满足归档条件
+function checkArchiveRequirements(project: Record<string, unknown>): { isComplete: boolean; missingFiles: string[] } {
+  const requirements = [
+    {
+      name: '合同文件',
+      uploaded: !!(project.contractFilePdf || project.contractFileWord),
+    },
+    {
+      name: '成本测算表',
+      uploaded: !!(project.costFilePdf || project.costFileWord),
+    },
+    {
+      name: '项目申报书',
+      uploaded: !!(project.declarationFilePdf || project.declarationFileWord),
+    },
+    {
+      name: '学员名单',
+      uploaded: !!project.studentListFile,
+    },
+    {
+      name: '满意度调查结果',
+      uploaded: !!project.satisfactionSurveyFile,
+    },
+  ];
+  
+  const missingFiles = requirements.filter(r => !r.uploaded).map(r => r.name);
+  
+  return {
+    isComplete: missingFiles.length === 0,
+    missingFiles,
+  };
+}
+
 // GET /api/admin/data - 查询数据
 export async function GET(request: NextRequest) {
   try {
@@ -128,6 +161,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // 归档验证：projects 表不能直接创建为 archived 状态
+    if (table === 'projects' && data.status === 'archived') {
+      const { isComplete, missingFiles } = checkArchiveRequirements(data);
+      if (!isComplete) {
+        return NextResponse.json({ 
+          error: `无法归档：缺少必要文件（${missingFiles.join('、')}），请先创建项目并上传文件后再进行归档` 
+        }, { status: 400 });
+      }
+    }
+
     // 准备插入数据，添加创建人信息
     const now = getTimestamp();
     const insertData = {
@@ -185,6 +228,28 @@ export async function PUT(request: NextRequest) {
 
     if (!data || typeof data !== 'object') {
       return NextResponse.json({ error: '无效的数据' }, { status: 400 });
+    }
+
+    // 归档验证：projects 表状态变为 archived 时检查文件
+    if (table === 'projects' && data.status === 'archived') {
+      // 获取当前项目信息
+      const currentProject = db
+        .select()
+        .from(projects)
+        .where(sql`id = ${id}`)
+        .get() as Record<string, unknown> | undefined;
+
+      if (currentProject) {
+        // 合并当前项目数据和新数据
+        const projectToCheck = { ...currentProject, ...data };
+        const { isComplete, missingFiles } = checkArchiveRequirements(projectToCheck);
+        
+        if (!isComplete) {
+          return NextResponse.json({ 
+            error: `无法归档：缺少必要文件（${missingFiles.join('、')}），请先上传这些文件后再进行归档` 
+          }, { status: 400 });
+        }
+      }
     }
 
     // 准备更新数据
