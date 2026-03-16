@@ -24,7 +24,7 @@ export default function LoginPage() {
     const checkAuth = async () => {
       try {
         const sessionToken = localStorage.getItem('session_token');
-        if (!sessionToken) {
+        if (!sessionToken || sessionToken.trim() === '') {
           setChecking(false);
           return;
         }
@@ -35,7 +35,22 @@ export default function LoginPage() {
           },
         });
         
-        const data = await res.json();
+        // 检查响应是否有效
+        const contentType = res.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          localStorage.removeItem('session_token');
+          setChecking(false);
+          return;
+        }
+        
+        const text = await res.text();
+        if (!text || text.trim() === '') {
+          localStorage.removeItem('session_token');
+          setChecking(false);
+          return;
+        }
+        
+        const data = JSON.parse(text);
         
         if (data.authenticated) {
           // 已登录，跳转到首页
@@ -47,6 +62,7 @@ export default function LoginPage() {
         }
       } catch (error) {
         console.error('Auth check error:', error);
+        localStorage.removeItem('session_token');
         setChecking(false);
       }
     };
@@ -71,7 +87,15 @@ export default function LoginPage() {
         body: JSON.stringify(formData),
       });
       
-      const data = await res.json();
+      // 安全解析 JSON
+      const text = await res.text();
+      if (!text || text.trim() === '') {
+        toast.error('登录失败', { description: '服务器响应异常' });
+        setLoading(false);
+        return;
+      }
+      
+      const data = JSON.parse(text);
       
       if (data.success) {
         // 存储 session token 到 localStorage

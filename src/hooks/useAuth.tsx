@@ -53,7 +53,7 @@ export function useAuth() {
       };
       
       // 如果有 token，添加到 Authorization header
-      if (sessionToken) {
+      if (sessionToken && sessionToken.trim() !== '') {
         headers['Authorization'] = `Bearer ${sessionToken}`;
         console.log('[useAuth] Using token from localStorage');
       }
@@ -62,7 +62,25 @@ export function useAuth() {
         credentials: 'include',
         headers,
       });
-      const data = await res.json();
+      
+      // 安全解析 JSON
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        console.log('[useAuth] Response is not JSON');
+        setUser(null);
+        setAuthenticated(false);
+        return;
+      }
+      
+      const text = await res.text();
+      if (!text || text.trim() === '') {
+        console.log('[useAuth] Empty response');
+        setUser(null);
+        setAuthenticated(false);
+        return;
+      }
+      
+      const data = JSON.parse(text);
       
       console.log('[useAuth] API response:', data);
       
