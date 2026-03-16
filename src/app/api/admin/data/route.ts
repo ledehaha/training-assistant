@@ -118,6 +118,16 @@ export async function POST(request: NextRequest) {
     console.log('[API /admin/data POST] data:', JSON.stringify(data, null, 2));
     console.log('[API /admin/data POST] currentUser:', currentUser?.userId);
 
+    // 对于 projects 表，检查必填字段
+    if (table === 'projects') {
+      if (!currentUser?.userId) {
+        return NextResponse.json({ error: '请先登录后再导入项目' }, { status: 401 });
+      }
+      if (!currentUser.departmentId) {
+        return NextResponse.json({ error: '您的账号未分配部门，请联系管理员' }, { status: 400 });
+      }
+    }
+
     // 准备插入数据，添加创建人信息
     const now = getTimestamp();
     const insertData = {
@@ -127,6 +137,11 @@ export async function POST(request: NextRequest) {
       ...(currentUser && {
         createdBy: currentUser.userId,
         createdByDepartment: currentUser.departmentId,
+        // projects 表的必填字段使用不同的字段名
+        ...(table === 'projects' && {
+          departmentId: currentUser.departmentId,
+          createdById: currentUser.userId,
+        }),
       }),
       createdAt: now,
     };
@@ -145,7 +160,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, data: result });
   } catch (error) {
     console.error('Create data error:', error);
-    return NextResponse.json({ error: '创建失败' }, { status: 500 });
+    // 返回更详细的错误信息
+    const errorMessage = error instanceof Error ? error.message : '创建失败';
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
 

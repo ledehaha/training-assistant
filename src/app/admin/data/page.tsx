@@ -553,9 +553,18 @@ export default function DataManagementPage() {
         id: currentItem?.id,
       };
 
+      // 获取认证 token
+      const sessionToken = typeof window !== 'undefined' ? localStorage.getItem('session_token') : null;
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`;
+      }
+
       const res = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(body),
       });
 
@@ -921,6 +930,15 @@ export default function DataManagementPage() {
       let failCount = 0;
       let skipCount = 0;
       let updateCount = 0;
+      
+      // 获取认证 token
+      const sessionToken = typeof window !== 'undefined' ? localStorage.getItem('session_token') : null;
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`;
+      }
 
       // 构建重复数据索引映射
       const duplicateMap = new Map<number, { existing: Record<string, unknown>; decision: 'skip' | 'update' | 'add' }>();
@@ -950,7 +968,7 @@ export default function DataManagementPage() {
           if (dupInfo && dupInfo.decision === 'update' && dupInfo.existing.id) {
             const res = await fetch('/api/admin/data', {
               method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
+              headers,
               body: JSON.stringify({
                 table: selectedTable.name,
                 id: dupInfo.existing.id,
@@ -969,7 +987,7 @@ export default function DataManagementPage() {
             // 新增数据
             const res = await fetch('/api/admin/data', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers,
               body: JSON.stringify({
                 table: selectedTable.name,
                 data: convertedData,
