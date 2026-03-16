@@ -15,33 +15,39 @@ function generateSessionToken(): string {
   return crypto.randomBytes(32).toString('hex');
 }
 
-// POST /api/auth/login - 用户登录
+// POST /api/auth/login - 用户登录（支持工号或用户名）
 export async function POST(request: NextRequest) {
   try {
     await ensureDatabaseReady();
     
     const body = await request.json();
-    const { username, password } = body;
+    const { username, employeeId, password } = body;
     
-    if (!username || !password) {
-      return NextResponse.json({ error: '请输入用户名和密码' }, { status: 400 });
+    // 支持工号或用户名登录
+    const loginId = employeeId || username;
+    
+    if (!loginId || !password) {
+      return NextResponse.json({ error: '请输入工号和密码' }, { status: 400 });
     }
     
-    // 查找用户
+    // 判断是工号还是用户名（工号是11位纯数字）
+    const isEmployeeId = /^\d{11}$/.test(loginId);
+    
+    // 查找用户（根据工号或用户名）
     const userList = await db.select()
       .from(users)
-      .where(eq(users.username, username))
+      .where(isEmployeeId ? eq(users.employeeId, loginId) : eq(users.username, loginId))
       .limit(1);
     
     if (userList.length === 0) {
-      return NextResponse.json({ error: '用户名或密码错误' }, { status: 401 });
+      return NextResponse.json({ error: '工号/用户名或密码错误' }, { status: 401 });
     }
     
     const user = userList[0];
     
     // 验证密码
     if (!verifyPassword(password, user.passwordHash)) {
-      return NextResponse.json({ error: '用户名或密码错误' }, { status: 401 });
+      return NextResponse.json({ error: '工号/用户名或密码错误' }, { status: 401 });
     }
     
     // 检查用户状态

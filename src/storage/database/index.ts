@@ -194,11 +194,14 @@ const createTablesSQL = `
     rating REAL DEFAULT 4.0,
     usage_count INTEGER DEFAULT 0,
     is_active INTEGER DEFAULT 1,
+    created_by TEXT,
+    created_by_department TEXT,
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT
   );
   CREATE INDEX IF NOT EXISTS venues_name_idx ON venues(name);
   CREATE INDEX IF NOT EXISTS venues_location_idx ON venues(location);
+  CREATE INDEX IF NOT EXISTS venues_created_by_department_idx ON venues(created_by_department);
   CREATE TABLE IF NOT EXISTS visit_sites (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -244,10 +247,13 @@ const createTablesSQL = `
     usage_count INTEGER DEFAULT 0,
     avg_rating REAL DEFAULT 4.0,
     is_active INTEGER DEFAULT 1,
+    created_by TEXT,
+    created_by_department TEXT,
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT
   );
   CREATE INDEX IF NOT EXISTS course_templates_category_idx ON course_templates(category);
+  CREATE INDEX IF NOT EXISTS course_templates_created_by_department_idx ON course_templates(created_by_department);
   CREATE TABLE IF NOT EXISTS normative_documents (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -260,10 +266,13 @@ const createTablesSQL = `
     file_name TEXT,
     file_size INTEGER,
     is_effective INTEGER DEFAULT 1,
+    created_by TEXT,
+    created_by_department TEXT,
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT
   );
   CREATE INDEX IF NOT EXISTS normative_documents_issuer_idx ON normative_documents(issuer);
+  CREATE INDEX IF NOT EXISTS normative_documents_created_by_department_idx ON normative_documents(created_by_department);
   CREATE TABLE IF NOT EXISTS projects (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,

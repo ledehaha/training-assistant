@@ -162,6 +162,9 @@ const TABLES_CONFIG = [
       { key: 'rating', label: '评分', type: 'number', editable: true },
       { key: 'teachingCount', label: '授课次数', type: 'number', editable: true },
       { key: 'isActive', label: '状态', type: 'boolean', editable: true },
+      { key: 'isVerified', label: '已审核', type: 'boolean', editable: false },
+      { key: 'createdBy', label: '添加人ID', type: 'text', editable: false },
+      { key: 'createdByDepartment', label: '添加部门ID', type: 'text', editable: false },
     ]
   },
   { 
@@ -178,6 +181,8 @@ const TABLES_CONFIG = [
       { key: 'rating', label: '评分', type: 'number', editable: true },
       { key: 'usageCount', label: '使用次数', type: 'number', editable: true },
       { key: 'isActive', label: '状态', type: 'boolean', editable: true },
+      { key: 'createdBy', label: '添加人ID', type: 'text', editable: false },
+      { key: 'createdByDepartment', label: '添加部门ID', type: 'text', editable: false },
     ]
   },
   { 
@@ -194,6 +199,8 @@ const TABLES_CONFIG = [
       { key: 'description', label: '描述', type: 'textarea', editable: true },
       { key: 'usageCount', label: '使用次数', type: 'number', editable: true },
       { key: 'avgRating', label: '平均评分', type: 'number', editable: true },
+      { key: 'createdBy', label: '添加人ID', type: 'text', editable: false },
+      { key: 'createdByDepartment', label: '添加部门ID', type: 'text', editable: false },
     ]
   },
   { 
@@ -208,6 +215,8 @@ const TABLES_CONFIG = [
       { key: 'issueDate', label: '颁发时间', type: 'date', editable: true },
       { key: 'fileUrl', label: '文件链接', type: 'text', editable: true },
       { key: 'isEffective', label: '是否有效', type: 'boolean', editable: true },
+      { key: 'createdBy', label: '添加人ID', type: 'text', editable: false },
+      { key: 'createdByDepartment', label: '添加部门ID', type: 'text', editable: false },
     ]
   },
   { 
@@ -277,6 +286,9 @@ const TABLES_CONFIG = [
       { key: 'rating', label: '评分', type: 'number', editable: true },
       { key: 'visitCount', label: '接待次数', type: 'number', editable: true },
       { key: 'isActive', label: '状态', type: 'boolean', editable: true },
+      { key: 'isVerified', label: '已审核', type: 'boolean', editable: false },
+      { key: 'createdBy', label: '添加人ID', type: 'text', editable: false },
+      { key: 'createdByDepartment', label: '添加部门ID', type: 'text', editable: false },
     ]
   },
   { 

@@ -15,7 +15,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
   const [formData, setFormData] = useState({
-    username: '',
+    employeeId: '',
     password: '',
   });
 
@@ -73,8 +73,8 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.username || !formData.password) {
-      toast.error('请输入用户名和密码');
+    if (!formData.employeeId || !formData.password) {
+      toast.error('请输入工号和密码');
       return;
     }
     
@@ -84,7 +84,7 @@ export default function LoginPage() {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ employeeId: formData.employeeId, password: formData.password }),
       });
       
       // 安全解析 JSON
@@ -138,14 +138,15 @@ export default function LoginPage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username">用户名</Label>
+              <Label htmlFor="employeeId">工号</Label>
               <Input
-                id="username"
+                id="employeeId"
                 type="text"
-                placeholder="请输入用户名"
-                value={formData.username}
-                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                placeholder="请输入工号（11位数字）"
+                value={formData.employeeId}
+                onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
                 disabled={loading}
+                maxLength={11}
               />
             </div>
             
@@ -185,7 +186,7 @@ export default function LoginPage() {
           
           <div className="mt-4 p-3 bg-blue-50 rounded-lg text-xs text-gray-600">
             <p className="font-medium mb-1">系统调试账号：</p>
-            <p>用户名：admin</p>
+            <p>工号：00000000001</p>
             <p>密码：123456</p>
             <p className="mt-1 text-gray-400">（该账号仅供开发调试使用）</p>
           </div>

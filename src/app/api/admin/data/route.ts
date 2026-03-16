@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { 
   db, teachers, venues, courseTemplates, normativeDocuments, 
   projects, projectCourses, satisfactionSurveys, visitSites,
@@ -85,15 +86,48 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '无效的数据' }, { status: 400 });
     }
 
+    // 获取当前用户信息（从 Authorization header 或 Cookie）
+    const authHeader = request.headers.get('authorization');
+    const cookieStore = await cookies();
+    const sessionCookie = cookieStore.get('session');
+    
+    let currentUser: { userId: string; departmentId?: string } | null = null;
+    
+    // 从 Authorization header 解析
+    if (authHeader?.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.substring(7);
+        const decoded = Buffer.from(token, 'base64').toString('utf-8');
+        currentUser = JSON.parse(decoded);
+      } catch (e) {
+        console.error('Failed to parse auth token:', e);
+      }
+    }
+    
+    // 或从 Cookie 解析
+    if (!currentUser && sessionCookie?.value) {
+      try {
+        currentUser = JSON.parse(sessionCookie.value);
+      } catch (e) {
+        console.error('Failed to parse session cookie:', e);
+      }
+    }
+
     // 调试日志
     console.log('[API /admin/data POST] table:', table);
     console.log('[API /admin/data POST] data:', JSON.stringify(data, null, 2));
+    console.log('[API /admin/data POST] currentUser:', currentUser?.userId);
 
-    // 准备插入数据
+    // 准备插入数据，添加创建人信息
     const now = getTimestamp();
     const insertData = {
       id: generateId(),
       ...data,
+      // 添加创建人信息（如果当前用户已登录）
+      ...(currentUser && {
+        createdBy: currentUser.userId,
+        createdByDepartment: currentUser.departmentId,
+      }),
       createdAt: now,
     };
 

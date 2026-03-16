@@ -214,12 +214,16 @@ export const venues = sqliteTable(
     rating: real('rating').default(4.0),
     usageCount: integer('usage_count').default(0),
     isActive: integer('is_active', { mode: 'boolean' }).default(true),
+    // 创建人信息
+    createdBy: text('created_by'), // 创建人ID
+    createdByDepartment: text('created_by_department'), // 创建人部门ID
     createdAt: text('created_at').default(sql`datetime('now')`).notNull(),
     updatedAt: text('updated_at'),
   },
   (table) => [
     index('venues_name_idx').on(table.name),
     index('venues_location_idx').on(table.location),
+    index('venues_created_by_department_idx').on(table.createdByDepartment),
   ]
 );
 
@@ -279,12 +283,16 @@ export const courseTemplates = sqliteTable(
     usageCount: integer('usage_count').default(0),
     avgRating: real('avg_rating').default(4.0),
     isActive: integer('is_active', { mode: 'boolean' }).default(true),
+    // 创建人信息
+    createdBy: text('created_by'), // 创建人ID
+    createdByDepartment: text('created_by_department'), // 创建人部门ID
     createdAt: text('created_at').default(sql`datetime('now')`).notNull(),
     updatedAt: text('updated_at'),
   },
   (table) => [
     index('course_templates_category_idx').on(table.category),
     index('course_templates_target_audience_idx').on(table.targetAudience),
+    index('course_templates_created_by_department_idx').on(table.createdByDepartment),
   ]
 );
 
@@ -303,12 +311,16 @@ export const normativeDocuments = sqliteTable(
     fileName: text('file_name'), // 原始文件名
     fileSize: integer('file_size'), // 文件大小（字节）
     isEffective: integer('is_effective', { mode: 'boolean' }).default(true),
+    // 创建人信息
+    createdBy: text('created_by'), // 创建人ID
+    createdByDepartment: text('created_by_department'), // 创建人部门ID
     createdAt: text('created_at').default(sql`datetime('now')`).notNull(),
     updatedAt: text('updated_at'),
   },
   (table) => [
     index('normative_documents_issuer_idx').on(table.issuer),
     index('normative_documents_is_effective_idx').on(table.isEffective),
+    index('normative_documents_created_by_department_idx').on(table.createdByDepartment),
   ]
 );
 
