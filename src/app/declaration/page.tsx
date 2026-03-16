@@ -80,13 +80,15 @@ export default function DeclarationPage() {
                   <CardTitle>待申报项目</CardTitle>
                   <CardDescription>选择需要申报的项目</CardDescription>
                 </div>
-                <Button 
-                  size="sm" 
-                  onClick={() => window.location.href = '/design'}
-                >
-                  <Plus className="w-4 h-4 mr-1" />
-                  新建项目
-                </Button>
+                {projects.length > 0 && (
+                  <Button 
+                    size="sm" 
+                    onClick={() => window.location.href = '/design'}
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    新建项目
+                  </Button>
+                )}
               </div>
             </CardHeader>
             <CardContent>
