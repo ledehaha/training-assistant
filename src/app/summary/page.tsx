@@ -184,20 +184,47 @@ export default function SummaryPage() {
     setCurrentStep(2);
   };
 
+  // 检查归档必要文件是否已上传
+  const checkArchiveRequirements = (project: Project) => {
+    const requirements = [
+      {
+        name: '合同文件',
+        uploaded: !!(project.contractFilePdf || project.contractFileWord),
+        required: true,
+      },
+      {
+        name: '成本测算表',
+        uploaded: !!(project.costFilePdf || project.costFileWord),
+        required: true,
+      },
+      {
+        name: '项目申报书',
+        uploaded: !!(project.declarationFilePdf || project.declarationFileWord),
+        required: true,
+      },
+      {
+        name: '学员名单',
+        uploaded: !!project.studentListFile,
+        required: true,
+      },
+      {
+        name: '满意度调查结果',
+        uploaded: !!project.satisfactionSurveyFile,
+        required: true,
+      },
+    ];
+    
+    const missingFiles = requirements.filter(r => r.required && !r.uploaded);
+    const isComplete = missingFiles.length === 0;
+    
+    return { isComplete, missingFiles, requirements };
+  };
+
   // 计算上传进度
   const getUploadProgress = (project: Project) => {
-    const files = [
-      project.contractFilePdf,
-      project.contractFileWord,
-      project.costFilePdf,
-      project.costFileWord,
-      project.declarationFilePdf,
-      project.declarationFileWord,
-      project.studentListFile,
-      project.satisfactionSurveyFile,
-    ];
-    const uploaded = files.filter((f) => f).length;
-    return Math.round((uploaded / files.length) * 100);
+    const { requirements } = checkArchiveRequirements(project);
+    const uploaded = requirements.filter(r => r.uploaded).length;
+    return Math.round((uploaded / requirements.length) * 100);
   };
 
   // 文件上传
@@ -410,6 +437,17 @@ export default function SummaryPage() {
   // 确认并下载
   const handleConfirmAndDownload = async () => {
     if (!selectedProject || !summaryReport) return;
+
+    // 检查归档条件
+    const { isComplete, missingFiles } = checkArchiveRequirements(selectedProject);
+    
+    if (!isComplete) {
+      const missingNames = missingFiles.map(f => f.name).join('、');
+      toast.error('无法归档', { 
+        description: `以下必要文件未上传：${missingNames}。请先上传这些文件后再进行归档。`
+      });
+      return;
+    }
 
     setSaving(true);
     try {
@@ -889,27 +927,46 @@ export default function SummaryPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {archivedProjects.map((project) => (
-                <Card
-                  key={project.id}
-                  className="cursor-pointer hover:border-blue-500 hover:shadow-md transition-all opacity-80 hover:opacity-100"
-                  onClick={() => handleSelectProject(project)}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between mb-2">
-                      <h4 className="font-medium text-gray-900 line-clamp-1">{project.name}</h4>
-                      <Badge className="bg-gray-100 text-gray-500">已归档</Badge>
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      <p>参训人数：{project.participantCount || '-'}人</p>
-                    </div>
-                    <div className="mt-3 flex items-center gap-2 text-xs text-gray-400">
-                      <CheckCircle className="w-3 h-3" />
-                      <span>已完成总结</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+              {archivedProjects.map((project) => {
+                const { isComplete, missingFiles } = checkArchiveRequirements(project);
+                return (
+                  <Card
+                    key={project.id}
+                    className={`cursor-pointer hover:border-blue-500 hover:shadow-md transition-all ${isComplete ? 'opacity-80 hover:opacity-100' : 'border-orange-300 bg-orange-50'}`}
+                    onClick={() => handleSelectProject(project)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <h4 className="font-medium text-gray-900 line-clamp-1">{project.name}</h4>
+                        <Badge className={isComplete ? 'bg-gray-100 text-gray-500' : 'bg-orange-100 text-orange-600'}>
+                          {isComplete ? '已归档' : '待补充'}
+                        </Badge>
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        <p>参训人数：{project.participantCount || '-'}人</p>
+                      </div>
+                      {isComplete ? (
+                        <div className="mt-3 flex items-center gap-2 text-xs text-gray-400">
+                          <CheckCircle className="w-3 h-3" />
+                          <span>已完成总结</span>
+                        </div>
+                      ) : (
+                        <div className="mt-3">
+                          <div className="flex items-center gap-2 text-xs text-orange-600 mb-1">
+                            <AlertCircle className="w-3 h-3" />
+                            <span>缺少：{missingFiles.map(f => f.name).join('、')}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+                            <span>材料上传进度</span>
+                            <span>{getUploadProgress(project)}%</span>
+                          </div>
+                          <Progress value={getUploadProgress(project)} className="h-1.5" />
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </CardContent>
