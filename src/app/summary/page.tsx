@@ -253,14 +253,14 @@ export default function SummaryPage() {
     // 已完成待归档
     const completedProjects = filtered.filter(p => p.status === 'completed');
     
-    // 已归档（满足条件）
+    // 已归档且满足条件（真正归档完成）
     const archivedComplete = filtered.filter(p => {
       if (p.status !== 'archived') return false;
       const { isComplete } = checkArchiveRequirements(p);
       return isComplete;
     });
     
-    // 待补充（已标记归档但不满足条件）
+    // 已标记归档但不满足条件（需要补充材料，归类为待总结）
     const archivedIncomplete = filtered.filter(p => {
       if (p.status !== 'archived') return false;
       const { isComplete } = checkArchiveRequirements(p);
@@ -272,10 +272,10 @@ export default function SummaryPage() {
       completedProjects,
       archivedComplete,
       archivedIncomplete,
-      // 待总结 = 执行中 + 已完成
-      pendingProjects: [...executingProjects, ...completedProjects],
-      // 已归档（包含满足条件和不满足条件的）
-      archivedProjects: [...archivedComplete, ...archivedIncomplete],
+      // 待总结 = 执行中 + 已完成 + 待补充材料（不满足归档条件）
+      pendingProjects: [...executingProjects, ...completedProjects, ...archivedIncomplete],
+      // 已归档 = 只有满足条件的才算真正归档
+      archivedProjects: archivedComplete,
     };
   }, [allProjects, timeFilter]);
 
@@ -934,11 +934,7 @@ export default function SummaryPage() {
           </Badge>
           <Badge variant="outline" className="px-3 py-1.5 text-sm">
             <FileCheck className="w-3.5 h-3.5 mr-1.5 text-emerald-600" />
-            已完成待归档：{stats.completed}
-          </Badge>
-          <Badge variant="outline" className="px-3 py-1.5 text-sm">
-            <Archive className="w-3.5 h-3.5 mr-1.5 text-gray-600" />
-            已归档：{stats.archivedComplete}
+            已完成：{stats.completed}
           </Badge>
           {stats.archivedIncomplete > 0 && (
             <Badge variant="outline" className="px-3 py-1.5 text-sm border-orange-300 text-orange-600">
@@ -946,10 +942,14 @@ export default function SummaryPage() {
               待补充：{stats.archivedIncomplete}
             </Badge>
           )}
+          <Badge variant="outline" className="px-3 py-1.5 text-sm">
+            <Archive className="w-3.5 h-3.5 mr-1.5 text-gray-600" />
+            已归档：{stats.archivedComplete}
+          </Badge>
         </div>
       </div>
 
-      {/* 待总结项目（执行中 + 已完成） */}
+      {/* 待总结项目（执行中 + 已完成 + 待补充材料） */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -959,7 +959,7 @@ export default function SummaryPage() {
                 待总结项目
               </CardTitle>
               <CardDescription>
-                执行中待总结 ({stats.executing}) + 已完成待归档 ({stats.completed})
+                执行中 ({stats.executing}) + 已完成 ({stats.completed}) + 待补充 ({stats.archivedIncomplete})
               </CardDescription>
             </div>
             <Button
@@ -1086,37 +1086,8 @@ export default function SummaryPage() {
                   </div>
                 </div>
               )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* 已归档项目 */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Archive className="w-5 h-5" />
-                已归档项目
-              </CardTitle>
-              <CardDescription>
-                已归档 ({stats.archivedComplete}) + 待补充 ({stats.archivedIncomplete})
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="text-center py-4 text-gray-500">加载中...</div>
-          ) : categorizedProjects.archivedProjects.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <Archive className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-              <p>暂无已归档项目</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {/* 待补充项目（已标记归档但不满足条件） */}
+              
+              {/* 待补充材料（已标记归档但不满足条件） */}
               {categorizedProjects.archivedIncomplete.length > 0 && (
                 <div>
                   <h4 className="text-sm font-medium text-orange-700 mb-2 flex items-center gap-2">
@@ -1172,17 +1143,43 @@ export default function SummaryPage() {
                   </div>
                 </div>
               )}
-              
-              {/* 已归档项目（满足条件） */}
-              {categorizedProjects.archivedComplete.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-gray-500" />
-                    已完成归档
-                    <Badge variant="secondary" className="text-xs">{categorizedProjects.archivedComplete.length}</Badge>
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                    {categorizedProjects.archivedComplete.map((project) => (
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 已归档项目（只有满足条件的才显示） */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Archive className="w-5 h-5" />
+                已归档项目
+              </CardTitle>
+              <CardDescription>
+                已完成归档 ({stats.archivedComplete})
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="text-center py-4 text-gray-500">加载中...</div>
+          ) : categorizedProjects.archivedProjects.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <Archive className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+              <p>暂无已归档项目</p>
+            </div>
+          ) : (
+            <div>
+              <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-gray-500" />
+                已完成归档
+                <Badge variant="secondary" className="text-xs">{categorizedProjects.archivedProjects.length}</Badge>
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                {categorizedProjects.archivedProjects.map((project) => (
                       <Card
                         key={project.id}
                         className="cursor-pointer hover:shadow-md transition-all opacity-80 hover:opacity-100"
@@ -1204,8 +1201,6 @@ export default function SummaryPage() {
                       </Card>
                     ))}
                   </div>
-                </div>
-              )}
             </div>
           )}
         </CardContent>
