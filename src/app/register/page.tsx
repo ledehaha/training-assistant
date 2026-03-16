@@ -147,6 +147,12 @@ export default function RegisterPage() {
                   placeholder="如：0000001"
                   value={formData.employeeId}
                   onChange={(e) => setFormData({ ...formData, employeeId: e.target.value.replace(/\D/g, '') })}
+                  onBlur={(e) => {
+                    const value = e.target.value.replace(/\D/g, '');
+                    if (value) {
+                      setFormData({ ...formData, employeeId: value.padStart(11, '0') });
+                    }
+                  }}
                   disabled={loading}
                   maxLength={11}
                 />

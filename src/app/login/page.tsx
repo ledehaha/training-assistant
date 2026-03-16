@@ -154,6 +154,12 @@ export default function LoginPage() {
                 placeholder="请输入工号（如：0000001）"
                 value={formData.employeeId}
                 onChange={(e) => setFormData({ ...formData, employeeId: e.target.value.replace(/\D/g, '') })}
+                onBlur={(e) => {
+                  const value = e.target.value.replace(/\D/g, '');
+                  if (value) {
+                    setFormData({ ...formData, employeeId: value.padStart(11, '0') });
+                  }
+                }}
                 disabled={loading}
                 maxLength={11}
               />
