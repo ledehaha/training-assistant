@@ -250,32 +250,29 @@ export default function SummaryPage() {
     // 执行中待总结
     const executingProjects = filtered.filter(p => p.status === 'executing');
     
-    // 已完成待归档
-    const completedProjects = filtered.filter(p => p.status === 'completed');
+    // 已完成待归档（包括 status=completed 和 status=archived 但缺少文件的）
+    const completedProjects = filtered.filter(p => {
+      if (p.status === 'completed') return true;
+      if (p.status === 'archived') {
+        const { isComplete } = checkArchiveRequirements(p);
+        return !isComplete; // 缺少文件的归入待归档
+      }
+      return false;
+    });
     
-    // 已归档且满足条件（真正归档完成）
-    const archivedComplete = filtered.filter(p => {
+    // 已归档（满足条件，真正归档完成）
+    const archivedProjects = filtered.filter(p => {
       if (p.status !== 'archived') return false;
       const { isComplete } = checkArchiveRequirements(p);
       return isComplete;
     });
     
-    // 已标记归档但不满足条件（需要补充材料，归类为待总结）
-    const archivedIncomplete = filtered.filter(p => {
-      if (p.status !== 'archived') return false;
-      const { isComplete } = checkArchiveRequirements(p);
-      return !isComplete;
-    });
-    
     return {
       executingProjects,
       completedProjects,
-      archivedComplete,
-      archivedIncomplete,
-      // 待总结 = 执行中 + 已完成 + 待补充材料（不满足归档条件）
-      pendingProjects: [...executingProjects, ...completedProjects, ...archivedIncomplete],
-      // 已归档 = 只有满足条件的才算真正归档
-      archivedProjects: archivedComplete,
+      archivedProjects,
+      // 待总结 = 执行中 + 已完成待归档
+      pendingProjects: [...executingProjects, ...completedProjects],
     };
   }, [allProjects, timeFilter]);
 
@@ -283,8 +280,7 @@ export default function SummaryPage() {
   const stats = useMemo(() => ({
     executing: categorizedProjects.executingProjects.length,
     completed: categorizedProjects.completedProjects.length,
-    archivedComplete: categorizedProjects.archivedComplete.length,
-    archivedIncomplete: categorizedProjects.archivedIncomplete.length,
+    archived: categorizedProjects.archivedProjects.length,
   }), [categorizedProjects]);
 
   // 选择项目并进入下一步
@@ -934,22 +930,16 @@ export default function SummaryPage() {
           </Badge>
           <Badge variant="outline" className="px-3 py-1.5 text-sm">
             <FileCheck className="w-3.5 h-3.5 mr-1.5 text-emerald-600" />
-            已完成：{stats.completed}
+            已完成待归档：{stats.completed}
           </Badge>
-          {stats.archivedIncomplete > 0 && (
-            <Badge variant="outline" className="px-3 py-1.5 text-sm border-orange-300 text-orange-600">
-              <AlertCircle className="w-3.5 h-3.5 mr-1.5" />
-              待补充：{stats.archivedIncomplete}
-            </Badge>
-          )}
           <Badge variant="outline" className="px-3 py-1.5 text-sm">
             <Archive className="w-3.5 h-3.5 mr-1.5 text-gray-600" />
-            已归档：{stats.archivedComplete}
+            已归档：{stats.archived}
           </Badge>
         </div>
       </div>
 
-      {/* 待总结项目（执行中 + 已完成 + 待补充材料） */}
+      {/* 待总结项目（执行中 + 已完成待归档） */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -959,7 +949,7 @@ export default function SummaryPage() {
                 待总结项目
               </CardTitle>
               <CardDescription>
-                执行中 ({stats.executing}) + 已完成 ({stats.completed}) + 待补充 ({stats.archivedIncomplete})
+                执行中 ({stats.executing}) + 已完成待归档 ({stats.completed})
               </CardDescription>
             </div>
             <Button
@@ -1086,63 +1076,6 @@ export default function SummaryPage() {
                   </div>
                 </div>
               )}
-              
-              {/* 待补充材料（已标记归档但不满足条件） */}
-              {categorizedProjects.archivedIncomplete.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-medium text-orange-700 mb-2 flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4" />
-                    待补充材料
-                    <Badge className="bg-orange-100 text-orange-600 text-xs">{categorizedProjects.archivedIncomplete.length}</Badge>
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                    {categorizedProjects.archivedIncomplete.map((project) => {
-                      const { missingFiles } = checkArchiveRequirements(project);
-                      return (
-                        <Card
-                          key={project.id}
-                          className="cursor-pointer border-orange-300 bg-orange-50 hover:shadow-md transition-all"
-                          onClick={() => handleSelectProject(project)}
-                        >
-                          <CardContent className="p-3">
-                            <div className="flex items-start justify-between mb-1.5">
-                              <h5 className="font-medium text-gray-900 text-sm line-clamp-1">{project.name}</h5>
-                              <Badge className="bg-orange-100 text-orange-600 text-xs">待补充</Badge>
-                            </div>
-                            <div className="text-xs text-gray-500 mb-2">
-                              <p className="text-orange-600">缺少：{missingFiles.slice(0, 2).map(f => f.name).join('、')}{missingFiles.length > 2 ? '...' : ''}</p>
-                            </div>
-                            <div className="flex gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="flex-1 text-xs"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleSelectProject(project);
-                                }}
-                              >
-                                上传材料
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-xs text-gray-500"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleUnarchive(project);
-                                }}
-                              >
-                                取消归档
-                              </Button>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </CardContent>
@@ -1158,7 +1091,7 @@ export default function SummaryPage() {
                 已归档项目
               </CardTitle>
               <CardDescription>
-                已完成归档 ({stats.archivedComplete})
+                已完成归档 ({stats.archived})
               </CardDescription>
             </div>
           </div>
@@ -1172,35 +1105,28 @@ export default function SummaryPage() {
               <p>暂无已归档项目</p>
             </div>
           ) : (
-            <div>
-              <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-gray-500" />
-                已完成归档
-                <Badge variant="secondary" className="text-xs">{categorizedProjects.archivedProjects.length}</Badge>
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                {categorizedProjects.archivedProjects.map((project) => (
-                      <Card
-                        key={project.id}
-                        className="cursor-pointer hover:shadow-md transition-all opacity-80 hover:opacity-100"
-                        onClick={() => handleSelectProject(project)}
-                      >
-                        <CardContent className="p-3">
-                          <div className="flex items-start justify-between mb-1.5">
-                            <h5 className="font-medium text-gray-900 text-sm line-clamp-1">{project.name}</h5>
-                            <Badge className="bg-gray-100 text-gray-500 text-xs">已归档</Badge>
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            <p>参训：{project.participantCount || '-'}人</p>
-                          </div>
-                          <div className="mt-2 flex items-center gap-1 text-xs text-gray-400">
-                            <CheckCircle className="w-3 h-3" />
-                            <span>已完成总结</span>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+              {categorizedProjects.archivedProjects.map((project) => (
+                <Card
+                  key={project.id}
+                  className="cursor-pointer hover:shadow-md transition-all opacity-80 hover:opacity-100"
+                  onClick={() => handleSelectProject(project)}
+                >
+                  <CardContent className="p-3">
+                    <div className="flex items-start justify-between mb-1.5">
+                      <h5 className="font-medium text-gray-900 text-sm line-clamp-1">{project.name}</h5>
+                      <Badge className="bg-gray-100 text-gray-500 text-xs">已归档</Badge>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      <p>参训：{project.participantCount || '-'}人</p>
+                    </div>
+                    <div className="mt-2 flex items-center gap-1 text-xs text-gray-400">
+                      <CheckCircle className="w-3 h-3" />
+                      <span>已完成总结</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           )}
         </CardContent>
