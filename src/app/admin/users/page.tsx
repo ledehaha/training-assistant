@@ -86,7 +86,18 @@ export default function UserManagementPage() {
       if (status) {
         url += `?status=${status}`;
       }
-      const res = await fetch(url, { credentials: 'include' });
+      
+      // 从 localStorage 获取 session token
+      const sessionToken = localStorage.getItem('session_token');
+      const headers: Record<string, string> = {};
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`;
+      }
+      
+      const res = await fetch(url, { 
+        credentials: 'include',
+        headers,
+      });
       const data = await res.json();
       
       if (data.data) {
@@ -105,7 +116,16 @@ export default function UserManagementPage() {
   // 加载角色列表
   const loadRoles = async () => {
     try {
-      const res = await fetch('/api/roles', { credentials: 'include' });
+      const sessionToken = localStorage.getItem('session_token');
+      const headers: Record<string, string> = {};
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`;
+      }
+      
+      const res = await fetch('/api/roles', { 
+        credentials: 'include',
+        headers,
+      });
       const data = await res.json();
       if (data.data) {
         setRoles(data.data);
@@ -161,9 +181,15 @@ export default function UserManagementPage() {
     
     setApproving(true);
     try {
+      const sessionToken = localStorage.getItem('session_token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`;
+      }
+      
       const res = await fetch('/api/users', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         credentials: 'include',
         body: JSON.stringify({
           userId: selectedUser.id,
@@ -192,9 +218,15 @@ export default function UserManagementPage() {
   // 快速审批
   const handleQuickAction = async (userId: string, action: 'approve' | 'reject' | 'disable' | 'enable') => {
     try {
+      const sessionToken = localStorage.getItem('session_token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`;
+      }
+      
       const res = await fetch('/api/users', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         credentials: 'include',
         body: JSON.stringify({ userId, action }),
       });
