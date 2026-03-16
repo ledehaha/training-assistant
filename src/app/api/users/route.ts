@@ -3,18 +3,35 @@ import { db, users, roles, departments, ensureDatabaseReady, getTimestamp } from
 import { eq, desc, sql } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 
-// 获取当前用户信息
-async function getCurrentUser() {
+// 获取当前用户信息（支持 Cookie 和 Authorization header）
+async function getCurrentUser(request?: NextRequest) {
   const cookieStore = await cookies();
   const sessionCookie = cookieStore.get('session');
   
-  if (!sessionCookie) return null;
-  
-  try {
-    return JSON.parse(sessionCookie.value);
-  } catch {
-    return null;
+  // 优先从 Cookie 获取
+  if (sessionCookie?.value) {
+    try {
+      return JSON.parse(sessionCookie.value);
+    } catch {
+      // 继续尝试其他方式
+    }
   }
+  
+  // 尝试从 Authorization header 获取
+  if (request) {
+    const authHeader = request.headers.get('authorization');
+    if (authHeader?.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.substring(7);
+        const decoded = Buffer.from(token, 'base64').toString('utf-8');
+        return JSON.parse(decoded);
+      } catch {
+        // 解析失败
+      }
+    }
+  }
+  
+  return null;
 }
 
 // 检查是否有用户审批权限
@@ -27,7 +44,7 @@ export async function GET(request: NextRequest) {
   try {
     await ensureDatabaseReady();
     
-    const currentUser = await getCurrentUser();
+    const currentUser = await getCurrentUser(request);
     if (!currentUser) {
       return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
@@ -91,7 +108,7 @@ export async function PUT(request: NextRequest) {
   try {
     await ensureDatabaseReady();
     
-    const currentUser = await getCurrentUser();
+    const currentUser = await getCurrentUser(request);
     if (!currentUser) {
       return NextResponse.json({ error: '未登录' }, { status: 401 });
     }

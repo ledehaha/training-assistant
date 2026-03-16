@@ -548,6 +548,9 @@ async function doInitDatabase(): Promise<void> {
     console.log('Created new database');
   }
   
+  // 包装 sqlite 以在写操作后自动保存
+  sqlite = wrapSqliteWithAutoSave(sqlite);
+  
   sqlite.run(createTablesSQL);
   
   // 执行迁移
@@ -826,8 +829,39 @@ export function getDb() {
   return dbInstance;
 }
 
+// 包装 sqlite 数据库以在每次写操作后自动保存
+function wrapSqliteWithAutoSave(db: SqlJsDatabase): SqlJsDatabase {
+  // 保存原始方法的引用
+  const originalRun = db.run;
+  const originalExec = db.exec;
+  
+  // 重写 run 方法，在执行后自动保存
+  Object.defineProperty(db, 'run', {
+    value: function(sql: string, params?: Parameters<typeof originalRun>[1]) {
+      const result = originalRun.call(db, sql, params);
+      debouncedSave();
+      return result;
+    },
+    writable: true,
+    configurable: true
+  });
+  
+  // 重写 exec 方法，在执行后自动保存
+  // 注意：exec 也用于查询，但我们无法区分，所以都会保存
+  Object.defineProperty(db, 'exec', {
+    value: function(sql: string, params?: Parameters<typeof originalExec>[1]) {
+      const result = originalExec.call(db, sql, params);
+      debouncedSave();
+      return result;
+    },
+    writable: true,
+    configurable: true
+  });
+  
+  return db;
+}
+
 // 导出 db - 使用 getter 来延迟访问
-let _db: ReturnType<typeof drizzle<typeof schema>> | null = null;
 export const db = new Proxy({} as ReturnType<typeof drizzle<typeof schema>>, {
   get(_target, prop) {
     // 如果还没初始化，尝试自动初始化（仅返回一个占位符）
