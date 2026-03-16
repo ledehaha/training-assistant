@@ -30,7 +30,6 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [formData, setFormData] = useState({
-    username: '',
     password: '',
     confirmPassword: '',
     name: '',
@@ -62,7 +61,7 @@ export default function RegisterPage() {
     e.preventDefault();
     
     // 验证
-    if (!formData.username || !formData.password || !formData.name || !formData.employeeId || !formData.departmentId) {
+    if (!formData.password || !formData.name || !formData.employeeId || !formData.departmentId) {
       toast.error('请填写必填信息');
       return;
     }
@@ -72,8 +71,9 @@ export default function RegisterPage() {
       return;
     }
     
-    if (!/^\d{11}$/.test(formData.employeeId)) {
-      toast.error('工号必须是11位纯数字');
+    // 工号验证：必须是数字，不足11位自动补0
+    if (!/^\d+$/.test(formData.employeeId)) {
+      toast.error('工号必须是纯数字');
       return;
     }
     
@@ -82,6 +82,9 @@ export default function RegisterPage() {
       return;
     }
     
+    // 工号补0到11位
+    const paddedEmployeeId = formData.employeeId.padStart(11, '0');
+    
     setLoading(true);
     
     try {
@@ -89,10 +92,10 @@ export default function RegisterPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          username: formData.username,
+          username: paddedEmployeeId, // 工号作为用户名
           password: formData.password,
           name: formData.name,
-          employeeId: formData.employeeId,
+          employeeId: paddedEmployeeId,
           departmentId: formData.departmentId,
           phone: formData.phone || undefined,
           email: formData.email || undefined,
@@ -125,18 +128,6 @@ export default function RegisterPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="username">用户名 *</Label>
-                <Input
-                  id="username"
-                  type="text"
-                  placeholder="登录用户名"
-                  value={formData.username}
-                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                  disabled={loading}
-                />
-              </div>
-              
-              <div className="space-y-2">
                 <Label htmlFor="name">姓名 *</Label>
                 <Input
                   id="name"
@@ -147,20 +138,20 @@ export default function RegisterPage() {
                   disabled={loading}
                 />
               </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="employeeId">工号 *</Label>
-              <Input
-                id="employeeId"
-                type="text"
-                placeholder="11位纯数字工号"
-                value={formData.employeeId}
-                onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
-                disabled={loading}
-                maxLength={11}
-              />
-              <p className="text-xs text-gray-500">工号为11位纯数字</p>
+              
+              <div className="space-y-2">
+                <Label htmlFor="employeeId">工号 *</Label>
+                <Input
+                  id="employeeId"
+                  type="text"
+                  placeholder="如：0000001"
+                  value={formData.employeeId}
+                  onChange={(e) => setFormData({ ...formData, employeeId: e.target.value.replace(/\D/g, '') })}
+                  disabled={loading}
+                  maxLength={11}
+                />
+                <p className="text-xs text-gray-500">输入数字，不足11位自动补0</p>
+              </div>
             </div>
             
             <div className="space-y-2">

@@ -715,7 +715,7 @@ async function initializeSeedData(): Promise<void> {
   const adminPasswordHash = hashPassword('123456');
   sqlite.run(
     `INSERT OR IGNORE INTO users (id, username, password_hash, name, employee_id, department_id, role_id, status, approved_by, approved_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', 'system', ?, ?)`,
-    ['user_admin', 'admin', adminPasswordHash, '系统管理员', '00000000001', null, 'role_admin', now, now]
+    ['user_admin', '00000000000', adminPasswordHash, '系统管理员', '00000000000', null, 'role_admin', now, now]
   );
   
   // 6. 初始化参访基地示例数据

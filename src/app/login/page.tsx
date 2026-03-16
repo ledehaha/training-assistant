@@ -78,13 +78,22 @@ export default function LoginPage() {
       return;
     }
     
+    // 工号只允许数字
+    if (!/^\d+$/.test(formData.employeeId)) {
+      toast.error('工号必须是纯数字');
+      return;
+    }
+    
+    // 工号补0到11位
+    const paddedEmployeeId = formData.employeeId.padStart(11, '0');
+    
     setLoading(true);
     
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ employeeId: formData.employeeId, password: formData.password }),
+        body: JSON.stringify({ employeeId: paddedEmployeeId, password: formData.password }),
       });
       
       // 安全解析 JSON
@@ -142,12 +151,13 @@ export default function LoginPage() {
               <Input
                 id="employeeId"
                 type="text"
-                placeholder="请输入工号（11位数字）"
+                placeholder="请输入工号（如：0000001）"
                 value={formData.employeeId}
-                onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, employeeId: e.target.value.replace(/\D/g, '') })}
                 disabled={loading}
                 maxLength={11}
               />
+              <p className="text-xs text-gray-400">输入数字，不足11位自动补0</p>
             </div>
             
             <div className="space-y-2">
@@ -186,7 +196,7 @@ export default function LoginPage() {
           
           <div className="mt-4 p-3 bg-blue-50 rounded-lg text-xs text-gray-600">
             <p className="font-medium mb-1">系统调试账号：</p>
-            <p>工号：00000000001</p>
+            <p>工号：00000000000</p>
             <p>密码：123456</p>
             <p className="mt-1 text-gray-400">（该账号仅供开发调试使用）</p>
           </div>

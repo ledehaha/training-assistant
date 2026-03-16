@@ -13,39 +13,27 @@ export async function POST(request: NextRequest) {
     await ensureDatabaseReady();
     
     const body = await request.json();
-    const { username, password, name, employeeId, departmentId, phone, email } = body;
+    const { password, name, employeeId, departmentId, phone, email } = body;
     
     // 参数验证
-    if (!username || !password || !name || !employeeId || !departmentId) {
+    if (!password || !name || !employeeId || !departmentId) {
       return NextResponse.json({ 
-        error: '请填写必填信息：用户名、密码、姓名、工号、所属部门' 
+        error: '请填写必填信息：密码、姓名、工号、所属部门' 
       }, { status: 400 });
     }
     
-    // 验证工号格式（11位纯数字）
-    if (!/^\d{11}$/.test(employeeId)) {
-      return NextResponse.json({ error: '工号必须是11位纯数字' }, { status: 400 });
-    }
+    // 工号补0到11位
+    const paddedEmployeeId = String(employeeId).padStart(11, '0');
     
     // 验证密码长度
     if (password.length < 6) {
       return NextResponse.json({ error: '密码长度至少6位' }, { status: 400 });
     }
     
-    // 检查用户名是否已存在
-    const existingUser = await db.select()
-      .from(users)
-      .where(eq(users.username, username))
-      .limit(1);
-    
-    if (existingUser.length > 0) {
-      return NextResponse.json({ error: '用户名已存在' }, { status: 400 });
-    }
-    
     // 检查工号是否已存在
     const existingEmployee = await db.select()
       .from(users)
-      .where(eq(users.employeeId, employeeId))
+      .where(eq(users.employeeId, paddedEmployeeId))
       .limit(1);
     
     if (existingEmployee.length > 0) {
@@ -88,10 +76,10 @@ export async function POST(request: NextRequest) {
     
     await db.insert(users).values({
       id: userId,
-      username,
+      username: paddedEmployeeId, // 工号作为用户名
       passwordHash: hashPassword(password),
       name,
-      employeeId,
+      employeeId: paddedEmployeeId,
       departmentId,
       roleId: defaultRole.id,
       phone: phone || null,
@@ -106,9 +94,9 @@ export async function POST(request: NextRequest) {
       message: '注册成功，请等待管理员审批',
       user: {
         id: userId,
-        username,
+        username: paddedEmployeeId,
         name,
-        employeeId,
+        employeeId: paddedEmployeeId,
         department: {
           id: department.id,
           name: department.name,
