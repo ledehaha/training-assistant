@@ -337,8 +337,18 @@ export default function SummaryPage() {
       const data = await res.json();
       if (data.success) {
         toast.success('上传成功', { description: `${file.name} 已成功上传` });
+        
         // 更新本地状态
-        setSelectedProject(prev => prev ? { ...prev, ...getUpdatedProjectData(fileType, data) } : null);
+        if (fileType === 'other') {
+          // 其它附件：添加到数组中
+          const materials = selectedProject.otherMaterials ? JSON.parse(selectedProject.otherMaterials) : [];
+          materials.push({ key: data.fileKey, name: data.fileName, uploadedAt: new Date().toISOString() });
+          setSelectedProject(prev => prev ? { ...prev, otherMaterials: JSON.stringify(materials) } : null);
+        } else {
+          // 其他类型：直接更新字段
+          const updates = getUpdatedProjectData(fileType, data);
+          setSelectedProject(prev => prev ? { ...prev, ...updates } : null);
+        }
         setLastSaveTime(new Date());
       } else {
         throw new Error(data.error);
@@ -389,6 +399,9 @@ export default function SummaryPage() {
       case 'countersign':
         updates.countersignFile = data.fileKey;
         updates.countersignFileName = data.fileName;
+        break;
+      case 'other':
+        // 其它附件需要特殊处理，在后面单独更新
         break;
     }
     return updates;
