@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { S3Storage } from 'coze-coding-dev-sdk';
-import { getDb } from '@/storage/database';
+import { getDb, saveDatabaseImmediate } from '@/storage/database';
 import { projects } from '@/storage/database/schema';
 import { eq } from 'drizzle-orm';
 
@@ -91,6 +91,7 @@ export async function POST(request: NextRequest) {
     }
 
     await db.update(projects).set(updateData).where(eq(projects.id, projectId));
+    saveDatabaseImmediate();
 
     // 生成访问URL（有效期7天）
     const url = await storage.generatePresignedUrl({ key: fileKey, expireTime: 604800 });
@@ -192,6 +193,7 @@ export async function DELETE(request: NextRequest) {
 
     // 更新数据库
     await db.update(projects).set(updateData).where(eq(projects.id, projectId));
+    saveDatabaseImmediate();
 
     return NextResponse.json({ success: true });
   } catch (error) {

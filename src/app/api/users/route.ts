@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, users, roles, departments, ensureDatabaseReady, getTimestamp } from '@/storage/database';
+import { db, users, roles, departments, ensureDatabaseReady, getTimestamp, saveDatabaseImmediate } from '@/storage/database';
 import { eq, desc, sql } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 
@@ -167,6 +167,9 @@ export async function PUT(request: NextRequest) {
     await db.update(users)
       .set(updateData)
       .where(eq(users.id, userId));
+    
+    // 手动保存数据库（drizzle update 可能不触发自动保存）
+    saveDatabaseImmediate();
     
     return NextResponse.json({
       success: true,

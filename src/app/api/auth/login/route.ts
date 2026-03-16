@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, users, roles, departments, ensureDatabaseReady, generateId, getTimestamp } from '@/storage/database';
+import { db, users, roles, departments, ensureDatabaseReady, generateId, getTimestamp, saveDatabaseImmediate } from '@/storage/database';
 import { eq } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 import crypto from 'crypto';
@@ -73,6 +73,9 @@ export async function POST(request: NextRequest) {
         updatedAt: getTimestamp(),
       })
       .where(eq(users.id, user.id));
+    
+    // 手动保存数据库（登录时间更新）
+    saveDatabaseImmediate();
     
     // 设置session cookie（7天有效）
     const sessionData = {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { LLMClient, Config, HeaderUtils, Message } from 'coze-coding-dev-sdk';
 import { S3Storage } from 'coze-coding-dev-sdk';
-import { getDb } from '@/storage/database';
+import { getDb, saveDatabaseImmediate } from '@/storage/database';
 import { projects, projectCourses, teachers } from '@/storage/database/schema';
 import { eq } from 'drizzle-orm';
 
@@ -226,6 +226,7 @@ ${index + 1}. ${teacher.name}
     await db.update(projects)
       .set({ summaryReport: JSON.stringify(result), updatedAt: new Date().toISOString() })
       .where(eq(projects.id, projectId));
+    saveDatabaseImmediate();
 
     return NextResponse.json({ data: result });
   } catch (error) {

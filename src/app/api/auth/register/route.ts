@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, users, roles, departments, ensureDatabaseReady, generateId, getTimestamp } from '@/storage/database';
+import { db, users, roles, departments, ensureDatabaseReady, generateId, getTimestamp, saveDatabaseImmediate } from '@/storage/database';
 import { eq } from 'drizzle-orm';
 
 // 密码哈希函数（测试阶段使用简单哈希）
@@ -88,6 +88,9 @@ export async function POST(request: NextRequest) {
       createdAt: now,
       updatedAt: now,
     });
+    
+    // 手动保存数据库
+    saveDatabaseImmediate();
     
     return NextResponse.json({
       success: true,
