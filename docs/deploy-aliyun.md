@@ -42,7 +42,7 @@ mkdir -p /var/www/training-assistant
 cd /var/www/training-assistant
 
 # 8. 克隆代码
-git clone https://github.com/你的用户名/training-assistant.git .
+git clone https://github.com/ledehaha/training-assistant.git .
 
 # 9. 首次安装和构建
 pnpm install
