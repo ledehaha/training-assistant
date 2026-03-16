@@ -82,6 +82,9 @@ interface Project {
   // 学员名单
   studentListFile: string | null;
   studentListFileName: string | null;
+  // 会签单（PDF）
+  countersignFile: string | null;
+  countersignFileName: string | null;
   // 其他材料
   otherMaterials: string | null;
   // 满意度调查
@@ -235,6 +238,11 @@ export default function SummaryPage() {
         uploaded: !!project.satisfactionSurveyFile,
         required: true,
       },
+      {
+        name: '会签单',
+        uploaded: !!project.countersignFile,
+        required: true,
+      },
     ];
     
     const missingFiles = requirements.filter(r => r.required && !r.uploaded);
@@ -378,6 +386,10 @@ export default function SummaryPage() {
         updates.satisfactionSurveyFile = data.fileKey;
         updates.satisfactionSurveyFileName = data.fileName;
         break;
+      case 'countersign':
+        updates.countersignFile = data.fileKey;
+        updates.countersignFileName = data.fileName;
+        break;
     }
     return updates;
   };
@@ -431,6 +443,7 @@ export default function SummaryPage() {
       declarationWord: ['declarationFileWord', 'declarationFileNameWord'],
       studentList: ['studentListFile', 'studentListFileName'],
       satisfaction: ['satisfactionSurveyFile', 'satisfactionSurveyFileName'],
+      countersign: ['countersignFile', 'countersignFileName'],
     };
     const fields = mapping[fileType] || [];
     const updates: Record<string, null> = {};
@@ -1191,8 +1204,8 @@ export default function SummaryPage() {
             <span className="font-medium text-blue-700">上传说明</span>
           </div>
           <p className="text-sm text-gray-600">
-            合同文件、成本测算表、项目申报书需同时上传PDF和Word两个版本。支持拖放上传。
-            上传的材料将自动保存。
+            合同文件、成本测算表、项目申报书需同时上传PDF和Word两个版本；会签单仅需PDF版本。
+            所有带 * 的文件为归档必要材料。支持拖放上传，材料将自动保存。
           </p>
           {lastSaveTime && (
             <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
@@ -1205,7 +1218,7 @@ export default function SummaryPage() {
         {/* 必须上传的材料 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {renderDualFileUpload(
-            '合同文件',
+            '合同文件 *',
             'contractPdf',
             selectedProject.contractFileNamePdf,
             selectedProject.contractFilePdf,
@@ -1215,7 +1228,7 @@ export default function SummaryPage() {
             '上传合同扫描件或电子版（需PDF和Word两个版本）'
           )}
           {renderDualFileUpload(
-            '成本测算表',
+            '成本测算表 *',
             'costPdf',
             selectedProject.costFileNamePdf,
             selectedProject.costFilePdf,
@@ -1225,7 +1238,7 @@ export default function SummaryPage() {
             '上传成本明细表（需PDF和Word两个版本）'
           )}
           {renderDualFileUpload(
-            '项目申报书',
+            '项目申报书 *',
             'declarationPdf',
             selectedProject.declarationFileNamePdf,
             selectedProject.declarationFilePdf,
@@ -1239,7 +1252,7 @@ export default function SummaryPage() {
         {/* 其他材料 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {renderSingleFileUpload(
-            '学员名单',
+            '学员名单 *',
             'studentList',
             selectedProject.studentListFileName,
             selectedProject.studentListFile,
@@ -1247,13 +1260,109 @@ export default function SummaryPage() {
             '.xls,.xlsx'
           )}
           {renderSingleFileUpload(
-            '满意度调查结果',
+            '满意度调查结果 *',
             'satisfaction',
             selectedProject.satisfactionSurveyFileName,
             selectedProject.satisfactionSurveyFile,
             '上传满意度调查原始数据'
           )}
         </div>
+
+        {/* 会签单（必须，只支持PDF） */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {renderSingleFileUpload(
+            '会签单 *',
+            'countersign',
+            selectedProject.countersignFileName,
+            selectedProject.countersignFile,
+            '上传会签单PDF文件（必传）',
+            '.pdf'
+          )}
+        </div>
+
+        {/* 其它附件（非必须，支持多种格式） */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base">其它附件</CardTitle>
+                <CardDescription>可上传Word、PPT、Excel、PDF、图片等文件（非必传）</CardDescription>
+              </div>
+              {selectedProject.otherMaterials && JSON.parse(selectedProject.otherMaterials).length > 0 && (
+                <Badge variant="default" className="bg-green-100 text-green-700">
+                  <CheckCircle className="w-3 h-3 mr-1" />
+                  已上传 {JSON.parse(selectedProject.otherMaterials).length} 个文件
+                </Badge>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            {selectedProject.otherMaterials && JSON.parse(selectedProject.otherMaterials).length > 0 ? (
+              <div className="space-y-2 mb-4">
+                {JSON.parse(selectedProject.otherMaterials).map((file: { key: string; name: string }, index: number) => (
+                  <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                    <span className="text-sm text-gray-700 truncate flex-1">{file.name}</span>
+                    <div className="flex items-center gap-1">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-6 px-2" 
+                        onClick={() => getFileUrl(file.key)}
+                      >
+                        <Download className="w-3 h-3" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-6 px-2" 
+                        onClick={() => handleFileDelete('other', index)}
+                      >
+                        <Trash2 className="w-3 h-3 text-red-500" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            <div
+              className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer ${
+                dragActive === 'other' ? 'bg-blue-50 border-blue-400' : 'hover:bg-gray-50 border-gray-200'
+              }`}
+              onDragOver={(e) => handleDragOver(e, 'other')}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, 'other')}
+              onClick={() => {
+                if (uploading !== 'other') {
+                  const input = document.getElementById('file-other') as HTMLInputElement;
+                  input?.click();
+                }
+              }}
+            >
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.bmp"
+                className="hidden"
+                id="file-other"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFileUpload('other', file);
+                }}
+              />
+              {uploading === 'other' ? (
+                <div className="py-2">
+                  <Loader2 className="w-6 h-6 mx-auto animate-spin text-blue-500" />
+                  <p className="text-sm text-blue-500 mt-2">上传中...</p>
+                </div>
+              ) : (
+                <div>
+                  <Upload className="w-8 h-8 mx-auto text-gray-400" />
+                  <p className="text-sm text-gray-500 mt-2">点击或拖放文件上传</p>
+                  <p className="text-xs text-gray-400 mt-1">支持 Word、PPT、Excel、PDF、图片等格式</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* 操作按钮 */}
         <div className="flex justify-between">

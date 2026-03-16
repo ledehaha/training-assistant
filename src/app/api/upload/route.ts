@@ -79,6 +79,11 @@ export async function POST(request: NextRequest) {
         updateData.satisfactionSurveyFile = fileKey;
         updateData.satisfactionSurveyFileName = file.name;
         break;
+      // 会签单
+      case 'countersign':
+        updateData.countersignFile = fileKey;
+        updateData.countersignFileName = file.name;
+        break;
       // 其他材料
       case 'other':
         const project = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
@@ -172,6 +177,12 @@ export async function DELETE(request: NextRequest) {
         fileKey = project[0].satisfactionSurveyFile || '';
         updateData.satisfactionSurveyFile = null;
         updateData.satisfactionSurveyFileName = null;
+        break;
+      // 会签单
+      case 'countersign':
+        fileKey = project[0].countersignFile || '';
+        updateData.countersignFile = null;
+        updateData.countersignFileName = null;
         break;
       // 其他材料
       case 'other':

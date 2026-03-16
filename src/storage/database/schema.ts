@@ -385,6 +385,9 @@ export const projects = sqliteTable(
     // 学员名单
     studentListFile: text('student_list_file'),
     studentListFileName: text('student_list_name'),
+    // 会签单（PDF）
+    countersignFile: text('countersign_file'),
+    countersignFileName: text('countersign_file_name'),
     // 其他材料
     otherMaterials: text('other_materials'),
     // 满意度调查
