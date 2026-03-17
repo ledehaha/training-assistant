@@ -502,18 +502,19 @@ export default function SummaryPage() {
     if (!selectedProject) return;
 
     try {
-      const requestBody = JSON.stringify({
+      // 使用 URL 参数而不是请求体，避免浏览器兼容性问题
+      const params = new URLSearchParams({
         projectId: selectedProject.id,
         fileType,
-        fileIndex,
       });
+      if (fileIndex !== undefined) {
+        params.set('fileIndex', String(fileIndex));
+      }
       
-      console.log('Delete request body:', requestBody);
+      console.log('Delete request params:', params.toString());
       
-      const res = await fetch('/api/upload', {
+      const res = await fetch(`/api/upload?${params.toString()}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: requestBody,
       });
 
       const data = await res.json();

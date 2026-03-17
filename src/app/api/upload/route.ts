@@ -122,35 +122,26 @@ export async function DELETE(request: NextRequest) {
     // 确保数据库已初始化
     await ensureDatabaseReady();
     
-    // 尝试多种方式读取请求体
-    let body;
+    // 优先从 URL 参数读取
+    const { searchParams } = new URL(request.url);
+    let projectId = searchParams.get('projectId');
+    let fileType = searchParams.get('fileType');
+    let fileIndex = searchParams.get('fileIndex') ? parseInt(searchParams.get('fileIndex') as string) : undefined;
     
-    // 方式1：直接使用 json()
-    try {
-      body = await request.json();
-      console.log('DELETE parsed body via json():', body);
-    } catch (e1) {
-      console.error('json() failed:', e1);
-      
-      // 方式2：使用 formData (某些情况下有用)
+    // 如果 URL 参数没有，尝试从请求体读取
+    if (!projectId || !fileType) {
       try {
-        const formData = await request.formData();
-        const projectId = formData.get('projectId') as string;
-        const fileType = formData.get('fileType') as string;
-        const fileIndex = formData.get('fileIndex') ? parseInt(formData.get('fileIndex') as string) : undefined;
-        body = { projectId, fileType, fileIndex };
-        console.log('DELETE parsed body via formData():', body);
-      } catch (e2) {
-        console.error('formData() failed:', e2);
-        return NextResponse.json({ error: '无法解析请求体' }, { status: 400 });
+        const body = await request.json();
+        console.log('DELETE parsed body via json():', body);
+        projectId = projectId || body.projectId;
+        fileType = fileType || body.fileType;
+        fileIndex = fileIndex ?? body.fileIndex;
+      } catch (e) {
+        console.error('Failed to parse body:', e);
       }
     }
-    
-    const { projectId, fileType, fileIndex } = body || {};
 
-    if (!projectId || !fileType) {
-      return NextResponse.json({ error: '缺少必要参数' }, { status: 400 });
-    }
+    console.log('DELETE request:', { projectId, fileType, fileIndex });
 
     if (!projectId || !fileType) {
       return NextResponse.json({ error: '缺少必要参数' }, { status: 400 });
