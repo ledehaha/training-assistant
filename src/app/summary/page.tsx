@@ -527,12 +527,18 @@ export default function SummaryPage() {
             if (!prev) return null;
             const materials = prev.otherMaterials ? JSON.parse(prev.otherMaterials) : [];
             materials.splice(fileIndex, 1);
-            return { ...prev, otherMaterials: materials.length > 0 ? JSON.stringify(materials) : null };
+            const newMaterials = materials.length > 0 ? JSON.stringify(materials) : null;
+            console.log('Updating other materials:', { old: prev.otherMaterials, new: newMaterials });
+            return { ...prev, otherMaterials: newMaterials };
           });
         } else {
+          const updates = getDeleteUpdate(fileType);
+          console.log('Delete updates for', fileType, ':', updates);
           setSelectedProject(prev => {
             if (!prev) return null;
-            return { ...prev, ...getDeleteUpdate(fileType) };
+            const newState = { ...prev, ...updates };
+            console.log('New state:', JSON.stringify(updates, null, 2));
+            return newState;
           });
         }
       } else {

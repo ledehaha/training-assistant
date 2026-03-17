@@ -208,12 +208,20 @@ export async function DELETE(request: NextRequest) {
 
     // 从对象存储删除
     if (fileKey) {
-      await storage.deleteFile({ fileKey });
+      try {
+        await storage.deleteFile({ fileKey });
+        console.log('Deleted file from storage:', fileKey);
+      } catch (storageError) {
+        console.error('Failed to delete from storage:', storageError);
+        // 继续执行数据库更新，即使存储删除失败
+      }
     }
 
     // 更新数据库
+    console.log('Updating database with:', updateData);
     await db.update(projects).set(updateData).where(eq(projects.id, projectId));
     saveDatabaseImmediate();
+    console.log('Database updated successfully');
 
     return NextResponse.json({ success: true });
   } catch (error) {
