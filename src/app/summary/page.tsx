@@ -148,6 +148,9 @@ export default function SummaryPage() {
   // 文件上传状态
   const [uploading, setUploading] = useState<string | null>(null);
   
+  // 合同AI分析状态
+  const [analyzingContract, setAnalyzingContract] = useState(false);
+  
   // AI分析状态
   const [analyzing, setAnalyzing] = useState(false);
   const [summaryReport, setSummaryReport] = useState<string | null>(null);
@@ -547,6 +550,11 @@ export default function SummaryPage() {
           setSelectedProject(prev => prev ? { ...prev, ...updates } : null);
         }
         setLastSaveTime(new Date());
+        
+        // 如果是合同Word文件，调用AI分析
+        if (fileType === 'contractWord') {
+          await analyzeContractAndFill(data.fileKey);
+        }
       } else {
         throw new Error(data.error);
       }
@@ -555,6 +563,74 @@ export default function SummaryPage() {
       toast.error('上传失败', { description: error instanceof Error ? error.message : '文件上传失败' });
     } finally {
       setUploading(null);
+    }
+  };
+  
+  // AI分析合同并自动填充项目信息
+  const analyzeContractAndFill = async (fileKey: string) => {
+    if (!selectedProject) return;
+    
+    setAnalyzingContract(true);
+    try {
+      toast.info('AI分析中', { description: '正在分析合同内容，请稍候...' });
+      
+      const res = await fetch('/api/ai/analyze-contract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: selectedProject.id,
+          fileKey,
+        }),
+      });
+      
+      const result = await res.json();
+      
+      if (result.success) {
+        const { extractedData, updatedFields } = result;
+        
+        // 更新本地状态
+        setSelectedProject(prev => {
+          if (!prev) return null;
+          const updates: Record<string, string | number | null> = {};
+          
+          // 只更新有值的字段
+          const fields = [
+            'name', 'trainingTarget', 'targetAudience', 'trainingPeriod', 
+            'startDate', 'endDate', 'location', 'specialRequirements',
+            'participantCount', 'trainingDays', 'trainingHours',
+            'budgetMin', 'budgetMax', 'totalBudget',
+            'teacherFee', 'venueFee', 'cateringFee', 'teaBreakFee', 
+            'materialFee', 'laborFee', 'otherFee', 'managementFee'
+          ];
+          
+          fields.forEach(field => {
+            const value = extractedData[field];
+            if (value !== null && value !== undefined && value !== '') {
+              updates[field] = value;
+            }
+          });
+          
+          return { ...prev, ...updates };
+        });
+        
+        // 显示提取结果
+        if (updatedFields && updatedFields.length > 0) {
+          toast.success('AI分析完成', { 
+            description: `已从合同中提取 ${updatedFields.length} 个字段：${updatedFields.slice(0, 5).join('、')}${updatedFields.length > 5 ? '...' : ''}` 
+          });
+        } else {
+          toast.info('AI分析完成', { description: '合同已分析，但未提取到新的有效信息' });
+        }
+        
+        setLastSaveTime(new Date());
+      } else {
+        toast.warning('AI分析失败', { description: result.error || '请稍后重试' });
+      }
+    } catch (error) {
+      console.error('AI analyze error:', error);
+      toast.warning('AI分析异常', { description: error instanceof Error ? error.message : '分析过程出错' });
+    } finally {
+      setAnalyzingContract(false);
     }
   };
 
@@ -1688,6 +1764,19 @@ export default function SummaryPage() {
             selectedProject.contractFileNameWord,
             selectedProject.contractFileWord,
             '上传合同扫描件或电子版（需PDF和Word两个版本）'
+          )}
+          {/* AI分析合同提示 */}
+          {analyzingContract && (
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+              <span className="text-sm text-blue-700">AI正在分析合同内容，提取项目信息...</span>
+            </div>
+          )}
+          {selectedProject.contractFileWord && !analyzingContract && (
+            <div className="p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-green-500" />
+              <span className="text-sm text-green-700">合同Word版本已上传，AI将自动提取项目信息并填充表单</span>
+            </div>
           )}
           {renderDualFileUpload(
             '成本测算表 *',
