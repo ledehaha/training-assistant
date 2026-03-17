@@ -855,121 +855,6 @@ export default function SummaryPage() {
       <p className="text-xs text-gray-500 mb-4">{description}</p>
       
       <div className="grid grid-cols-2 gap-3">
-        {/* PDF版本 */}
-        <div className="space-y-2">
-          {pdfFileName ? (
-            <div 
-              className={`p-3 bg-green-50 border border-green-200 rounded-lg transition-colors ${
-                dragActive === pdfFileType ? 'bg-blue-50 border-blue-400 border-dashed' : ''
-              }`}
-              onDragOver={(e) => handleDragOver(e, pdfFileType)}
-              onDragLeave={handleDragLeave}
-              onDrop={(e) => handleDrop(e, pdfFileType)}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-green-600 font-medium">PDF已上传</span>
-                <CheckCircle className="w-4 h-4 text-green-500" />
-              </div>
-              <p className="text-xs text-gray-600 truncate mb-2">{pdfFileName}</p>
-              <div className="flex gap-1">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="h-7 flex-1 text-xs"
-                  onClick={() => pdfFileKey && handlePreview(pdfFileKey, pdfFileName)}
-                >
-                  <Eye className="w-3 h-3 mr-1" />
-                  预览
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="h-7 flex-1 text-xs"
-                  onClick={() => pdfFileKey && getFileUrl(pdfFileKey)}
-                >
-                  <Download className="w-3 h-3 mr-1" />
-                  下载
-                </Button>
-              </div>
-              <div className="flex gap-1 mt-1">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="h-7 flex-1 text-xs border-blue-200 text-blue-600 hover:bg-blue-50"
-                  onClick={() => {
-                    const input = document.getElementById(`file-${pdfFileType}`) as HTMLInputElement;
-                    if (input) {
-                      input.value = ''; // 清空之前的值，确保能重新选择相同文件
-                      input.click();
-                    }
-                  }}
-                >
-                  <Upload className="w-3 h-3 mr-1" />
-                  重新上传
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="h-7 flex-1 text-xs border-red-200 text-red-600 hover:bg-red-50"
-                  onClick={() => handleFileDelete(pdfFileType)}
-                >
-                  <Trash2 className="w-3 h-3 mr-1" />
-                  删除
-                </Button>
-              </div>
-              <input
-                type="file"
-                accept=".pdf"
-                className="hidden"
-                id={`file-${pdfFileType}`}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleFileSelect(pdfFileType, file);
-                }}
-              />
-            </div>
-          ) : (
-            <div
-              className={`border-2 border-dashed rounded-lg p-3 text-center transition-colors cursor-pointer ${
-                dragActive === pdfFileType ? 'bg-blue-50 border-blue-400' :
-                uploading === pdfFileType ? 'bg-blue-50 border-blue-300' : 'hover:bg-gray-50 border-gray-200'
-              }`}
-              onDragOver={(e) => handleDragOver(e, pdfFileType)}
-              onDragLeave={handleDragLeave}
-              onDrop={(e) => handleDrop(e, pdfFileType)}
-              onClick={() => {
-                if (uploading !== pdfFileType) {
-                  const input = document.getElementById(`file-${pdfFileType}`) as HTMLInputElement;
-                  input?.click();
-                }
-              }}
-            >
-              <input
-                type="file"
-                accept=".pdf"
-                className="hidden"
-                id={`file-${pdfFileType}`}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleFileSelect(pdfFileType, file);
-                }}
-              />
-              {uploading === pdfFileType ? (
-                <div className="py-2">
-                  <Loader2 className="w-5 h-5 mx-auto animate-spin text-blue-500" />
-                  <p className="text-xs text-blue-500 mt-1">上传中...</p>
-                </div>
-              ) : (
-                <div className="py-2">
-                  <Upload className="w-5 h-5 mx-auto text-gray-400" />
-                  <p className="text-xs text-gray-500 mt-1">PDF版本</p>
-                  <p className="text-[10px] text-gray-400">点击或拖放</p>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
         {/* Word版本 */}
         <div className="space-y-2">
           {wordFileName ? (
@@ -1078,6 +963,121 @@ export default function SummaryPage() {
                 <div className="py-2">
                   <Upload className="w-5 h-5 mx-auto text-gray-400" />
                   <p className="text-xs text-gray-500 mt-1">Word版本</p>
+                  <p className="text-[10px] text-gray-400">点击或拖放</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* PDF版本 */}
+        <div className="space-y-2">
+          {pdfFileName ? (
+            <div 
+              className={`p-3 bg-green-50 border border-green-200 rounded-lg transition-colors ${
+                dragActive === pdfFileType ? 'bg-blue-50 border-blue-400 border-dashed' : ''
+              }`}
+              onDragOver={(e) => handleDragOver(e, pdfFileType)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, pdfFileType)}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-green-600 font-medium">PDF已上传</span>
+                <CheckCircle className="w-4 h-4 text-green-500" />
+              </div>
+              <p className="text-xs text-gray-600 truncate mb-2">{pdfFileName}</p>
+              <div className="flex gap-1">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-7 flex-1 text-xs"
+                  onClick={() => pdfFileKey && handlePreview(pdfFileKey, pdfFileName)}
+                >
+                  <Eye className="w-3 h-3 mr-1" />
+                  预览
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-7 flex-1 text-xs"
+                  onClick={() => pdfFileKey && getFileUrl(pdfFileKey)}
+                >
+                  <Download className="w-3 h-3 mr-1" />
+                  下载
+                </Button>
+              </div>
+              <div className="flex gap-1 mt-1">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-7 flex-1 text-xs border-blue-200 text-blue-600 hover:bg-blue-50"
+                  onClick={() => {
+                    const input = document.getElementById(`file-${pdfFileType}`) as HTMLInputElement;
+                    if (input) {
+                      input.value = '';
+                      input.click();
+                    }
+                  }}
+                >
+                  <Upload className="w-3 h-3 mr-1" />
+                  重新上传
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-7 flex-1 text-xs border-red-200 text-red-600 hover:bg-red-50"
+                  onClick={() => handleFileDelete(pdfFileType)}
+                >
+                  <Trash2 className="w-3 h-3 mr-1" />
+                  删除
+                </Button>
+              </div>
+              <input
+                type="file"
+                accept=".pdf"
+                className="hidden"
+                id={`file-${pdfFileType}`}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFileSelect(pdfFileType, file);
+                }}
+              />
+            </div>
+          ) : (
+            <div
+              className={`border-2 border-dashed rounded-lg p-3 text-center transition-colors cursor-pointer ${
+                dragActive === pdfFileType ? 'bg-blue-50 border-blue-400' :
+                uploading === pdfFileType ? 'bg-blue-50 border-blue-300' : 'hover:bg-gray-50 border-gray-200'
+              }`}
+              onDragOver={(e) => handleDragOver(e, pdfFileType)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, pdfFileType)}
+              onClick={() => {
+                if (uploading !== pdfFileType) {
+                  const input = document.getElementById(`file-${pdfFileType}`) as HTMLInputElement;
+                  input?.click();
+                }
+              }}
+            >
+              <input
+                type="file"
+                accept=".pdf"
+                className="hidden"
+                id={`file-${pdfFileType}`}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFileSelect(pdfFileType, file);
+                }}
+              />
+              {uploading === pdfFileType ? (
+                <div className="py-2">
+                  <Loader2 className="w-5 h-5 mx-auto animate-spin text-blue-500" />
+                  <p className="text-xs text-blue-500 mt-1">上传中...</p>
+                </div>
+              ) : (
+                <div className="py-2">
+                  <Upload className="w-5 h-5 mx-auto text-gray-400" />
+                  <p className="text-xs text-gray-500 mt-1">PDF版本</p>
                   <p className="text-[10px] text-gray-400">点击或拖放</p>
                 </div>
               )}
