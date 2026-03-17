@@ -66,11 +66,11 @@ export async function POST(request: NextRequest) {
     } else if (project.contractFileWord) {
       fileContents.contract = await readFileContent(project.contractFileWord);
     }
-    // 成本测算表（优先PDF，其次Word）
+    // 成本测算表（优先PDF，其次Excel）
     if (project.costFilePdf) {
       fileContents.cost = await readFileContent(project.costFilePdf);
-    } else if (project.costFileWord) {
-      fileContents.cost = await readFileContent(project.costFileWord);
+    } else if (project.costFileExcel) {
+      fileContents.cost = await readFileContent(project.costFileExcel);
     }
     // 项目申报书（优先PDF，其次Word）
     if (project.declarationFilePdf) {

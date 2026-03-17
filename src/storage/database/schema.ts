@@ -372,11 +372,11 @@ export const projects = sqliteTable(
     contractFileNamePdf: text('contract_file_name_pdf'),
     contractFileWord: text('contract_file_word'),
     contractFileNameWord: text('contract_file_name_word'),
-    // 成本测算表（PDF和Word两个版本）
+    // 成本测算表（PDF和Excel两个版本）
     costFilePdf: text('cost_file_pdf'),
     costFileNamePdf: text('cost_file_name_pdf'),
-    costFileWord: text('cost_file_word'),
-    costFileNameWord: text('cost_file_name_word'),
+    costFileExcel: text('cost_file_excel'),
+    costFileNameExcel: text('cost_file_name_excel'),
     // 项目申报书（PDF和Word两个版本）
     declarationFilePdf: text('declaration_file_pdf'),
     declarationFileNamePdf: text('declaration_file_name_pdf'),

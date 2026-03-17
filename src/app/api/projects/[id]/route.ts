@@ -11,7 +11,7 @@ function checkArchiveRequirements(project: Record<string, unknown>): { isComplet
     },
     {
       name: '成本测算表',
-      uploaded: !!(project.costFilePdf || project.costFileWord),
+      uploaded: !!(project.costFilePdf || project.costFileExcel),
     },
     {
       name: '项目申报书',
@@ -137,7 +137,7 @@ export async function PUT(
       contractFilePdf: 'contractFilePdf',
       contractFileWord: 'contractFileWord',
       costFilePdf: 'costFilePdf',
-      costFileWord: 'costFileWord',
+      costFileExcel: 'costFileExcel',
       declarationFilePdf: 'declarationFilePdf',
       declarationFileWord: 'declarationFileWord',
       studentListFile: 'studentListFile',

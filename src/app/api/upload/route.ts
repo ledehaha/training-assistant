@@ -59,9 +59,9 @@ export async function POST(request: NextRequest) {
         updateData.costFilePdf = fileKey;
         updateData.costFileNamePdf = file.name;
         break;
-      case 'costWord':
-        updateData.costFileWord = fileKey;
-        updateData.costFileNameWord = file.name;
+      case 'costExcel':
+        updateData.costFileExcel = fileKey;
+        updateData.costFileNameExcel = file.name;
         break;
       // 项目申报书
       case 'declarationPdf':
@@ -175,10 +175,10 @@ export async function DELETE(request: NextRequest) {
         updateData.costFilePdf = null;
         updateData.costFileNamePdf = null;
         break;
-      case 'costWord':
-        fileKey = project[0].costFileWord || '';
-        updateData.costFileWord = null;
-        updateData.costFileNameWord = null;
+      case 'costExcel':
+        fileKey = project[0].costFileExcel || '';
+        updateData.costFileExcel = null;
+        updateData.costFileNameExcel = null;
         break;
       // 项目申报书
       case 'declarationPdf':
