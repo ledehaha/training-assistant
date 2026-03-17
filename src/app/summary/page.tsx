@@ -716,6 +716,21 @@ export default function SummaryPage() {
     setLastSaveTime(null);
   };
 
+  // 监听导航事件，点击左侧菜单时重置状态
+  useEffect(() => {
+    const handleNavigate = (event: CustomEvent) => {
+      if (event.detail?.page === '/summary') {
+        resetState();
+        loadProjects();
+      }
+    };
+    
+    window.addEventListener('navigate-to-page', handleNavigate as EventListener);
+    return () => {
+      window.removeEventListener('navigate-to-page', handleNavigate as EventListener);
+    };
+  }, []);
+
   // 创建新的待总结项目（补录）
   const handleCreateNewProject = async () => {
     if (!newProjectName.trim()) {
