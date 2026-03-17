@@ -38,17 +38,17 @@ function checkArchiveRequirements(project: Record<string, unknown>): { isComplet
   const requirements = [
     {
       name: '合同文件',
-      uploaded: isValidFile(project.contractFilePdf) || isValidFile(project.contractFileWord),
+      uploaded: isValidFile(project.contractFilePdf) && isValidFile(project.contractFileWord),
       required: true,
     },
     {
       name: '成本测算表',
-      uploaded: isValidFile(project.costFilePdf) || isValidFile(project.costFileExcel),
+      uploaded: isValidFile(project.costFilePdf) && isValidFile(project.costFileExcel),
       required: true,
     },
     {
       name: '项目申报书',
-      uploaded: isValidFile(project.declarationFilePdf) || isValidFile(project.declarationFileWord),
+      uploaded: isValidFile(project.declarationFilePdf) && isValidFile(project.declarationFileWord),
       required: true,
     },
     {
