@@ -502,30 +502,38 @@ export default function SummaryPage() {
     if (!selectedProject) return;
 
     try {
+      const requestBody = JSON.stringify({
+        projectId: selectedProject.id,
+        fileType,
+        fileIndex,
+      });
+      
+      console.log('Delete request body:', requestBody);
+      
       const res = await fetch('/api/upload', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectId: selectedProject.id,
-          fileType,
-          fileIndex,
-        }),
+        body: requestBody,
       });
 
       const data = await res.json();
+      console.log('Delete response:', data);
+      
       if (data.success) {
         toast.success('删除成功', { description: '文件已删除' });
         // 更新本地状态
         if (fileType === 'other' && fileIndex !== undefined) {
-          const materials = selectedProject.otherMaterials ? JSON.parse(selectedProject.otherMaterials) : [];
-          materials.splice(fileIndex, 1);
-          setSelectedProject(prev => prev ? { ...prev, otherMaterials: materials.length > 0 ? JSON.stringify(materials) : null } : null);
+          setSelectedProject(prev => {
+            if (!prev) return null;
+            const materials = prev.otherMaterials ? JSON.parse(prev.otherMaterials) : [];
+            materials.splice(fileIndex, 1);
+            return { ...prev, otherMaterials: materials.length > 0 ? JSON.stringify(materials) : null };
+          });
         } else {
-          const updates: Record<string, null> = {};
-          updates[`${fileType}Pdf`] = null;
-          updates[`${fileType}FileNamePdf`] = null;
-          // 实际需要根据fileType映射
-          setSelectedProject(prev => prev ? { ...prev, ...getDeleteUpdate(fileType) } : null);
+          setSelectedProject(prev => {
+            if (!prev) return null;
+            return { ...prev, ...getDeleteUpdate(fileType) };
+          });
         }
       } else {
         throw new Error(data.error);
