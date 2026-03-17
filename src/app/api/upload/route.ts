@@ -122,10 +122,27 @@ export async function DELETE(request: NextRequest) {
     // 确保数据库已初始化
     await ensureDatabaseReady();
     
-    const body = await request.json();
+    // 尝试读取请求体
+    const contentType = request.headers.get('content-type');
+    console.log('DELETE request content-type:', contentType);
+    
+    let body;
+    try {
+      body = await request.json();
+      console.log('DELETE parsed body:', body);
+    } catch (jsonError) {
+      console.error('JSON parse error:', jsonError);
+      // 尝试读取原始文本
+      const text = await request.text();
+      console.error('Request body text:', text);
+      return NextResponse.json({ error: '无效的JSON格式', detail: String(jsonError) }, { status: 400 });
+    }
+    
     const { projectId, fileType, fileIndex } = body;
 
-    console.log('DELETE request:', { projectId, fileType, fileIndex });
+    if (!projectId || !fileType) {
+      return NextResponse.json({ error: '缺少必要参数' }, { status: 400 });
+    }
 
     if (!projectId || !fileType) {
       return NextResponse.json({ error: '缺少必要参数' }, { status: 400 });
