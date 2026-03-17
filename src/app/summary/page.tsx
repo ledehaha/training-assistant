@@ -828,7 +828,14 @@ export default function SummaryPage() {
         {/* PDF版本 */}
         <div className="space-y-2">
           {pdfFileName ? (
-            <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+            <div 
+              className={`p-3 bg-green-50 border border-green-200 rounded-lg transition-colors ${
+                dragActive === pdfFileType ? 'bg-blue-50 border-blue-400 border-dashed' : ''
+              }`}
+              onDragOver={(e) => handleDragOver(e, pdfFileType)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, pdfFileType)}
+            >
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs text-green-600 font-medium">PDF已上传</span>
                 <CheckCircle className="w-4 h-4 text-green-500" />
@@ -861,11 +868,14 @@ export default function SummaryPage() {
                   className="h-7 flex-1 text-xs border-blue-200 text-blue-600 hover:bg-blue-50"
                   onClick={() => {
                     const input = document.getElementById(`file-${pdfFileType}`) as HTMLInputElement;
-                    input?.click();
+                    if (input) {
+                      input.value = ''; // 清空之前的值，确保能重新选择相同文件
+                      input.click();
+                    }
                   }}
                 >
-                  <RefreshCw className="w-3 h-3 mr-1" />
-                  替换
+                  <Upload className="w-3 h-3 mr-1" />
+                  重新上传
                 </Button>
                 <Button 
                   variant="outline" 
@@ -877,6 +887,16 @@ export default function SummaryPage() {
                   删除
                 </Button>
               </div>
+              <input
+                type="file"
+                accept=".pdf"
+                className="hidden"
+                id={`file-${pdfFileType}`}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFileSelect(pdfFileType, file);
+                }}
+              />
             </div>
           ) : (
             <div
@@ -923,7 +943,14 @@ export default function SummaryPage() {
         {/* Word版本 */}
         <div className="space-y-2">
           {wordFileName ? (
-            <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+            <div 
+              className={`p-3 bg-green-50 border border-green-200 rounded-lg transition-colors ${
+                dragActive === wordFileType ? 'bg-blue-50 border-blue-400 border-dashed' : ''
+              }`}
+              onDragOver={(e) => handleDragOver(e, wordFileType)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, wordFileType)}
+            >
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs text-green-600 font-medium">Word已上传</span>
                 <CheckCircle className="w-4 h-4 text-green-500" />
@@ -956,11 +983,14 @@ export default function SummaryPage() {
                   className="h-7 flex-1 text-xs border-blue-200 text-blue-600 hover:bg-blue-50"
                   onClick={() => {
                     const input = document.getElementById(`file-${wordFileType}`) as HTMLInputElement;
-                    input?.click();
+                    if (input) {
+                      input.value = '';
+                      input.click();
+                    }
                   }}
                 >
-                  <RefreshCw className="w-3 h-3 mr-1" />
-                  替换
+                  <Upload className="w-3 h-3 mr-1" />
+                  重新上传
                 </Button>
                 <Button 
                   variant="outline" 
@@ -972,6 +1002,16 @@ export default function SummaryPage() {
                   删除
                 </Button>
               </div>
+              <input
+                type="file"
+                accept=".doc,.docx"
+                className="hidden"
+                id={`file-${wordFileType}`}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFileSelect(wordFileType, file);
+                }}
+              />
             </div>
           ) : (
             <div
@@ -1043,7 +1083,14 @@ export default function SummaryPage() {
       <p className="text-xs text-gray-500 mb-3">{description}</p>
       
       {fileName ? (
-        <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+        <div 
+          className={`p-3 bg-green-50 border border-green-200 rounded-lg transition-colors ${
+            dragActive === fileType ? 'bg-blue-50 border-blue-400 border-dashed' : ''
+          }`}
+          onDragOver={(e) => handleDragOver(e, fileType)}
+          onDragLeave={handleDragLeave}
+          onDrop={(e) => handleDrop(e, fileType)}
+        >
           <p className="text-sm text-gray-700 truncate mb-2">{fileName}</p>
           <div className="flex gap-1">
             <Button 
@@ -1072,11 +1119,14 @@ export default function SummaryPage() {
               className="h-7 flex-1 text-xs border-blue-200 text-blue-600 hover:bg-blue-50"
               onClick={() => {
                 const input = document.getElementById(`file-${fileType}`) as HTMLInputElement;
-                input?.click();
+                if (input) {
+                  input.value = '';
+                  input.click();
+                }
               }}
             >
-              <RefreshCw className="w-3 h-3 mr-1" />
-              替换
+              <Upload className="w-3 h-3 mr-1" />
+              重新上传
             </Button>
             <Button 
               variant="outline" 
@@ -1088,6 +1138,16 @@ export default function SummaryPage() {
               删除
             </Button>
           </div>
+          <input
+            type="file"
+            accept={accept}
+            className="hidden"
+            id={`file-${fileType}`}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleFileSelect(fileType, file);
+            }}
+          />
         </div>
       ) : (
         <div
