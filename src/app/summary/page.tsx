@@ -48,6 +48,8 @@ import {
   PlayCircle,
   FileCheck,
   Inbox,
+  Eye,
+  RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -162,6 +164,24 @@ export default function SummaryPage() {
   
   // 拖放状态
   const [dragActive, setDragActive] = useState<string | null>(null);
+  
+  // 文件预览状态
+  const [previewDialog, setPreviewDialog] = useState<{
+    open: boolean;
+    url: string | null;
+    fileName: string | null;
+    fileType: string | null;
+  }>({ open: false, url: null, fileName: null, fileType: null });
+  
+  // 覆盖确认状态
+  const [overwriteDialog, setOverwriteDialog] = useState<{
+    open: boolean;
+    fileType: string | null;
+    file: File | null;
+  }>({ open: false, fileType: null, file: null });
+  
+  // 待上传文件（用于覆盖确认后继续上传）
+  const pendingFileRef = useRef<{ fileType: string; file: File } | null>(null);
 
   // 加载项目列表
   const loadProjects = async () => {
@@ -316,6 +336,76 @@ export default function SummaryPage() {
     const { requirements } = checkArchiveRequirements(project);
     const uploaded = requirements.filter(r => r.uploaded).length;
     return Math.round((uploaded / requirements.length) * 100);
+  };
+  
+  // 检查文件是否已存在
+  const checkFileExists = (fileType: string): boolean => {
+    if (!selectedProject) return false;
+    if (fileType === 'other') return false; // 其它附件不检查，允许多个
+    
+    const mapping: Record<string, string | null> = {
+      contractPdf: selectedProject.contractFilePdf,
+      contractWord: selectedProject.contractFileWord,
+      costPdf: selectedProject.costFilePdf,
+      costWord: selectedProject.costFileWord,
+      declarationPdf: selectedProject.declarationFilePdf,
+      declarationWord: selectedProject.declarationFileWord,
+      studentList: selectedProject.studentListFile,
+      satisfaction: selectedProject.satisfactionSurveyFile,
+      countersign: selectedProject.countersignFile,
+    };
+    return !!mapping[fileType];
+  };
+  
+  // 处理文件选择（带覆盖确认）
+  const handleFileSelect = (fileType: string, file: File) => {
+    if (checkFileExists(fileType)) {
+      // 显示覆盖确认对话框
+      pendingFileRef.current = { fileType, file };
+      setOverwriteDialog({ open: true, fileType, file });
+    } else {
+      // 直接上传
+      handleFileUpload(fileType, file);
+    }
+  };
+  
+  // 确认覆盖后上传
+  const handleConfirmOverwrite = () => {
+    if (pendingFileRef.current) {
+      handleFileUpload(pendingFileRef.current.fileType, pendingFileRef.current.file);
+      pendingFileRef.current = null;
+    }
+    setOverwriteDialog({ open: false, fileType: null, file: null });
+  };
+  
+  // 取消覆盖
+  const handleCancelOverwrite = () => {
+    pendingFileRef.current = null;
+    setOverwriteDialog({ open: false, fileType: null, file: null });
+  };
+  
+  // 文件预览
+  const handlePreview = async (fileKey: string, fileName: string) => {
+    try {
+      const res = await fetch(`/api/upload?fileKey=${encodeURIComponent(fileKey)}`);
+      const data = await res.json();
+      if (data.url) {
+        // 判断文件类型
+        const ext = fileName.toLowerCase().split('.').pop();
+        const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
+        const pdfExt = 'pdf';
+        
+        setPreviewDialog({
+          open: true,
+          url: data.url,
+          fileName,
+          fileType: imageExts.includes(ext || '') ? 'image' : ext === pdfExt ? 'pdf' : 'other'
+        });
+      }
+    } catch (error) {
+      console.error('Preview error:', error);
+      toast.error('预览失败', { description: '无法获取文件预览地址' });
+    }
   };
 
   // 文件上传
@@ -507,7 +597,7 @@ export default function SummaryPage() {
         toast.error('文件格式错误', { description: '请上传Word格式文件' });
         return;
       }
-      handleFileUpload(fileType, file);
+      handleFileSelect(fileType, file);
     }
   };
 
@@ -736,111 +826,191 @@ export default function SummaryPage() {
       
       <div className="grid grid-cols-2 gap-3">
         {/* PDF版本 */}
-        <div
-          className={`border-2 border-dashed rounded-lg p-3 text-center transition-colors cursor-pointer ${
-            dragActive === pdfFileType ? 'bg-blue-50 border-blue-400' :
-            uploading === pdfFileType ? 'bg-blue-50 border-blue-300' : 
-            pdfFileName ? 'bg-green-50 border-green-300' : 'hover:bg-gray-50 border-gray-200'
-          }`}
-          onDragOver={(e) => handleDragOver(e, pdfFileType)}
-          onDragLeave={handleDragLeave}
-          onDrop={(e) => handleDrop(e, pdfFileType)}
-          onClick={() => {
-            if (!pdfFileName && uploading !== pdfFileType) {
-              const input = document.getElementById(`file-${pdfFileType}`) as HTMLInputElement;
-              input?.click();
-            }
-          }}
-        >
-          <input
-            type="file"
-            accept=".pdf"
-            className="hidden"
-            id={`file-${pdfFileType}`}
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleFileUpload(pdfFileType, file);
-            }}
-          />
+        <div className="space-y-2">
           {pdfFileName ? (
-            <div className="space-y-1">
-              <CheckCircle className="w-5 h-5 mx-auto text-green-500" />
-              <p className="text-xs text-green-600 font-medium">PDF已上传</p>
-              <p className="text-xs text-gray-500 truncate">{pdfFileName}</p>
-              <div className="flex justify-center gap-1">
-                <Button variant="ghost" size="sm" className="h-6 px-2" onClick={(e) => { e.stopPropagation(); pdfFileKey && getFileUrl(pdfFileKey); }}>
-                  <Download className="w-3 h-3" />
+            <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-green-600 font-medium">PDF已上传</span>
+                <CheckCircle className="w-4 h-4 text-green-500" />
+              </div>
+              <p className="text-xs text-gray-600 truncate mb-2">{pdfFileName}</p>
+              <div className="flex gap-1">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-7 flex-1 text-xs"
+                  onClick={() => pdfFileKey && handlePreview(pdfFileKey, pdfFileName)}
+                >
+                  <Eye className="w-3 h-3 mr-1" />
+                  预览
                 </Button>
-                <Button variant="ghost" size="sm" className="h-6 px-2" onClick={(e) => { e.stopPropagation(); handleFileDelete(pdfFileType); }}>
-                  <Trash2 className="w-3 h-3 text-red-500" />
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-7 flex-1 text-xs"
+                  onClick={() => pdfFileKey && getFileUrl(pdfFileKey)}
+                >
+                  <Download className="w-3 h-3 mr-1" />
+                  下载
+                </Button>
+              </div>
+              <div className="flex gap-1 mt-1">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-7 flex-1 text-xs border-blue-200 text-blue-600 hover:bg-blue-50"
+                  onClick={() => {
+                    const input = document.getElementById(`file-${pdfFileType}`) as HTMLInputElement;
+                    input?.click();
+                  }}
+                >
+                  <RefreshCw className="w-3 h-3 mr-1" />
+                  替换
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-7 flex-1 text-xs border-red-200 text-red-600 hover:bg-red-50"
+                  onClick={() => handleFileDelete(pdfFileType)}
+                >
+                  <Trash2 className="w-3 h-3 mr-1" />
+                  删除
                 </Button>
               </div>
             </div>
-          ) : uploading === pdfFileType ? (
-            <div className="py-2">
-              <Loader2 className="w-5 h-5 mx-auto animate-spin text-blue-500" />
-              <p className="text-xs text-blue-500 mt-1">上传中...</p>
-            </div>
           ) : (
-            <div className="py-2">
-              <Upload className="w-5 h-5 mx-auto text-gray-400" />
-              <p className="text-xs text-gray-500 mt-1">PDF版本</p>
-              <p className="text-[10px] text-gray-400">点击或拖放</p>
+            <div
+              className={`border-2 border-dashed rounded-lg p-3 text-center transition-colors cursor-pointer ${
+                dragActive === pdfFileType ? 'bg-blue-50 border-blue-400' :
+                uploading === pdfFileType ? 'bg-blue-50 border-blue-300' : 'hover:bg-gray-50 border-gray-200'
+              }`}
+              onDragOver={(e) => handleDragOver(e, pdfFileType)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, pdfFileType)}
+              onClick={() => {
+                if (uploading !== pdfFileType) {
+                  const input = document.getElementById(`file-${pdfFileType}`) as HTMLInputElement;
+                  input?.click();
+                }
+              }}
+            >
+              <input
+                type="file"
+                accept=".pdf"
+                className="hidden"
+                id={`file-${pdfFileType}`}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFileSelect(pdfFileType, file);
+                }}
+              />
+              {uploading === pdfFileType ? (
+                <div className="py-2">
+                  <Loader2 className="w-5 h-5 mx-auto animate-spin text-blue-500" />
+                  <p className="text-xs text-blue-500 mt-1">上传中...</p>
+                </div>
+              ) : (
+                <div className="py-2">
+                  <Upload className="w-5 h-5 mx-auto text-gray-400" />
+                  <p className="text-xs text-gray-500 mt-1">PDF版本</p>
+                  <p className="text-[10px] text-gray-400">点击或拖放</p>
+                </div>
+              )}
             </div>
           )}
         </div>
 
         {/* Word版本 */}
-        <div
-          className={`border-2 border-dashed rounded-lg p-3 text-center transition-colors cursor-pointer ${
-            dragActive === wordFileType ? 'bg-blue-50 border-blue-400' :
-            uploading === wordFileType ? 'bg-blue-50 border-blue-300' :
-            wordFileName ? 'bg-green-50 border-green-300' : 'hover:bg-gray-50 border-gray-200'
-          }`}
-          onDragOver={(e) => handleDragOver(e, wordFileType)}
-          onDragLeave={handleDragLeave}
-          onDrop={(e) => handleDrop(e, wordFileType)}
-          onClick={() => {
-            if (!wordFileName && uploading !== wordFileType) {
-              const input = document.getElementById(`file-${wordFileType}`) as HTMLInputElement;
-              input?.click();
-            }
-          }}
-        >
-          <input
-            type="file"
-            accept=".doc,.docx"
-            className="hidden"
-            id={`file-${wordFileType}`}
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleFileUpload(wordFileType, file);
-            }}
-          />
+        <div className="space-y-2">
           {wordFileName ? (
-            <div className="space-y-1">
-              <CheckCircle className="w-5 h-5 mx-auto text-green-500" />
-              <p className="text-xs text-green-600 font-medium">Word已上传</p>
-              <p className="text-xs text-gray-500 truncate">{wordFileName}</p>
-              <div className="flex justify-center gap-1">
-                <Button variant="ghost" size="sm" className="h-6 px-2" onClick={(e) => { e.stopPropagation(); wordFileKey && getFileUrl(wordFileKey); }}>
-                  <Download className="w-3 h-3" />
+            <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-green-600 font-medium">Word已上传</span>
+                <CheckCircle className="w-4 h-4 text-green-500" />
+              </div>
+              <p className="text-xs text-gray-600 truncate mb-2">{wordFileName}</p>
+              <div className="flex gap-1">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-7 flex-1 text-xs"
+                  onClick={() => wordFileKey && handlePreview(wordFileKey, wordFileName)}
+                >
+                  <Eye className="w-3 h-3 mr-1" />
+                  预览
                 </Button>
-                <Button variant="ghost" size="sm" className="h-6 px-2" onClick={(e) => { e.stopPropagation(); handleFileDelete(wordFileType); }}>
-                  <Trash2 className="w-3 h-3 text-red-500" />
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-7 flex-1 text-xs"
+                  onClick={() => wordFileKey && getFileUrl(wordFileKey)}
+                >
+                  <Download className="w-3 h-3 mr-1" />
+                  下载
+                </Button>
+              </div>
+              <div className="flex gap-1 mt-1">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-7 flex-1 text-xs border-blue-200 text-blue-600 hover:bg-blue-50"
+                  onClick={() => {
+                    const input = document.getElementById(`file-${wordFileType}`) as HTMLInputElement;
+                    input?.click();
+                  }}
+                >
+                  <RefreshCw className="w-3 h-3 mr-1" />
+                  替换
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-7 flex-1 text-xs border-red-200 text-red-600 hover:bg-red-50"
+                  onClick={() => handleFileDelete(wordFileType)}
+                >
+                  <Trash2 className="w-3 h-3 mr-1" />
+                  删除
                 </Button>
               </div>
             </div>
-          ) : uploading === wordFileType ? (
-            <div className="py-2">
-              <Loader2 className="w-5 h-5 mx-auto animate-spin text-blue-500" />
-              <p className="text-xs text-blue-500 mt-1">上传中...</p>
-            </div>
           ) : (
-            <div className="py-2">
-              <Upload className="w-5 h-5 mx-auto text-gray-400" />
-              <p className="text-xs text-gray-500 mt-1">Word版本</p>
-              <p className="text-[10px] text-gray-400">点击或拖放</p>
+            <div
+              className={`border-2 border-dashed rounded-lg p-3 text-center transition-colors cursor-pointer ${
+                dragActive === wordFileType ? 'bg-blue-50 border-blue-400' :
+                uploading === wordFileType ? 'bg-blue-50 border-blue-300' : 'hover:bg-gray-50 border-gray-200'
+              }`}
+              onDragOver={(e) => handleDragOver(e, wordFileType)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, wordFileType)}
+              onClick={() => {
+                if (uploading !== wordFileType) {
+                  const input = document.getElementById(`file-${wordFileType}`) as HTMLInputElement;
+                  input?.click();
+                }
+              }}
+            >
+              <input
+                type="file"
+                accept=".doc,.docx"
+                className="hidden"
+                id={`file-${wordFileType}`}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFileSelect(wordFileType, file);
+                }}
+              />
+              {uploading === wordFileType ? (
+                <div className="py-2">
+                  <Loader2 className="w-5 h-5 mx-auto animate-spin text-blue-500" />
+                  <p className="text-xs text-blue-500 mt-1">上传中...</p>
+                </div>
+              ) : (
+                <div className="py-2">
+                  <Upload className="w-5 h-5 mx-auto text-gray-400" />
+                  <p className="text-xs text-gray-500 mt-1">Word版本</p>
+                  <p className="text-[10px] text-gray-400">点击或拖放</p>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -873,14 +1043,49 @@ export default function SummaryPage() {
       <p className="text-xs text-gray-500 mb-3">{description}</p>
       
       {fileName ? (
-        <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
-          <span className="text-sm text-gray-700 truncate flex-1">{fileName}</span>
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="sm" onClick={() => fileKey && getFileUrl(fileKey)}>
-              <Download className="w-4 h-4" />
+        <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+          <p className="text-sm text-gray-700 truncate mb-2">{fileName}</p>
+          <div className="flex gap-1">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="h-7 flex-1 text-xs"
+              onClick={() => fileKey && handlePreview(fileKey, fileName)}
+            >
+              <Eye className="w-3 h-3 mr-1" />
+              预览
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => handleFileDelete(fileType)}>
-              <Trash2 className="w-4 h-4 text-red-500" />
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="h-7 flex-1 text-xs"
+              onClick={() => fileKey && getFileUrl(fileKey)}
+            >
+              <Download className="w-3 h-3 mr-1" />
+              下载
+            </Button>
+          </div>
+          <div className="flex gap-1 mt-1">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="h-7 flex-1 text-xs border-blue-200 text-blue-600 hover:bg-blue-50"
+              onClick={() => {
+                const input = document.getElementById(`file-${fileType}`) as HTMLInputElement;
+                input?.click();
+              }}
+            >
+              <RefreshCw className="w-3 h-3 mr-1" />
+              替换
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="h-7 flex-1 text-xs border-red-200 text-red-600 hover:bg-red-50"
+              onClick={() => handleFileDelete(fileType)}
+            >
+              <Trash2 className="w-3 h-3 mr-1" />
+              删除
             </Button>
           </div>
         </div>
@@ -907,7 +1112,7 @@ export default function SummaryPage() {
             id={`file-${fileType}`}
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) handleFileUpload(fileType, file);
+              if (file) handleFileSelect(fileType, file);
             }}
           />
           {uploading === fileType ? (
@@ -1320,6 +1525,14 @@ export default function SummaryPage() {
                         variant="ghost" 
                         size="sm" 
                         className="h-6 px-2" 
+                        onClick={() => handlePreview(file.key, file.name)}
+                      >
+                        <Eye className="w-3 h-3" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-6 px-2" 
                         onClick={() => getFileUrl(file.key)}
                       >
                         <Download className="w-3 h-3" />
@@ -1651,6 +1864,88 @@ export default function SummaryPage() {
                   创建项目
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* 文件预览对话框 */}
+      <Dialog open={previewDialog.open} onOpenChange={(open) => setPreviewDialog(prev => ({ ...prev, open }))}>
+        <DialogContent className="max-w-4xl max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="w-5 h-5" />
+              文件预览
+            </DialogTitle>
+            <DialogDescription>
+              {previewDialog.fileName}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="overflow-auto" style={{ height: 'calc(90vh - 200px)' }}>
+            {previewDialog.url && previewDialog.fileType === 'image' && (
+              <img 
+                src={previewDialog.url} 
+                alt={previewDialog.fileName || ''} 
+                className="max-w-full h-auto mx-auto"
+              />
+            )}
+            {previewDialog.url && previewDialog.fileType === 'pdf' && (
+              <iframe 
+                src={previewDialog.url} 
+                className="w-full h-full border-0"
+                style={{ minHeight: '500px' }}
+              />
+            )}
+            {previewDialog.url && previewDialog.fileType === 'other' && (
+              <div className="flex flex-col items-center justify-center h-64 text-gray-500">
+                <FileText className="w-16 h-16 mb-4 text-gray-300" />
+                <p className="text-center mb-4">此文件类型不支持在线预览</p>
+                <Button onClick={() => previewDialog.url && window.open(previewDialog.url, '_blank')}>
+                  <Download className="w-4 h-4 mr-2" />
+                  下载文件
+                </Button>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPreviewDialog(prev => ({ ...prev, open: false }))}>
+              关闭
+            </Button>
+            {previewDialog.url && (
+              <Button onClick={() => {
+                if (previewDialog.url) window.open(previewDialog.url, '_blank');
+              }}>
+                <Download className="w-4 h-4 mr-2" />
+                下载文件
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* 覆盖确认对话框 */}
+      <Dialog open={overwriteDialog.open} onOpenChange={(open) => setOverwriteDialog(prev => ({ ...prev, open }))}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600">
+              <AlertCircle className="w-5 h-5" />
+              确认覆盖文件
+            </DialogTitle>
+            <DialogDescription>
+              该位置已有文件，上传新文件将覆盖原有文件。是否继续？
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-gray-600">
+              即将上传：<span className="font-medium">{overwriteDialog.file?.name}</span>
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCancelOverwrite}>
+              取消
+            </Button>
+            <Button onClick={handleConfirmOverwrite}>
+              确认覆盖
             </Button>
           </DialogFooter>
         </DialogContent>
