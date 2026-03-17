@@ -27,32 +27,48 @@ function isValidTable(table: string): table is TableName {
   return table in tableMap;
 }
 
+// 检查文件是否是有效的上传文件（以 "projects/" 开头）
+function isValidFile(fileKey: unknown): boolean {
+  if (!fileKey || typeof fileKey !== 'string') return false;
+  return fileKey.startsWith('projects/');
+}
+
 // 检查项目是否满足归档条件
 function checkArchiveRequirements(project: Record<string, unknown>): { isComplete: boolean; missingFiles: string[] } {
   const requirements = [
     {
       name: '合同文件',
-      uploaded: !!(project.contractFilePdf || project.contractFileWord),
+      uploaded: isValidFile(project.contractFilePdf) || isValidFile(project.contractFileWord),
+      required: true,
     },
     {
       name: '成本测算表',
-      uploaded: !!(project.costFilePdf || project.costFileExcel),
+      uploaded: isValidFile(project.costFilePdf) || isValidFile(project.costFileExcel),
+      required: true,
     },
     {
       name: '项目申报书',
-      uploaded: !!(project.declarationFilePdf || project.declarationFileWord),
+      uploaded: isValidFile(project.declarationFilePdf) || isValidFile(project.declarationFileWord),
+      required: true,
     },
     {
       name: '学员名单',
-      uploaded: !!project.studentListFile,
+      uploaded: isValidFile(project.studentListFile),
+      required: true,
     },
     {
       name: '满意度调查结果',
-      uploaded: !!project.satisfactionSurveyFile,
+      uploaded: isValidFile(project.satisfactionSurveyFile),
+      required: false, // 非必选
+    },
+    {
+      name: '会签单',
+      uploaded: isValidFile(project.countersignFile),
+      required: true,
     },
   ];
   
-  const missingFiles = requirements.filter(r => !r.uploaded).map(r => r.name);
+  const missingFiles = requirements.filter(r => r.required && !r.uploaded).map(r => r.name);
   
   return {
     isComplete: missingFiles.length === 0,

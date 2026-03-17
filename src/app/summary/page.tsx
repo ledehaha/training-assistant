@@ -142,6 +142,9 @@ export default function SummaryPage() {
   // 时间筛选
   const [timeFilter, setTimeFilter] = useState<string>('all');
   
+  // 搜索关键词
+  const [searchKeyword, setSearchKeyword] = useState<string>('');
+  
   // 文件上传状态
   const [uploading, setUploading] = useState<string | null>(null);
   
@@ -231,36 +234,43 @@ export default function SummaryPage() {
   };
 
   // 检查归档必要文件是否已上传
+  // 辅助函数：检查文件是否是有效的上传文件（以 "projects/" 开头）
+  const isValidFile = (fileKey: string | null): boolean => {
+    if (!fileKey) return false;
+    // 有效的文件路径应该以 "projects/" 开头
+    return fileKey.startsWith('projects/');
+  };
+
   const checkArchiveRequirements = (project: Project) => {
     const requirements = [
       {
         name: '合同文件',
-        uploaded: !!(project.contractFilePdf || project.contractFileWord),
+        uploaded: isValidFile(project.contractFilePdf) || isValidFile(project.contractFileWord),
         required: true,
       },
       {
         name: '成本测算表',
-        uploaded: !!(project.costFilePdf || project.costFileExcel),
+        uploaded: isValidFile(project.costFilePdf) || isValidFile(project.costFileExcel),
         required: true,
       },
       {
         name: '项目申报书',
-        uploaded: !!(project.declarationFilePdf || project.declarationFileWord),
+        uploaded: isValidFile(project.declarationFilePdf) || isValidFile(project.declarationFileWord),
         required: true,
       },
       {
         name: '学员名单',
-        uploaded: !!project.studentListFile,
+        uploaded: isValidFile(project.studentListFile),
         required: true,
       },
       {
         name: '满意度调查结果',
-        uploaded: !!project.satisfactionSurveyFile,
+        uploaded: isValidFile(project.satisfactionSurveyFile),
         required: false, // 非必选
       },
       {
         name: '会签单',
-        uploaded: !!project.countersignFile,
+        uploaded: isValidFile(project.countersignFile),
         required: true,
       },
     ];
@@ -273,7 +283,13 @@ export default function SummaryPage() {
 
   // 分类项目
   const categorizedProjects = useMemo(() => {
-    const filtered = filterByTime(allProjects, timeFilter);
+    let filtered = filterByTime(allProjects, timeFilter);
+    
+    // 搜索过滤
+    if (searchKeyword.trim()) {
+      const keyword = searchKeyword.trim().toLowerCase();
+      filtered = filtered.filter(p => p.name.toLowerCase().includes(keyword));
+    }
     
     // 执行中待总结
     const executingProjects = filtered.filter(p => p.status === 'executing');
@@ -302,7 +318,7 @@ export default function SummaryPage() {
       // 待总结 = 执行中 + 已完成待归档
       pendingProjects: [...executingProjects, ...completedProjects],
     };
-  }, [allProjects, timeFilter]);
+  }, [allProjects, timeFilter, searchKeyword]);
 
   // 列表显示限制（最多8个）
   const MAX_DISPLAY_COUNT = 8;
@@ -1252,6 +1268,34 @@ export default function SummaryPage() {
               ))}
             </SelectContent>
           </Select>
+          {/* 搜索框 */}
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="搜索项目名称..."
+              value={searchKeyword}
+              onChange={(e) => setSearchKeyword(e.target.value)}
+              className="w-[200px] pl-8 pr-3 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <svg
+              className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            {searchKeyword && (
+              <button
+                onClick={() => setSearchKeyword('')}
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
         
         {/* 统计概览 */}

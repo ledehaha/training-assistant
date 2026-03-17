@@ -495,6 +495,8 @@ const migrationSQL = `
   ALTER TABLE projects ADD COLUMN cost_file_name_pdf TEXT;
   ALTER TABLE projects ADD COLUMN cost_file_word TEXT;
   ALTER TABLE projects ADD COLUMN cost_file_name_word TEXT;
+  ALTER TABLE projects ADD COLUMN cost_file_excel TEXT;
+  ALTER TABLE projects ADD COLUMN cost_file_name_excel TEXT;
   ALTER TABLE projects ADD COLUMN declaration_file_pdf TEXT;
   ALTER TABLE projects ADD COLUMN declaration_file_name_pdf TEXT;
   ALTER TABLE projects ADD COLUMN declaration_file_word TEXT;
@@ -528,6 +530,21 @@ function runMigrations(db: SqlJsDatabase): void {
         }
       }
     }
+    
+    // 清理无效数据（每次启动时执行）
+    try {
+      db.run(`UPDATE projects SET countersign_file = NULL, countersign_file_name = NULL WHERE countersign_file = 'countersign_file'`);
+      console.log('Cleaned up invalid countersign_file records');
+    } catch (err) {
+      console.warn('Failed to clean countersign data:', err);
+    }
+    
+    try {
+      db.run(`UPDATE projects SET cost_file_excel = NULL, cost_file_name_excel = NULL WHERE cost_file_excel IS NOT NULL AND cost_file_excel NOT LIKE 'projects/%'`);
+      console.log('Cleaned up invalid cost_file_excel records');
+    } catch (err) {
+      // 列可能不存在，忽略错误
+    }
   } catch (err) {
     console.warn('Migration check failed:', err);
   }
@@ -558,14 +575,6 @@ async function doInitDatabase(): Promise<void> {
   // 执行迁移
   if (sqlite) {
     runMigrations(sqlite);
-  }
-  
-  // 清理错误的默认数据（会签单字段错误值）
-  try {
-    sqlite.run(`UPDATE projects SET countersign_file = NULL, countersign_file_name = NULL WHERE countersign_file = 'countersign_file'`);
-    console.log('Cleaned up invalid countersign_file data');
-  } catch (err) {
-    console.warn('Failed to clean countersign data:', err);
   }
   
   dbInstance = drizzle(sqlite, { schema });
