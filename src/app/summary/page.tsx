@@ -320,8 +320,20 @@ export default function SummaryPage() {
     };
   }, [allProjects, timeFilter, searchKeyword]);
 
-  // 列表显示限制（最多8个）
-  const MAX_DISPLAY_COUNT = 8;
+  // 列表显示限制（每页8个）
+  const PAGE_SIZE = 8;
+  
+  // 分页状态
+  const [executingPage, setExecutingPage] = useState(1);
+  const [completedPage, setCompletedPage] = useState(1);
+  const [archivedPage, setArchivedPage] = useState(1);
+  
+  // 重置分页（当筛选条件变化时）
+  useEffect(() => {
+    setExecutingPage(1);
+    setCompletedPage(1);
+    setArchivedPage(1);
+  }, [timeFilter, searchKeyword]);
   
   // 统计数据
   const stats = useMemo(() => ({
@@ -329,6 +341,82 @@ export default function SummaryPage() {
     completed: categorizedProjects.completedProjects.length,
     archived: categorizedProjects.archivedProjects.length,
   }), [categorizedProjects]);
+
+  // 分页组件
+  const renderPagination = (
+    currentPage: number, 
+    totalItems: number, 
+    onPageChange: (page: number) => void
+  ) => {
+    const totalPages = Math.ceil(totalItems / PAGE_SIZE);
+    if (totalPages <= 1) return null;
+    
+    const pages: (number | string)[] = [];
+    
+    // 始终显示第一页
+    pages.push(1);
+    
+    // 计算中间页码
+    let startPage = Math.max(2, currentPage - 1);
+    let endPage = Math.min(totalPages - 1, currentPage + 1);
+    
+    if (startPage > 2) {
+      pages.push('...');
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+    
+    if (endPage < totalPages - 1) {
+      pages.push('...');
+    }
+    
+    // 始终显示最后一页
+    if (totalPages > 1) {
+      pages.push(totalPages);
+    }
+    
+    return (
+      <div className="flex items-center justify-center gap-1 mt-3">
+        {/* 上一页 */}
+        <button
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="px-2 py-1 text-xs rounded border disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+        >
+          ‹
+        </button>
+        
+        {/* 页码 */}
+        {pages.map((page, index) => (
+          <button
+            key={index}
+            onClick={() => typeof page === 'number' && onPageChange(page)}
+            disabled={page === '...'}
+            className={`px-2.5 py-1 text-xs rounded border ${
+              page === currentPage 
+                ? 'bg-blue-500 text-white border-blue-500' 
+                : page === '...' 
+                  ? 'border-transparent cursor-default' 
+                  : 'hover:bg-gray-100'
+            }`}
+          >
+            {page}
+          </button>
+        ))}
+        
+        {/* 下一页 */}
+        <button
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="px-2 py-1 text-xs rounded border disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+        >
+          ›
+        </button>
+      </div>
+    );
+  };
 
   // 选择项目并进入下一步
   const handleSelectProject = (project: Project) => {
@@ -1381,7 +1469,9 @@ export default function SummaryPage() {
                         <p className="text-xs text-gray-400">补录历史项目</p>
                       </CardContent>
                     </Card>
-                    {categorizedProjects.executingProjects.slice(0, MAX_DISPLAY_COUNT).map((project) => (
+                    {categorizedProjects.executingProjects
+                      .slice((executingPage - 1) * PAGE_SIZE, executingPage * PAGE_SIZE)
+                      .map((project) => (
                       <Card
                         key={project.id}
                         className="cursor-pointer hover:border-indigo-500 hover:shadow-md transition-all"
@@ -1407,11 +1497,7 @@ export default function SummaryPage() {
                       </Card>
                     ))}
                   </div>
-                  {categorizedProjects.executingProjects.length > MAX_DISPLAY_COUNT && (
-                    <p className="text-xs text-gray-500 text-center mt-2">
-                      还有 {categorizedProjects.executingProjects.length - MAX_DISPLAY_COUNT} 个执行中项目未显示
-                    </p>
-                  )}
+                  {renderPagination(executingPage, categorizedProjects.executingProjects.length, setExecutingPage)}
                 </div>
               )}
               
@@ -1424,7 +1510,9 @@ export default function SummaryPage() {
                     <Badge variant="secondary" className="text-xs">{categorizedProjects.completedProjects.length}</Badge>
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                    {categorizedProjects.completedProjects.slice(0, MAX_DISPLAY_COUNT).map((project) => {
+                    {categorizedProjects.completedProjects
+                      .slice((completedPage - 1) * PAGE_SIZE, completedPage * PAGE_SIZE)
+                      .map((project) => {
                       const { isComplete } = checkArchiveRequirements(project);
                       return (
                         <Card
@@ -1455,11 +1543,7 @@ export default function SummaryPage() {
                       );
                     })}
                   </div>
-                  {categorizedProjects.completedProjects.length > MAX_DISPLAY_COUNT && (
-                    <p className="text-xs text-gray-500 text-center mt-2">
-                      还有 {categorizedProjects.completedProjects.length - MAX_DISPLAY_COUNT} 个已完成项目未显示
-                    </p>
-                  )}
+                  {renderPagination(completedPage, categorizedProjects.completedProjects.length, setCompletedPage)}
                 </div>
               )}
             </div>
@@ -1491,34 +1575,34 @@ export default function SummaryPage() {
               <p>暂无已归档项目</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-              {categorizedProjects.archivedProjects.slice(0, MAX_DISPLAY_COUNT).map((project) => (
-                <Card
-                  key={project.id}
-                  className="cursor-pointer hover:shadow-md transition-all opacity-80 hover:opacity-100"
-                  onClick={() => handleSelectProject(project)}
-                >
-                  <CardContent className="p-3">
-                    <div className="flex items-start justify-between mb-1.5">
-                      <h5 className="font-medium text-gray-900 text-sm line-clamp-1">{project.name}</h5>
-                      <Badge className="bg-gray-100 text-gray-500 text-xs">已归档</Badge>
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      <p>参训：{project.participantCount || '-'}人</p>
-                    </div>
-                    <div className="mt-2 flex items-center gap-1 text-xs text-gray-400">
-                      <CheckCircle className="w-3 h-3" />
-                      <span>已完成总结</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-          {categorizedProjects.archivedProjects.length > MAX_DISPLAY_COUNT && (
-            <p className="text-xs text-gray-500 text-center mt-2">
-              还有 {categorizedProjects.archivedProjects.length - MAX_DISPLAY_COUNT} 个已归档项目未显示
-            </p>
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                {categorizedProjects.archivedProjects
+                  .slice((archivedPage - 1) * PAGE_SIZE, archivedPage * PAGE_SIZE)
+                  .map((project) => (
+                  <Card
+                    key={project.id}
+                    className="cursor-pointer hover:shadow-md transition-all opacity-80 hover:opacity-100"
+                    onClick={() => handleSelectProject(project)}
+                  >
+                    <CardContent className="p-3">
+                      <div className="flex items-start justify-between mb-1.5">
+                        <h5 className="font-medium text-gray-900 text-sm line-clamp-1">{project.name}</h5>
+                        <Badge className="bg-gray-100 text-gray-500 text-xs">已归档</Badge>
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        <p>参训：{project.participantCount || '-'}人</p>
+                      </div>
+                      <div className="mt-2 flex items-center gap-1 text-xs text-gray-400">
+                        <CheckCircle className="w-3 h-3" />
+                        <span>已完成总结</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+              {renderPagination(archivedPage, categorizedProjects.archivedProjects.length, setArchivedPage)}
+            </>
           )}
         </CardContent>
       </Card>
