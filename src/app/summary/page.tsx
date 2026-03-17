@@ -304,6 +304,9 @@ export default function SummaryPage() {
     };
   }, [allProjects, timeFilter]);
 
+  // 列表显示限制（最多8个）
+  const MAX_DISPLAY_COUNT = 8;
+  
   // 统计数据
   const stats = useMemo(() => ({
     executing: categorizedProjects.executingProjects.length,
@@ -1334,7 +1337,7 @@ export default function SummaryPage() {
                         <p className="text-xs text-gray-400">补录历史项目</p>
                       </CardContent>
                     </Card>
-                    {categorizedProjects.executingProjects.map((project) => (
+                    {categorizedProjects.executingProjects.slice(0, MAX_DISPLAY_COUNT).map((project) => (
                       <Card
                         key={project.id}
                         className="cursor-pointer hover:border-indigo-500 hover:shadow-md transition-all"
@@ -1360,6 +1363,11 @@ export default function SummaryPage() {
                       </Card>
                     ))}
                   </div>
+                  {categorizedProjects.executingProjects.length > MAX_DISPLAY_COUNT && (
+                    <p className="text-xs text-gray-500 text-center mt-2">
+                      还有 {categorizedProjects.executingProjects.length - MAX_DISPLAY_COUNT} 个执行中项目未显示
+                    </p>
+                  )}
                 </div>
               )}
               
@@ -1372,7 +1380,7 @@ export default function SummaryPage() {
                     <Badge variant="secondary" className="text-xs">{categorizedProjects.completedProjects.length}</Badge>
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                    {categorizedProjects.completedProjects.map((project) => {
+                    {categorizedProjects.completedProjects.slice(0, MAX_DISPLAY_COUNT).map((project) => {
                       const { isComplete } = checkArchiveRequirements(project);
                       return (
                         <Card
@@ -1403,6 +1411,11 @@ export default function SummaryPage() {
                       );
                     })}
                   </div>
+                  {categorizedProjects.completedProjects.length > MAX_DISPLAY_COUNT && (
+                    <p className="text-xs text-gray-500 text-center mt-2">
+                      还有 {categorizedProjects.completedProjects.length - MAX_DISPLAY_COUNT} 个已完成项目未显示
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -1435,7 +1448,7 @@ export default function SummaryPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-              {categorizedProjects.archivedProjects.map((project) => (
+              {categorizedProjects.archivedProjects.slice(0, MAX_DISPLAY_COUNT).map((project) => (
                 <Card
                   key={project.id}
                   className="cursor-pointer hover:shadow-md transition-all opacity-80 hover:opacity-100"
@@ -1457,6 +1470,11 @@ export default function SummaryPage() {
                 </Card>
               ))}
             </div>
+          )}
+          {categorizedProjects.archivedProjects.length > MAX_DISPLAY_COUNT && (
+            <p className="text-xs text-gray-500 text-center mt-2">
+              还有 {categorizedProjects.archivedProjects.length - MAX_DISPLAY_COUNT} 个已归档项目未显示
+            </p>
           )}
         </CardContent>
       </Card>
