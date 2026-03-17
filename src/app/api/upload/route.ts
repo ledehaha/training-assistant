@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { S3Storage } from 'coze-coding-dev-sdk';
-import { getDb, saveDatabaseImmediate } from '@/storage/database';
+import { getDb, saveDatabaseImmediate, ensureDatabaseReady } from '@/storage/database';
 import { projects } from '@/storage/database/schema';
 import { eq } from 'drizzle-orm';
 
@@ -16,6 +16,9 @@ const storage = new S3Storage({
 // 上传文件
 export async function POST(request: NextRequest) {
   try {
+    // 确保数据库已初始化
+    await ensureDatabaseReady();
+    
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const projectId = formData.get('projectId') as string;
@@ -116,6 +119,9 @@ export async function POST(request: NextRequest) {
 // 删除文件
 export async function DELETE(request: NextRequest) {
   try {
+    // 确保数据库已初始化
+    await ensureDatabaseReady();
+    
     const { projectId, fileType, fileIndex } = await request.json();
 
     if (!projectId || !fileType) {
