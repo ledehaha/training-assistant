@@ -231,6 +231,8 @@ export default function SummaryPage() {
     data: Record<string, unknown>;
     existingId?: string;
     reason: string;
+    source?: string; // 数据来源文件
+    confidence?: 'high' | 'medium' | 'low'; // 数据置信度
   }
 
   // 项目基本信息检查结果类型
@@ -2489,6 +2491,21 @@ export default function SummaryPage() {
   const renderCheckItems = (type: string, items: AiCheckItem[], icon: React.ReactNode, title: string) => {
     if (!items || items.length === 0) return null;
     
+    // 置信度颜色映射
+    const getConfidenceBadge = (confidence?: 'high' | 'medium' | 'low') => {
+      if (!confidence) return null;
+      const config = {
+        high: { color: 'bg-green-100 text-green-700 border-green-200', label: '高置信度' },
+        medium: { color: 'bg-yellow-100 text-yellow-700 border-yellow-200', label: '中置信度' },
+        low: { color: 'bg-gray-100 text-gray-600 border-gray-200', label: '低置信度' },
+      };
+      return (
+        <span className={`text-xs px-1.5 py-0.5 rounded border ${config[confidence].color}`}>
+          {config[confidence].label}
+        </span>
+      );
+    };
+    
     return (
       <div className="border rounded-lg overflow-hidden">
         <button
@@ -2508,15 +2525,23 @@ export default function SummaryPage() {
               <div key={index} className="p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <Badge variant={item.action === 'add' ? 'default' : 'outline'} className="text-xs">
                         {item.action === 'add' ? '新增' : '更新'}
                       </Badge>
                       <span className="font-medium text-gray-900">
                         {String(item.data.name || '未命名')}
                       </span>
+                      {getConfidenceBadge(item.confidence)}
                     </div>
                     <p className="text-xs text-gray-500 mb-2">{item.reason}</p>
+                    {/* 数据来源显示 */}
+                    {item.source && (
+                      <div className="flex items-center gap-1 text-xs text-blue-600 mb-2">
+                        <FileText className="w-3 h-3" />
+                        <span>来源：{item.source}</span>
+                      </div>
+                    )}
                     <div className="text-xs text-gray-600 bg-gray-50 p-2 rounded max-h-20 overflow-y-auto">
                       {Object.entries(item.data).map(([key, value]) => (
                         value && key !== 'name' ? (
