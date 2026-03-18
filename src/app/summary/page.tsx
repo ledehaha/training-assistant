@@ -201,6 +201,7 @@ export default function SummaryPage() {
     hasChanges: boolean;
     totalChanges: number;
     checkResult: {
+      projectInfo: ProjectInfoItem[];
       teachers: AiCheckItem[];
       venues: AiCheckItem[];
       courseTemplates: AiCheckItem[];
@@ -210,6 +211,7 @@ export default function SummaryPage() {
   } | null>(null);
   const [showAiCheckDialog, setShowAiCheckDialog] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    projectInfo: true,
     teachers: true,
     venues: true,
     courseTemplates: true,
@@ -222,6 +224,16 @@ export default function SummaryPage() {
     action: 'add' | 'update';
     data: Record<string, unknown>;
     existingId?: string;
+    reason: string;
+  }
+
+  // 项目基本信息检查结果类型
+  interface ProjectInfoItem {
+    field: string;
+    fieldName: string;
+    currentValue: string | number | null;
+    extractedValue: string | number;
+    source: string;
     reason: string;
   }
 
@@ -2099,11 +2111,20 @@ export default function SummaryPage() {
         // 从结果列表中移除已处理的项
         if (aiCheckResult) {
           const newResult = { ...aiCheckResult };
-          newResult.checkResult[type as keyof typeof newResult.checkResult] = 
-            newResult.checkResult[type as keyof typeof newResult.checkResult].filter(
-              (i: AiCheckItem) => i !== item
-            );
-          newResult.totalChanges = Object.values(newResult.checkResult).flat().length;
+          const targetArray = newResult.checkResult[type as keyof typeof newResult.checkResult];
+          if (Array.isArray(targetArray)) {
+            (newResult.checkResult[type as keyof typeof newResult.checkResult] as unknown[]) = 
+              targetArray.filter((i: unknown) => i !== item);
+          }
+          // 重新计算总变更数量
+          const { projectInfo, teachers, venues, courseTemplates, visitSites, projectCourses } = newResult.checkResult;
+          newResult.totalChanges = 
+            (projectInfo?.length || 0) +
+            teachers.length + 
+            venues.length + 
+            courseTemplates.length + 
+            visitSites.length + 
+            projectCourses.length;
           newResult.hasChanges = newResult.totalChanges > 0;
           setAiCheckResult(newResult);
         }
@@ -2121,11 +2142,20 @@ export default function SummaryPage() {
   const handleIgnoreDataChange = (type: string, item: AiCheckItem) => {
     if (aiCheckResult) {
       const newResult = { ...aiCheckResult };
-      newResult.checkResult[type as keyof typeof newResult.checkResult] = 
-        newResult.checkResult[type as keyof typeof newResult.checkResult].filter(
-          (i: AiCheckItem) => i !== item
-        );
-      newResult.totalChanges = Object.values(newResult.checkResult).flat().length;
+      const targetArray = newResult.checkResult[type as keyof typeof newResult.checkResult];
+      if (Array.isArray(targetArray)) {
+        (newResult.checkResult[type as keyof typeof newResult.checkResult] as unknown[]) = 
+          targetArray.filter((i: unknown) => i !== item);
+      }
+      // 重新计算总变更数量
+      const { projectInfo, teachers, venues, courseTemplates, visitSites, projectCourses } = newResult.checkResult;
+      newResult.totalChanges = 
+        (projectInfo?.length || 0) +
+        teachers.length + 
+        venues.length + 
+        courseTemplates.length + 
+        visitSites.length + 
+        projectCourses.length;
       newResult.hasChanges = newResult.totalChanges > 0;
       setAiCheckResult(newResult);
       toast.success('已忽略该变更');
@@ -2138,6 +2168,144 @@ export default function SummaryPage() {
       ...prev,
       [section]: !prev[section]
     }));
+  };
+
+  // 渲染项目基本信息检查结果
+  const renderProjectInfoItems = (items: ProjectInfoItem[]) => {
+    if (!items || items.length === 0) return null;
+    
+    return (
+      <div className="border rounded-lg overflow-hidden border-amber-300 bg-amber-50">
+        <button
+          className="w-full flex items-center justify-between p-3 bg-amber-100 hover:bg-amber-200 transition-colors"
+          onClick={() => toggleSection('projectInfo')}
+        >
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-amber-600" />
+            <span className="font-medium text-amber-900">项目基本信息</span>
+            <Badge variant="secondary" className="text-xs bg-amber-200 text-amber-800">{items.length}</Badge>
+          </div>
+          {expandedSections.projectInfo ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
+        {expandedSections.projectInfo && (
+          <div className="divide-y divide-amber-200">
+            {items.map((item, index) => (
+              <div key={index} className="p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge variant="outline" className="text-xs border-amber-400 text-amber-700">
+                        {item.fieldName}
+                      </Badge>
+                      <span className="text-xs text-amber-600">来源: {item.source}</span>
+                    </div>
+                    <div className="flex items-center gap-4 text-sm mb-2">
+                      <div>
+                        <span className="text-gray-500">当前值：</span>
+                        <span className={item.currentValue === null || item.currentValue === '未填写' ? 'text-red-500 italic' : 'text-gray-700'}>
+                          {item.currentValue ?? '未填写'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">文件值：</span>
+                        <span className="font-medium text-green-700">{item.extractedValue}</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-amber-700">{item.reason}</p>
+                  </div>
+                  <div className="flex gap-1 flex-shrink-0">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs text-green-600 border-green-200 hover:bg-green-50"
+                      onClick={() => handleConfirmProjectInfo(item)}
+                    >
+                      <Check className="w-3 h-3 mr-1" />
+                      更新
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => handleIgnoreProjectInfo(item)}
+                    >
+                      <X className="w-3 h-3 mr-1" />
+                      忽略
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // 确认更新项目基本信息
+  const handleConfirmProjectInfo = async (item: ProjectInfoItem) => {
+    if (!selectedProject) return;
+    
+    try {
+      const updateData: Record<string, unknown> = {};
+      updateData[item.field] = typeof item.extractedValue === 'string' && !isNaN(Number(item.extractedValue)) 
+        ? Number(item.extractedValue) 
+        : item.extractedValue;
+      
+      const res = await fetch(`/api/projects/${selectedProject.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updateData),
+      });
+      
+      if (res.ok) {
+        toast.success('项目信息已更新');
+        // 更新本地状态
+        setSelectedProject(prev => prev ? { ...prev, [item.field]: updateData[item.field] } : null);
+        // 从结果列表中移除已处理的项
+        if (aiCheckResult) {
+          const newResult = { ...aiCheckResult };
+          newResult.checkResult.projectInfo = newResult.checkResult.projectInfo.filter(i => i !== item);
+          // 重新计算总变更数量
+          const { projectInfo, teachers, venues, courseTemplates, visitSites, projectCourses } = newResult.checkResult;
+          newResult.totalChanges = 
+            (projectInfo?.length || 0) +
+            teachers.length + 
+            venues.length + 
+            courseTemplates.length + 
+            visitSites.length + 
+            projectCourses.length;
+          newResult.hasChanges = newResult.totalChanges > 0;
+          setAiCheckResult(newResult);
+        }
+      } else {
+        const errorData = await res.json();
+        throw new Error(errorData.error || '更新失败');
+      }
+    } catch (error) {
+      console.error('Update project info error:', error);
+      toast.error('更新失败', { description: error instanceof Error ? error.message : '请稍后重试' });
+    }
+  };
+
+  // 忽略项目基本信息变更
+  const handleIgnoreProjectInfo = (item: ProjectInfoItem) => {
+    if (aiCheckResult) {
+      const newResult = { ...aiCheckResult };
+      newResult.checkResult.projectInfo = newResult.checkResult.projectInfo.filter(i => i !== item);
+      // 重新计算总变更数量
+      const { projectInfo, teachers, venues, courseTemplates, visitSites, projectCourses } = newResult.checkResult;
+      newResult.totalChanges = 
+        (projectInfo?.length || 0) +
+        teachers.length + 
+        venues.length + 
+        courseTemplates.length + 
+        visitSites.length + 
+        projectCourses.length;
+      newResult.hasChanges = newResult.totalChanges > 0;
+      setAiCheckResult(newResult);
+      toast.success('已忽略该变更');
+    }
   };
 
   // 渲染AI检查结果项
@@ -2519,6 +2687,7 @@ export default function SummaryPage() {
           <div className="overflow-y-auto" style={{ maxHeight: 'calc(90vh - 200px)' }}>
             {aiCheckResult?.hasChanges ? (
               <div className="space-y-4">
+                {renderProjectInfoItems(aiCheckResult.checkResult.projectInfo)}
                 {renderCheckItems('teachers', aiCheckResult.checkResult.teachers, <UserPlus className="w-4 h-4 text-blue-600" />, '讲师信息')}
                 {renderCheckItems('venues', aiCheckResult.checkResult.venues, <MapPin className="w-4 h-4 text-green-600" />, '场地信息')}
                 {renderCheckItems('courseTemplates', aiCheckResult.checkResult.courseTemplates, <BookOpen className="w-4 h-4 text-purple-600" />, '课程模板')}
@@ -2541,8 +2710,21 @@ export default function SummaryPage() {
               <Button onClick={() => {
                 // 一键确认所有变更
                 const allPromises: Promise<void>[] = [];
-                Object.entries(aiCheckResult.checkResult).forEach(([type, items]) => {
-                  items.forEach(item => {
+                
+                // 处理项目基本信息
+                aiCheckResult.checkResult.projectInfo.forEach(item => {
+                  allPromises.push(
+                    new Promise<void>((resolve) => {
+                      handleConfirmProjectInfo(item);
+                      resolve();
+                    })
+                  );
+                });
+                
+                // 处理其他数据类型
+                const otherTypes = ['teachers', 'venues', 'courseTemplates', 'visitSites', 'projectCourses'] as const;
+                otherTypes.forEach(type => {
+                  aiCheckResult.checkResult[type].forEach(item => {
                     allPromises.push(
                       new Promise<void>((resolve) => {
                         handleConfirmDataChange(type, item);

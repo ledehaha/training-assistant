@@ -117,6 +117,15 @@ interface CheckResult {
     existingId?: string;
     reason: string;
   }[];
+  // 项目基本信息校验结果
+  projectInfo: {
+    field: string;
+    fieldName: string;
+    currentValue: string | number | null;
+    extractedValue: string | number;
+    source: string;
+    reason: string;
+  }[];
 }
 
 export async function POST(request: NextRequest) {
@@ -241,6 +250,11 @@ export async function POST(request: NextRequest) {
 
 你需要检查以下几类数据：
 
+**【最重要】0. 项目基本信息（projectInfo）**：
+   - 从文件中提取参训人数、培训天数、培训课时、培训时段、培训地点、开始日期、结束日期等信息
+   - 对比项目记录中的现有值，如果文件中的值与现有值不一致或现有值为空，需要提示更新
+   - 对于每个不一致的字段，说明来源文件（如"来自合同"、"来自学员名单"等）
+
 1. **讲师信息（teachers）**：
    - 从文件中识别讲师姓名、职称、专业领域、所属单位、简介、课时费等信息
    - 对比数据库中已有的讲师，判断是新增还是更新
@@ -264,6 +278,16 @@ export async function POST(request: NextRequest) {
 **输出格式要求**：
 返回JSON格式的结果，包含以下字段：
 {
+  "projectInfo": [
+    {
+      "field": "字段名（如 participantCount, trainingDays, trainingHours, location, startDate, endDate）",
+      "fieldName": "字段中文名（如 参训人数, 培训天数）",
+      "currentValue": "项目记录中的当前值（可为null或数字）",
+      "extractedValue": "从文件中提取的值",
+      "source": "来源文件名",
+      "reason": "需要更新的理由"
+    }
+  ],
   "teachers": [
     {
       "action": "add" 或 "update",
@@ -279,20 +303,31 @@ export async function POST(request: NextRequest) {
 }
 
 **判断标准**：
-- 如果数据库中存在同名记录，且文件中的信息更完整或有更新，标记为"update"
-- 如果数据库中不存在同名记录，标记为"add"
+- 项目基本信息：如果文件中的值与项目记录不一致，或项目记录为空但文件中有值，必须返回差异
+- 讲师/场地等：如果数据库中存在同名记录且信息更完整，标记为"update"；不存在则标记为"add"
 - 如果信息完全一致，则不需要返回该项
 - 只有当确实有新增或有价值的信息时才返回结果
 
-请仔细分析文件内容，准确提取数据，避免臆造信息。`;
+**特别注意**：
+- 参训人数通常可以从学员名单中统计得出
+- 培训天数可以从课程安排或合同中获取
+- 请仔细分析文件内容，准确提取数据，避免臆造信息
+- 项目基本信息的校验是最重要的，必须优先检查`;
 
-    let userPrompt = `## 项目基本信息
+    let userPrompt = `## 项目当前记录的基本信息
 - 项目名称：${project.name}
 - 培训目标：${project.trainingTarget || '未填写'}
 - 目标人群：${project.targetAudience || '未填写'}
-- 参训人数：${project.participantCount || '未填写'}
-- 培训天数：${project.trainingDays || '未填写'}
+- 参训人数：${project.participantCount ?? '未填写'}
+- 培训天数：${project.trainingDays ?? '未填写'}
+- 培训课时：${project.trainingHours ?? '未填写'}
+- 培训时段：${project.trainingPeriod || '未填写'}
 - 培训地点：${project.location || '未填写'}
+- 开始日期：${project.startDate || '未填写'}
+- 结束日期：${project.endDate || '未填写'}
+- 总预算：${project.totalBudget ?? '未填写'}
+
+**请重点检查上述字段是否与文件内容一致！**
 
 ## 数据库中已有的数据
 
@@ -378,6 +413,7 @@ ${fileContents.satisfaction}
 
     // 解析AI响应
     let checkResult: CheckResult = {
+      projectInfo: [],
       teachers: [],
       venues: [],
       courseTemplates: [],
@@ -401,14 +437,24 @@ ${fileContents.satisfaction}
       return items.filter(item => item.data && Object.keys(item.data).length > 0 && item.data.name);
     };
 
-    checkResult.teachers = filterValidResults(checkResult.teachers);
-    checkResult.venues = filterValidResults(checkResult.venues);
-    checkResult.courseTemplates = filterValidResults(checkResult.courseTemplates);
-    checkResult.visitSites = filterValidResults(checkResult.visitSites);
-    checkResult.projectCourses = filterValidResults(checkResult.projectCourses);
+    // 过滤项目基本信息结果（保留有效的字段变更）
+    if (checkResult.projectInfo) {
+      checkResult.projectInfo = checkResult.projectInfo.filter(item => 
+        item.field && item.extractedValue !== undefined && item.extractedValue !== null
+      );
+    } else {
+      checkResult.projectInfo = [];
+    }
+
+    checkResult.teachers = filterValidResults(checkResult.teachers || []);
+    checkResult.venues = filterValidResults(checkResult.venues || []);
+    checkResult.courseTemplates = filterValidResults(checkResult.courseTemplates || []);
+    checkResult.visitSites = filterValidResults(checkResult.visitSites || []);
+    checkResult.projectCourses = filterValidResults(checkResult.projectCourses || []);
 
     // 计算总变更数量
     const totalChanges = 
+      (checkResult.projectInfo?.length || 0) +
       checkResult.teachers.length + 
       checkResult.venues.length + 
       checkResult.courseTemplates.length + 
