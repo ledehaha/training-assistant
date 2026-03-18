@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { LLMClient, Config, HeaderUtils, Message } from 'coze-coding-dev-sdk';
+import { LLMClient, FetchClient, Config, HeaderUtils, Message } from 'coze-coding-dev-sdk';
 import { S3Storage } from 'coze-coding-dev-sdk';
 import { getDb, ensureDatabaseReady } from '@/storage/database';
 import {
@@ -23,27 +23,36 @@ const storage = new S3Storage({
   region: 'cn-beijing',
 });
 
-// 读取文件内容
-async function readFileContent(fileKey: string): Promise<string> {
+// 读取并解析文件内容（支持PDF、Word、Excel等）
+async function readFileContent(fileKey: string, customHeaders: Record<string, string>): Promise<string> {
   try {
-    const buffer = await storage.readFile({ fileKey });
-    const content = buffer.toString('utf-8');
+    // 生成签名URL
+    const signedUrl = await storage.generatePresignedUrl({ 
+      key: fileKey, 
+      expireTime: 3600 // 1小时有效期 
+    });
+    
+    // 使用 FetchClient 解析文件内容
+    const config = new Config();
+    const fetchClient = new FetchClient(config, customHeaders);
+    const response = await fetchClient.fetch(signedUrl);
+    
+    if (response.status_code !== 0) {
+      console.error('FetchClient解析文件失败:', response.status_message);
+      return '';
+    }
+    
+    // 提取文本内容
+    const textContent = response.content
+      .filter(item => item.type === 'text' && item.text)
+      .map(item => item.text)
+      .join('\n');
+    
     // 限制内容长度，避免超过token限制
-    return content.substring(0, 8000);
+    return textContent.substring(0, 8000);
   } catch (error) {
     console.error('读取文件失败:', error);
     return '';
-  }
-}
-
-// 读取文件为Base64（用于图片和PDF）
-async function readFileAsBase64(fileKey: string): Promise<string | null> {
-  try {
-    const buffer = await storage.readFile({ fileKey });
-    return buffer.toString('base64');
-  } catch (error) {
-    console.error('读取文件失败:', error);
-    return null;
   }
 }
 
@@ -133,6 +142,9 @@ export async function POST(request: NextRequest) {
     // 确保数据库已初始化
     await ensureDatabaseReady();
     
+    // 提取请求头，用于后续API调用
+    const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
+    
     const { projectId } = await request.json();
 
     if (!projectId) {
@@ -155,30 +167,30 @@ export async function POST(request: NextRequest) {
     
     // 合同文件
     if (project.contractFilePdf) {
-      fileContents.contract = await readFileContent(project.contractFilePdf);
+      fileContents.contract = await readFileContent(project.contractFilePdf, customHeaders);
       fileUrls.contract = project.contractFilePdf;
     }
     // 成本测算表
     if (project.costFilePdf) {
-      fileContents.cost = await readFileContent(project.costFilePdf);
+      fileContents.cost = await readFileContent(project.costFilePdf, customHeaders);
       fileUrls.cost = project.costFilePdf;
     } else if (project.costFileExcel) {
-      fileContents.cost = await readFileContent(project.costFileExcel);
+      fileContents.cost = await readFileContent(project.costFileExcel, customHeaders);
       fileUrls.cost = project.costFileExcel;
     }
     // 项目申报书
     if (project.declarationFilePdf) {
-      fileContents.declaration = await readFileContent(project.declarationFilePdf);
+      fileContents.declaration = await readFileContent(project.declarationFilePdf, customHeaders);
       fileUrls.declaration = project.declarationFilePdf;
     }
     // 学员名单
     if (project.studentListFile) {
-      fileContents.studentList = await readFileContent(project.studentListFile);
+      fileContents.studentList = await readFileContent(project.studentListFile, customHeaders);
       fileUrls.studentList = project.studentListFile;
     }
     // 满意度调查
     if (project.satisfactionSurveyFile) {
-      fileContents.satisfaction = await readFileContent(project.satisfactionSurveyFile);
+      fileContents.satisfaction = await readFileContent(project.satisfactionSurveyFile, customHeaders);
       fileUrls.satisfaction = project.satisfactionSurveyFile;
     }
 
@@ -397,7 +409,6 @@ ${fileContents.satisfaction}
     }
 
     // 调用LLM进行分析
-    const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
     const config = new Config();
     const client = new LLMClient(config, customHeaders);
 
