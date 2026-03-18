@@ -374,13 +374,99 @@ ${fileData.length === 0 ? '注意：该项目暂未上传任何文件材料。' 
 
         // 解析AI响应
         let rawResult: Record<string, unknown> = {};
-        try {
-          const jsonMatch = response.content.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            rawResult = JSON.parse(jsonMatch[0]);
+        let aiRawContent = response.content;
+        
+        // 输出日志
+        console.error('=== AI响应长度:', aiRawContent.length);
+        
+        // 检查是否为空
+        if (!aiRawContent || aiRawContent.trim() === '') {
+          console.error('AI返回空内容');
+        } else {
+          // 尝试找到JSON对象
+          const firstBrace = aiRawContent.indexOf('{');
+          const lastBrace = aiRawContent.lastIndexOf('}');
+          console.error('第一个{位置:', firstBrace, '最后一个}位置:', lastBrace);
+          
+          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+            let jsonStr = aiRawContent.substring(firstBrace, lastBrace + 1);
+            console.error('提取的JSON长度:', jsonStr.length);
+            
+            // 尝试修复不完整的JSON
+            const fixAndParseJSON = (str: string): Record<string, unknown> | null => {
+              try {
+                return JSON.parse(str);
+              } catch (e) {
+                console.error('初次解析失败，尝试修复JSON...');
+                
+                // 检查是否缺少闭合括号
+                const openBraces = (str.match(/\[/g) || []).length;
+                const closeBraces = (str.match(/\]/g) || []).length;
+                const openCurly = (str.match(/\{/g) || []).length;
+                const closeCurly = (str.match(/\}/g) || []).length;
+                
+                console.error('括号统计: [=', openBraces, ']=', closeBraces, '{=', openCurly, '}=', closeCurly);
+                
+                // 尝试补全缺失的括号
+                let fixed = str;
+                
+                // 补全缺失的数组闭合括号
+                for (let i = 0; i < openBraces - closeBraces; i++) {
+                  fixed += ']';
+                }
+                // 补全缺失的对象闭合括号
+                for (let i = 0; i < openCurly - closeCurly; i++) {
+                  fixed += '}';
+                }
+                
+                console.error('修复后长度:', fixed.length);
+                
+                try {
+                  const result = JSON.parse(fixed);
+                  console.error('修复后解析成功');
+                  return result;
+                } catch (e2) {
+                  console.error('修复后仍然失败:', e2);
+                  
+                  // 最后尝试：截取到最后一个完整的数据项
+                  // 查找最后一个完整的对象
+                  const lastCompleteObject = str.lastIndexOf('},');
+                  if (lastCompleteObject > 0) {
+                    let truncated = str.substring(0, lastCompleteObject + 1);
+                    // 重新计算需要的闭合括号
+                    const tOpenBraces = (truncated.match(/\[/g) || []).length;
+                    const tCloseBraces = (truncated.match(/\]/g) || []).length;
+                    const tOpenCurly = (truncated.match(/\{/g) || []).length;
+                    const tCloseCurly = (truncated.match(/\}/g) || []).length;
+                    
+                    for (let i = 0; i < tOpenBraces - tCloseBraces; i++) truncated += ']';
+                    for (let i = 0; i < tOpenCurly - tCloseCurly; i++) truncated += '}';
+                    
+                    console.error('截断修复后长度:', truncated.length);
+                    try {
+                      const result = JSON.parse(truncated);
+                      console.error('截断修复后解析成功');
+                      return result;
+                    } catch (e3) {
+                      console.error('截断修复后仍然失败:', e3);
+                    }
+                  }
+                  return null;
+                }
+              }
+            };
+            
+            const parsed = fixAndParseJSON(jsonStr);
+            if (parsed) {
+              rawResult = parsed;
+              console.error('最终解析成功，结果键:', Object.keys(rawResult));
+            } else {
+              console.error('无法解析JSON');
+            }
+          } else {
+            console.error('未找到有效的JSON结构');
+            console.error('内容前500字符:', aiRawContent.substring(0, 500));
           }
-        } catch (parseError) {
-          console.error('解析AI响应失败:', parseError);
         }
 
         // 验证并清理AI结果
