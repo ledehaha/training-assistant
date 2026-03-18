@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { LLMClient, Config, HeaderUtils, Message } from 'coze-coding-dev-sdk';
+import { LLMClient, FetchClient, Config, HeaderUtils, Message } from 'coze-coding-dev-sdk';
 import { S3Storage } from 'coze-coding-dev-sdk';
-import { getDb, saveDatabaseImmediate } from '@/storage/database';
+import { getDb, saveDatabaseImmediate, ensureDatabaseReady } from '@/storage/database';
 import { projects, projectCourses, teachers } from '@/storage/database/schema';
 import { eq } from 'drizzle-orm';
 
@@ -14,11 +14,25 @@ const storage = new S3Storage({
   region: 'cn-beijing',
 });
 
-// 读取文件内容
-async function readFileContent(fileKey: string): Promise<string> {
+// 读取并解析文件内容（支持PDF、Word、Excel等）
+async function readFileContent(fileKey: string, customHeaders: Record<string, string>): Promise<string> {
   try {
-    const buffer = await storage.readFile({ fileKey });
-    return buffer.toString('utf-8');
+    const signedUrl = await storage.generatePresignedUrl({ key: fileKey, expireTime: 3600 });
+    const config = new Config();
+    const fetchClient = new FetchClient(config, customHeaders);
+    const response = await fetchClient.fetch(signedUrl);
+    
+    if (response.status_code !== 0) {
+      console.error('FetchClient解析文件失败:', response.status_message);
+      return '';
+    }
+    
+    const textContent = response.content
+      .filter(item => item.type === 'text' && item.text)
+      .map(item => item.text)
+      .join('\n');
+    
+    return textContent.substring(0, 8000);
   } catch (error) {
     console.error('读取文件失败:', error);
     return '';
@@ -28,6 +42,10 @@ async function readFileContent(fileKey: string): Promise<string> {
 // 分析上传的文件并生成报告
 export async function POST(request: NextRequest) {
   try {
+    // 确保数据库已初始化
+    await ensureDatabaseReady();
+    
+    const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
     const { projectId } = await request.json();
 
     if (!projectId) {
@@ -51,10 +69,11 @@ export async function POST(request: NextRequest) {
     const teacherIds = [...new Set(courses.map(c => c.teacherId).filter((id): id is string => id !== null))];
     
     // 获取讲师信息
-    let teacherList: typeof teachers.$inferSelect[] = [];
+    let teacherList: (typeof teachers.$inferSelect)[] = [];
     if (teacherIds.length > 0) {
-      teacherList = await db.select().from(teachers).where(eq(teachers.id, teacherIds[0]));
-      // 由于drizzle不支持inArray直接使用，这里简化处理
+      // 简化处理，获取所有讲师后过滤
+      const allTeachers = await db.select().from(teachers);
+      teacherList = allTeachers.filter(t => teacherIds.includes(t.id));
     }
 
     // 收集上传文件的内容
@@ -62,27 +81,40 @@ export async function POST(request: NextRequest) {
     
     // 合同文件（优先PDF，其次Word）
     if (project.contractFilePdf) {
-      fileContents.contract = await readFileContent(project.contractFilePdf);
+      fileContents.contract = await readFileContent(project.contractFilePdf, customHeaders);
     } else if (project.contractFileWord) {
-      fileContents.contract = await readFileContent(project.contractFileWord);
+      fileContents.contract = await readFileContent(project.contractFileWord, customHeaders);
     }
     // 成本测算表（优先PDF，其次Excel）
     if (project.costFilePdf) {
-      fileContents.cost = await readFileContent(project.costFilePdf);
+      fileContents.cost = await readFileContent(project.costFilePdf, customHeaders);
     } else if (project.costFileExcel) {
-      fileContents.cost = await readFileContent(project.costFileExcel);
+      fileContents.cost = await readFileContent(project.costFileExcel, customHeaders);
     }
     // 项目申报书（优先PDF，其次Word）
     if (project.declarationFilePdf) {
-      fileContents.declaration = await readFileContent(project.declarationFilePdf);
+      fileContents.declaration = await readFileContent(project.declarationFilePdf, customHeaders);
     } else if (project.declarationFileWord) {
-      fileContents.declaration = await readFileContent(project.declarationFileWord);
+      fileContents.declaration = await readFileContent(project.declarationFileWord, customHeaders);
     }
     if (project.studentListFile) {
-      fileContents.studentList = await readFileContent(project.studentListFile);
+      fileContents.studentList = await readFileContent(project.studentListFile, customHeaders);
     }
     if (project.satisfactionSurveyFile) {
-      fileContents.satisfaction = await readFileContent(project.satisfactionSurveyFile);
+      fileContents.satisfaction = await readFileContent(project.satisfactionSurveyFile, customHeaders);
+    }
+
+    // 解析其它附件
+    const otherMaterials: { key: string; name: string }[] = project.otherMaterials 
+      ? JSON.parse(project.otherMaterials) 
+      : [];
+    
+    const otherFileContents: { name: string; content: string }[] = [];
+    for (const material of otherMaterials) {
+      const content = await readFileContent(material.key, customHeaders);
+      if (content) {
+        otherFileContents.push({ name: material.name, content });
+      }
     }
 
     // 构建AI提示词
@@ -163,30 +195,36 @@ ${index + 1}. ${teacher.name}
     }
 
     // 添加上传文件的内容
-    if (Object.keys(fileContents).length > 0) {
+    const hasFileContent = Object.keys(fileContents).length > 0 || otherFileContents.length > 0;
+    
+    if (hasFileContent) {
       userPrompt += '\n\n上传的材料内容：';
       
       if (fileContents.contract) {
-        userPrompt += `\n\n【合同文件内容】\n${fileContents.contract.substring(0, 2000)}...`;
+        userPrompt += `\n\n【合同文件内容】\n${fileContents.contract}\n`;
       }
       if (fileContents.cost) {
-        userPrompt += `\n\n【成本测算表内容】\n${fileContents.cost.substring(0, 2000)}...`;
+        userPrompt += `\n\n【成本测算表内容】\n${fileContents.cost}\n`;
       }
       if (fileContents.declaration) {
-        userPrompt += `\n\n【项目申报书内容】\n${fileContents.declaration.substring(0, 2000)}...`;
+        userPrompt += `\n\n【项目申报书内容】\n${fileContents.declaration}\n`;
       }
       if (fileContents.studentList) {
-        userPrompt += `\n\n【学员名单内容】\n${fileContents.studentList.substring(0, 2000)}...`;
+        userPrompt += `\n\n【学员名单内容】\n${fileContents.studentList}\n`;
       }
       if (fileContents.satisfaction) {
-        userPrompt += `\n\n【满意度调查结果】\n${fileContents.satisfaction.substring(0, 5000)}...`;
+        userPrompt += `\n\n【满意度调查结果】\n${fileContents.satisfaction}\n`;
       }
+      
+      // 添加其它附件内容
+      otherFileContents.forEach((file) => {
+        userPrompt += `\n\n【${file.name}内容】\n${file.content}\n`;
+      });
     } else {
       userPrompt += '\n\n注意：该项目暂未上传任何材料，请基于项目基本信息生成报告框架。';
     }
 
     // 调用LLM生成报告
-    const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
     const config = new Config();
     const client = new LLMClient(config, customHeaders);
 
@@ -231,6 +269,9 @@ ${index + 1}. ${teacher.name}
     return NextResponse.json({ data: result });
   } catch (error) {
     console.error('生成总结报告失败:', error);
-    return NextResponse.json({ error: '生成总结报告失败' }, { status: 500 });
+    return NextResponse.json({ 
+      error: '生成总结报告失败', 
+      message: error instanceof Error ? error.message : '未知错误' 
+    }, { status: 500 });
   }
 }
