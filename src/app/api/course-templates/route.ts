@@ -84,3 +84,48 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to create course template' }, { status: 500 });
   }
 }
+
+// PUT /api/course-templates - 更新课程模板
+export async function PUT(request: NextRequest) {
+  try {
+    await ensureDatabaseReady();
+    
+    const body = await request.json();
+    const { id, ...updateData } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: '缺少课程模板ID' }, { status: 400 });
+    }
+
+    // 检查课程模板是否存在
+    const existing = db
+      .select()
+      .from(courseTemplates)
+      .where(eq(courseTemplates.id, id))
+      .limit(1)
+      .all();
+
+    if (existing.length === 0) {
+      return NextResponse.json({ error: '课程模板不存在' }, { status: 404 });
+    }
+
+    // 更新课程模板
+    const result = db
+      .update(courseTemplates)
+      .set({
+        ...updateData,
+        updatedAt: getTimestamp(),
+      })
+      .where(eq(courseTemplates.id, id))
+      .returning()
+      .get();
+
+    // 保存数据库到文件
+    saveDatabaseImmediate();
+
+    return NextResponse.json({ data: result });
+  } catch (error) {
+    console.error('Update course template error:', error);
+    return NextResponse.json({ error: 'Failed to update course template' }, { status: 500 });
+  }
+}

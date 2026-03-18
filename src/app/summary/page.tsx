@@ -2084,10 +2084,10 @@ export default function SummaryPage() {
   // 确认添加/更新数据
   const handleConfirmDataChange = async (type: string, item: AiCheckItem) => {
     try {
-      const endpoint = type === 'teachers' ? '/api/data/teachers' :
-                       type === 'venues' ? '/api/data/venues' :
-                       type === 'courseTemplates' ? '/api/data/course-templates' :
-                       type === 'visitSites' ? '/api/data/visit-sites' :
+      const endpoint = type === 'teachers' ? '/api/teachers' :
+                       type === 'venues' ? '/api/venues' :
+                       type === 'courseTemplates' ? '/api/course-templates' :
+                       type === 'visitSites' ? '/api/visit-sites' :
                        type === 'projectCourses' ? `/api/projects/${selectedProject?.id}/courses` : '';
       
       if (!endpoint) {

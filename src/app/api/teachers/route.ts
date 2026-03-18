@@ -85,3 +85,48 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to create teacher' }, { status: 500 });
   }
 }
+
+// PUT /api/teachers - 更新讲师
+export async function PUT(request: NextRequest) {
+  try {
+    await ensureDatabaseReady();
+    
+    const body = await request.json();
+    const { id, ...updateData } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: '缺少讲师ID' }, { status: 400 });
+    }
+
+    // 检查讲师是否存在
+    const existing = db
+      .select()
+      .from(teachers)
+      .where(eq(teachers.id, id))
+      .limit(1)
+      .all();
+
+    if (existing.length === 0) {
+      return NextResponse.json({ error: '讲师不存在' }, { status: 404 });
+    }
+
+    // 更新讲师
+    const result = db
+      .update(teachers)
+      .set({
+        ...updateData,
+        updatedAt: getTimestamp(),
+      })
+      .where(eq(teachers.id, id))
+      .returning()
+      .get();
+
+    // 保存数据库到文件
+    saveDatabaseImmediate();
+
+    return NextResponse.json({ data: result });
+  } catch (error) {
+    console.error('Update teacher error:', error);
+    return NextResponse.json({ error: 'Failed to update teacher' }, { status: 500 });
+  }
+}

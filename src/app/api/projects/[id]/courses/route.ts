@@ -89,3 +89,56 @@ export async function DELETE(
     return NextResponse.json({ error: 'Failed to delete project courses' }, { status: 500 });
   }
 }
+
+// PUT /api/projects/[id]/courses - 更新项目课程
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    await ensureDatabaseReady();
+    
+    const { id } = await params;
+    const body = await request.json();
+    const { id: courseId, ...updateData } = body;
+
+    if (!courseId) {
+      return NextResponse.json({ error: '缺少课程ID' }, { status: 400 });
+    }
+
+    // 检查课程是否存在且属于该项目
+    const existing = db
+      .select()
+      .from(projectCourses)
+      .where(eq(projectCourses.id, courseId))
+      .limit(1)
+      .all();
+
+    if (existing.length === 0) {
+      return NextResponse.json({ error: '课程不存在' }, { status: 404 });
+    }
+
+    if (existing[0].projectId !== id) {
+      return NextResponse.json({ error: '课程不属于该项目' }, { status: 403 });
+    }
+
+    // 更新课程
+    const result = db
+      .update(projectCourses)
+      .set({
+        ...updateData,
+        updatedAt: getTimestamp(),
+      })
+      .where(eq(projectCourses.id, courseId))
+      .returning()
+      .get();
+
+    // 保存数据库到文件
+    saveDatabaseImmediate();
+
+    return NextResponse.json({ data: result });
+  } catch (error) {
+    console.error('Update project course error:', error);
+    return NextResponse.json({ error: 'Failed to update project course' }, { status: 500 });
+  }
+}
