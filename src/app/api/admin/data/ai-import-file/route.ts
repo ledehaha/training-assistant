@@ -8,6 +8,7 @@ import {
 import { generateId, getTimestamp } from '@/storage/database';
 import { saveFile } from '@/storage/file-storage';
 import { getApiKey } from '@/lib/api-key';
+import { dbSchemaConfig, generateAIFieldDescription } from '@/config/db-schema-config';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import { exec } from 'child_process';
@@ -183,25 +184,47 @@ const tableMap = {
   projects, project_courses: projectCourses, satisfaction_surveys: satisfactionSurveys,
 };
 
-// 表结构描述
-const TABLE_SCHEMA: Record<string, string> = {
-  teachers: `讲师信息表: name(必填), title(职称:院士/正高/副高/中级/初级/其他), expertise, organization, bio, hourlyRate(课时费), rating, teachingCount, isActive
-
-**职称识别规则**：
-- 院士级(1500元)：院士、中国科学院院士、中国工程院院士
-- 正高(1000元)：教授、研究员、正高级工程师、主任医师、教授级高级工程师、国家级教练
-- 副高(500元)：副教授、副研究员、高级工程师、高级经济师、副主任医师、高级技师
-- 中级(500元)：讲师、工程师、经济师、主治医师、技师
-- 初级(500元)：助教、助理工程师、医师
-
-注意："高级工程师"是副高，"教授级高级工程师"才是正高；"高级技师"是副高，"技师"是中级`,
-  venues: '场地信息表: name(必填), location, capacity, dailyRate, facilities, rating, usageCount, isActive',
-  course_templates: '课程模板表: name(必填), category, duration, targetAudience, difficulty, description, usageCount, avgRating',
-  normative_documents: '规范性文件表: name(必填), summary, issuer, issueDate, filePath, isEffective',
-  projects: '培训项目表: name(必填), status, trainingTarget, targetAudience, participantCount, trainingDays, totalBudget',
-  project_courses: '项目课程表: projectId(必填), name, teacherId, duration, order',
-  satisfaction_surveys: '满意度调查表: projectId, title, questions(JSON), status',
+// Schema键名到数据库表名的映射
+const schemaKeyToTable: Record<string, string> = {
+  teachers: 'teachers',
+  venues: 'venues',
+  courseTemplates: 'course_templates',
+  visitSites: 'visit_sites',
+  projectCourses: 'project_courses',
+  projectInfo: 'projects',
 };
+
+/**
+ * 从配置文件动态生成表结构描述
+ */
+function generateTableSchemaDescription(table: string): string {
+  // 尝试从配置文件获取
+  const schemaKey = Object.keys(dbSchemaConfig).find(key => 
+    dbSchemaConfig[key].tableName === table || key === table
+  );
+  
+  if (schemaKey) {
+    const schema = dbSchemaConfig[schemaKey];
+    const fieldsDesc = schema.fields
+      .filter(f => f.aiExtract !== false)
+      .map(f => {
+        let desc = `${f.name}`;
+        if (f.required) desc += '(必填)';
+        desc += `-${f.displayName}`;
+        if (f.type === 'enum' && f.enumValues) {
+          desc += `(${f.enumValues.map(e => e.value).join('/')})`;
+        }
+        if (f.aiHint) desc += ` [${f.aiHint}]`;
+        return desc;
+      })
+      .join(', ');
+    
+    return `${schema.displayName}: ${fieldsDesc}`;
+  }
+  
+  // 回退到基本描述
+  return `${table}表`;
+}
 
 // POST /api/admin/data/ai-import-file - 文件上传 AI 智能导入
 export async function POST(request: NextRequest) {
@@ -301,7 +324,7 @@ ${titleLevelContext}
 `;
       }
 
-      const prompt = `你是一个数据解析专家。从以下文件内容中提取${TABLE_SCHEMA[table] || table}的数据。
+      const prompt = `你是一个数据解析专家。从以下文件内容中提取${generateTableSchemaDescription(table)}的数据。
 ${normativeContext}
 ${titleLevelPrompt}
 

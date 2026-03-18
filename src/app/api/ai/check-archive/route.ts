@@ -11,6 +11,14 @@ import {
   visitSites,
 } from '@/storage/database/schema';
 import { eq } from 'drizzle-orm';
+import {
+  dbSchemaConfig,
+  generateAIFieldDescription,
+  generateAIOutputSchema,
+  validateAIData,
+  getComparisonFields,
+  type TableSchemaConfig,
+} from '@/config/db-schema-config';
 
 // 初始化对象存储
 const storage = new S3Storage({
@@ -31,86 +39,18 @@ interface ProgressEvent {
   data?: unknown;
 }
 
-// AI检查结果类型
+// AI检查结果类型 - 动态根据schema定义
+interface CheckResultItem {
+  action: 'add' | 'update';
+  data: Record<string, unknown>;
+  existingId?: string;
+  reason: string;
+  source: string;
+  confidence: 'high' | 'medium' | 'low';
+  validationErrors?: string[];
+}
+
 interface CheckResult {
-  teachers: {
-    action: 'add' | 'update';
-    data: {
-      name: string;
-      title?: string;
-      expertise?: string;
-      organization?: string;
-      bio?: string;
-      hourlyRate?: number;
-    };
-    existingId?: string;
-    reason: string;
-    source: string; // 数据来源文件
-    confidence: 'high' | 'medium' | 'low'; // 数据置信度
-  }[];
-  venues: {
-    action: 'add' | 'update';
-    data: {
-      name: string;
-      location?: string;
-      capacity?: number;
-      facilities?: string;
-    };
-    existingId?: string;
-    reason: string;
-    source: string;
-    confidence: 'high' | 'medium' | 'low';
-  }[];
-  courseTemplates: {
-    action: 'add' | 'update';
-    data: {
-      name: string;
-      category?: string;
-      description?: string;
-      duration?: number;
-      targetAudience?: string;
-      content?: string;
-    };
-    existingId?: string;
-    reason: string;
-    source: string;
-    confidence: 'high' | 'medium' | 'low';
-  }[];
-  visitSites: {
-    action: 'add' | 'update';
-    data: {
-      name: string;
-      type?: string;
-      industry?: string;
-      address?: string;
-      contactPerson?: string;
-      contactPhone?: string;
-      description?: string;
-      visitContent?: string;
-    };
-    existingId?: string;
-    reason: string;
-    source: string;
-    confidence: 'high' | 'medium' | 'low';
-  }[];
-  projectCourses: {
-    action: 'add' | 'update';
-    data: {
-      name: string;
-      type: string;
-      day?: number;
-      startTime?: string;
-      endTime?: string;
-      duration?: number;
-      description?: string;
-      teacherName?: string;
-      visitSiteName?: string;
-    };
-    existingId?: string;
-    reason: string;
-    source: string;
-    confidence: 'high' | 'medium' | 'low';
-  }[];
   projectInfo: {
     field: string;
     fieldName: string;
@@ -119,6 +59,11 @@ interface CheckResult {
     source: string;
     reason: string;
   }[];
+  teachers: CheckResultItem[];
+  venues: CheckResultItem[];
+  courseTemplates: CheckResultItem[];
+  visitSites: CheckResultItem[];
+  projectCourses: CheckResultItem[];
 }
 
 // 进度步骤定义（动态）
@@ -154,11 +99,105 @@ async function readFileContent(fileKey: string, customHeaders: Record<string, st
       .map(item => item.text)
       .join('\n');
     
-    return textContent.substring(0, 10000); // 增加到10000字符
+    return textContent.substring(0, 10000);
   } catch (error) {
     console.error('读取文件失败:', error);
     return '';
   }
+}
+
+/**
+ * 动态生成AI系统提示词
+ * 从配置文件读取所有表的字段定义
+ */
+function generateSystemPrompt(): string {
+  const tableDescriptions = Object.keys(dbSchemaConfig)
+    .filter(key => key !== 'projectInfo') // projectInfo单独处理
+    .map(key => generateAIFieldDescription(key))
+    .join('\n\n');
+
+  return `你是一个专业的培训项目数据分析师。你的任务是：
+1. 分析所有上传文件的内容
+2. 整合多个文件中提取的信息，对于同一实体，找出最完整、最准确的信息
+3. 与数据库中已有的数据进行比对
+4. 返回需要新增或更新的数据
+
+## 重要原则
+
+### 数据处理原则
+- 同一实体可能在多个文件中出现，需要整合所有信息
+- 优先选择信息最完整的来源（如：专家介绍文件通常比合同文件更详细）
+- 对于冲突的信息，优先采用专业文档中的信息
+
+### 数据来源标注
+- 每条数据必须标注source字段，说明数据来自哪个文件
+- confidence字段表示数据置信度：
+  - high: 来源文件专门描述该数据
+  - medium: 来源文件明确提及但信息不完整
+  - low: 来源文件只是间接提及
+
+## 数据库字段定义（严格按照此定义输出）
+
+${tableDescriptions}
+
+${generateAIFieldDescription('projectInfo')}
+
+## 输出格式要求
+
+返回严格的JSON格式，每个表的数据项结构如下：
+
+\`\`\`json
+{
+  "projectInfo": [{
+    "field": "字段名",
+    "fieldName": "字段中文名",
+    "currentValue": "当前值",
+    "extractedValue": "提取值",
+    "source": "来源文件名",
+    "reason": "更新理由"
+  }],
+  "teachers": [{
+    "action": "add或update",
+    "data": { ...严格按字段定义... },
+    "existingId": "如果是更新，填写已有记录的ID",
+    "reason": "判断理由",
+    "source": "数据来源文件名",
+    "confidence": "high或medium或low"
+  }],
+  "venues": [...],
+  "courseTemplates": [...],
+  "visitSites": [...],
+  "projectCourses": [...]
+}
+\`\`\`
+
+## 重要提醒
+
+1. **字段映射必须正确**：严格按照上面定义的字段含义填写，不要混淆
+2. **不要臆造字段**：只输出上面定义的字段，不要添加其他字段
+3. **类型必须正确**：数字字段填数字，枚举字段从可选值中选择
+4. **只有真正有价值的新增或更新才返回**，避免返回重复或无效数据
+5. 如果数据库中已有同名记录，检查是否需要补充缺失字段的信息`;
+}
+
+/**
+ * 格式化数据库数据用于AI对比
+ */
+function formatDbDataForAI(
+  schemaKey: string,
+  data: Record<string, unknown>[]
+): string {
+  const schema = dbSchemaConfig[schemaKey];
+  if (!schema || data.length === 0) return '暂无数据';
+
+  const comparisonFields = getComparisonFields(schemaKey);
+  
+  return data.map((item, index) => {
+    const fieldValues = comparisonFields
+      .map(f => `${schema.fields.find(sf => sf.name === f)?.displayName || f}:${item[f] ?? '未填写'}`)
+      .join(' ');
+    return `${index + 1}. ID:${item.id} ${fieldValues}`;
+  }).join('\n');
 }
 
 export async function POST(request: NextRequest) {
@@ -282,212 +321,10 @@ export async function POST(request: NextRequest) {
         ]);
         currentStepIndex++;
 
-        // 构建数据库数据摘要（包含完整信息用于AI比对）
-        const dbDataSummary = {
-          teachers: allTeachers.map(t => ({
-            id: t.id,
-            name: t.name,
-            title: t.title || '',
-            expertise: t.expertise || '',
-            organization: t.organization || '',
-            bio: t.bio || '',
-            hourlyRate: t.hourlyRate,
-          })),
-          venues: allVenues.map(v => ({
-            id: v.id,
-            name: v.name,
-            location: v.location || '',
-            capacity: v.capacity,
-            facilities: v.facilities || '',
-          })),
-          courseTemplates: allCourseTemplates.map(c => ({
-            id: c.id,
-            name: c.name,
-            category: c.category || '',
-            description: c.description || '',
-            duration: c.duration,
-            targetAudience: c.targetAudience || '',
-          })),
-          visitSites: allVisitSites.map(s => ({
-            id: s.id,
-            name: s.name,
-            type: s.type || '',
-            industry: s.industry || '',
-            address: s.address || '',
-            contactPerson: s.contactPerson || '',
-            contactPhone: s.contactPhone || '',
-          })),
-          projectCourses: projectCoursesList.map(c => ({
-            id: c.id,
-            name: c.name,
-            type: c.type,
-            day: c.day,
-            duration: c.duration,
-            description: c.description || '',
-          })),
-        };
+        // 构建用户提示词
+        const systemPrompt = generateSystemPrompt();
 
-        // 构建AI提示词（优化版：整合多文件信息）
-        const systemPrompt = `你是一个专业的培训项目数据分析师。你的任务是：
-1. 分析所有上传文件的内容
-2. **整合多个文件中提取的信息**，对于同一实体（如同一专家、同一场地），找出最完整、最准确的信息
-3. 与数据库中已有的数据进行比对
-4. 返回需要新增或更新的数据
-
-## 数据处理原则（非常重要）
-
-### 信息整合原则
-- 同一专家/场地/课程可能在多个文件中出现，需要**整合所有信息**
-- 优先选择信息最完整的来源（如：专家介绍文件通常比合同文件更详细）
-- 对于冲突的信息，优先采用专业文档（专家介绍、项目申报书）中的信息
-
-### 数据来源标注
-- 每条数据必须标注source字段，说明数据来自哪个文件
-- confidence字段表示数据置信度：
-  - high: 来源文件专门描述该数据（如专家介绍文件中的专家信息）
-  - medium: 来源文件明确提及但信息不完整
-  - low: 来源文件只是间接提及
-
-### 匹配判断标准
-- 讲师匹配：姓名相同即为同一人，需要比对职称、专业、单位等信息是否需要更新
-- 场地匹配：名称相同即为同一场地
-- 课程模板匹配：名称相似度>80%视为同一课程
-- 参访基地匹配：名称相同即为同一基地
-
-## 需要提取的数据类型
-
-### 0. 项目基本信息（projectInfo）
-从文件中提取：参训人数、培训天数、培训课时、培训时段、培训地点、开始日期、结束日期
-注意：学员名单可以统计出准确的参训人数
-
-### 1. 讲师信息（teachers）
-重点关注：专家介绍文件、项目申报书、合同文件
-
-**字段映射（非常重要）**：
-- name: 讲师姓名（必须）
-- title: 职称（如：教授、副教授、高级工程师、研究员等）
-- expertise: 专业领域/研究方向（如：企业管理、人工智能、财务会计等）
-- organization: 所属单位/工作单位
-- bio: 个人简介/学术背景/主要成就
-- hourlyRate: 课时费（数字，单位：元）
-
-**注意**：
-- title 只填写职称，不要把单位、专业、简介等其他信息放进去
-- 如果专家介绍中写的是"XX大学教授、博士生导师"，title填"教授"，expertise可以包含博士生导师方向
-- bio字段可以包含较长的个人介绍内容
-
-### 2. 场地信息（venues）
-重点关注：合同文件、项目申报书
-提取：名称、位置、容纳人数、配套设施
-
-### 3. 课程模板（courseTemplates）
-重点关注：项目申报书、课程安排文件
-提取：名称、类别、描述、时长、目标受众
-
-### 4. 参访基地（visitSites）
-重点关注：项目申报书、参访安排文件
-提取：名称、类型、行业、地址、联系人、联系电话
-
-### 5. 项目课程（projectCourses）
-重点关注：课程安排文件、项目申报书
-提取：课程名称、类型、天次、时间、时长、讲师、参访地点
-
-## 输出格式
-返回JSON格式：
-{
-  "projectInfo": [{ 
-    "field": "字段名", 
-    "fieldName": "字段中文名", 
-    "currentValue": "当前值", 
-    "extractedValue": "提取值", 
-    "source": "来源文件名", 
-    "reason": "更新理由" 
-  }],
-  "teachers": [{ 
-    "action": "add/update", 
-    "data": {
-      "name": "张三",
-      "title": "教授",
-      "expertise": "企业管理、战略管理",
-      "organization": "清华大学经济管理学院",
-      "bio": "张三，清华大学教授，博士生导师，主要研究方向为企业战略管理...",
-      "hourlyRate": 1000
-    },
-    "existingId": "如果是更新，填写已有记录的ID",
-    "reason": "判断理由", 
-    "source": "数据来源文件名",
-    "confidence": "high/medium/low"
-  }],
-  "venues": [{
-    "action": "add/update",
-    "data": {
-      "name": "XX会议室",
-      "location": "培训中心A栋3楼",
-      "capacity": 50,
-      "facilities": "投影仪、白板、空调"
-    },
-    "existingId": "如果是更新，填写已有记录的ID",
-    "reason": "判断理由",
-    "source": "数据来源文件名",
-    "confidence": "high/medium/low"
-  }],
-  "courseTemplates": [{
-    "action": "add/update",
-    "data": {
-      "name": "课程名称",
-      "category": "课程类别",
-      "description": "课程描述",
-      "duration": 4,
-      "targetAudience": "目标受众"
-    },
-    "existingId": "如果是更新，填写已有记录的ID",
-    "reason": "判断理由",
-    "source": "数据来源文件名",
-    "confidence": "high/medium/low"
-  }],
-  "visitSites": [{
-    "action": "add/update",
-    "data": {
-      "name": "参访单位名称",
-      "type": "enterprise/government/institution/other",
-      "industry": "行业",
-      "address": "详细地址",
-      "contactPerson": "联系人",
-      "contactPhone": "联系电话"
-    },
-    "existingId": "如果是更新，填写已有记录的ID",
-    "reason": "判断理由",
-    "source": "数据来源文件名",
-    "confidence": "high/medium/low"
-  }],
-  "projectCourses": [{
-    "action": "add/update",
-    "data": {
-      "name": "课程名称",
-      "type": "lecture/workshop/visit/other",
-      "day": 1,
-      "startTime": "09:00",
-      "endTime": "12:00",
-      "duration": 3,
-      "teacherName": "讲师姓名",
-      "visitSiteName": "参访地点"
-    },
-    "existingId": "如果是更新，填写已有记录的ID",
-    "reason": "判断理由",
-    "source": "数据来源文件名",
-    "confidence": "high/medium/low"
-  }]
-}
-
-**重要提醒**：
-- 专家介绍文件中的专家信息通常是最完整的，要充分利用
-- 如果数据库中已有同名专家，检查是否需要补充职称、专业领域、简介等信息
-- 只有真正有价值的新增或更新才返回，避免返回重复或无效数据
-- **字段映射必须正确**：职称≠单位≠专业≠简介，请仔细区分各字段内容
-- title字段只填职称（如教授、副教授），不要把单位、专业等信息混入
-- bio字段可以包含较长的个人介绍和成就描述`;
-
-        let userPrompt = `## 项目基本信息
+        const userPrompt = `## 项目基本信息
 - 项目名称：${project.name}
 - 参训人数：${project.participantCount ?? '未填写'}
 - 培训天数：${project.trainingDays ?? '未填写'}
@@ -498,33 +335,28 @@ export async function POST(request: NextRequest) {
 
 ## 数据库已有数据
 
-### 讲师信息（共${dbDataSummary.teachers.length}条）
-${dbDataSummary.teachers.map((t, i) => `${i + 1}. ID:${t.id} 姓名:${t.name} 职称:${t.title || '未填写'} 专业:${t.expertise || '未填写'} 单位:${t.organization || '未填写'} 简介:${(t.bio || '').substring(0, 50)}...`).join('\n')}
+### 讲师信息（共${allTeachers.length}条）
+${formatDbDataForAI('teachers', allTeachers)}
 
-### 场地信息（共${dbDataSummary.venues.length}条）
-${dbDataSummary.venues.map((v, i) => `${i + 1}. ID:${v.id} 名称:${v.name} 位置:${v.location || '未填写'} 容量:${v.capacity || '未填写'}`).join('\n')}
+### 场地信息（共${allVenues.length}条）
+${formatDbDataForAI('venues', allVenues)}
 
-### 课程模板（共${dbDataSummary.courseTemplates.length}条）
-${dbDataSummary.courseTemplates.map((c, i) => `${i + 1}. ID:${c.id} 名称:${c.name} 类别:${c.category || '未填写'} 时长:${c.duration || '未填写'}课时`).join('\n')}
+### 课程模板（共${allCourseTemplates.length}条）
+${formatDbDataForAI('courseTemplates', allCourseTemplates)}
 
-### 参访基地（共${dbDataSummary.visitSites.length}条）
-${dbDataSummary.visitSites.map((s, i) => `${i + 1}. ID:${s.id} 名称:${s.name} 类型:${s.type} 行业:${s.industry || '未填写'}`).join('\n')}
+### 参访基地（共${allVisitSites.length}条）
+${formatDbDataForAI('visitSites', allVisitSites)}
 
-### 本项目已有课程（共${dbDataSummary.projectCourses.length}条）
-${dbDataSummary.projectCourses.map((c, i) => `${i + 1}. ID:${c.id} 名称:${c.name} 类型:${c.type} 第${c.day || '?'}天`).join('\n')}
+### 本项目已有课程（共${projectCoursesList.length}条）
+${formatDbDataForAI('projectCourses', projectCoursesList)}
 
 ## 上传的文件内容（共${fileData.length}个文件）
 
-`;
+${fileData.map((file, index) => `### 文件${index + 1}：${file.name}\n\`\`\`\n${file.content}\n\`\`\`\n`).join('\n')}
 
-        // 添加所有文件内容
-        fileData.forEach((file, index) => {
-          userPrompt += `\n### 文件${index + 1}：${file.name}\n\`\`\`\n${file.content}\n\`\`\`\n`;
-        });
+${fileData.length === 0 ? '注意：该项目暂未上传任何文件材料。' : ''}
 
-        if (fileData.length === 0) {
-          userPrompt += `\n注意：该项目暂未上传任何文件材料。`;
-        }
+请分析以上文件内容，提取数据并返回JSON格式的结果。`;
 
         // Step 10: AI分析
         sendEvent(sendProgress('正在进行AI智能分析与整合...', BASE_STEPS.length));
@@ -537,12 +369,23 @@ ${dbDataSummary.projectCourses.map((c, i) => `${i + 1}. ID:${c.id} 名称:${c.na
 
         const response = await client.invoke(messages, {
           model: 'doubao-seed-1-6-251015',
-          temperature: 0.2, // 降低温度以提高准确性
+          temperature: 0.2,
         });
         currentStepIndex++;
 
         // 解析AI响应
-        let checkResult: CheckResult = {
+        let rawResult: Record<string, unknown> = {};
+        try {
+          const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            rawResult = JSON.parse(jsonMatch[0]);
+          }
+        } catch (parseError) {
+          console.error('解析AI响应失败:', parseError);
+        }
+
+        // 验证并清理AI结果
+        const checkResult: CheckResult = {
           projectInfo: [],
           teachers: [],
           venues: [],
@@ -551,32 +394,53 @@ ${dbDataSummary.projectCourses.map((c, i) => `${i + 1}. ID:${c.id} 名称:${c.na
           projectCourses: [],
         };
 
-        try {
-          const jsonMatch = response.content.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            checkResult = JSON.parse(jsonMatch[0]);
-          }
-        } catch (parseError) {
-          console.error('解析AI响应失败:', parseError);
-        }
-
-        // 过滤无效结果
-        const filterValidResults = <T extends { data: Record<string, unknown>; confidence?: string }>(items: T[]): T[] => 
-          items.filter(item => item.data && Object.keys(item.data).length > 0 && item.data.name);
-
-        if (checkResult.projectInfo) {
-          checkResult.projectInfo = checkResult.projectInfo.filter(item => 
-            item.field && item.extractedValue !== undefined && item.extractedValue !== null
+        // 验证项目信息
+        if (Array.isArray(rawResult.projectInfo)) {
+          checkResult.projectInfo = rawResult.projectInfo.filter(
+            (item: { field?: string; extractedValue?: unknown }) => 
+              item.field && item.extractedValue !== undefined && item.extractedValue !== null
           );
-        } else {
-          checkResult.projectInfo = [];
         }
 
-        checkResult.teachers = filterValidResults(checkResult.teachers || []);
-        checkResult.venues = filterValidResults(checkResult.venues || []);
-        checkResult.courseTemplates = filterValidResults(checkResult.courseTemplates || []);
-        checkResult.visitSites = filterValidResults(checkResult.visitSites || []);
-        checkResult.projectCourses = filterValidResults(checkResult.projectCourses || []);
+        // 验证各表数据
+        type TableKey = 'teachers' | 'venues' | 'courseTemplates' | 'visitSites' | 'projectCourses';
+        const tableKeys: TableKey[] = ['teachers', 'venues', 'courseTemplates', 'visitSites', 'projectCourses'];
+        
+        for (const key of tableKeys) {
+          const rawItems = rawResult[key];
+          if (Array.isArray(rawItems)) {
+            const validatedItems: CheckResultItem[] = [];
+            for (const item of rawItems) {
+              const typedItem = item as {
+                action?: string;
+                data?: Record<string, unknown>;
+                existingId?: string;
+                reason?: string;
+                source?: string;
+                confidence?: string;
+              };
+              
+              if (!typedItem.data || Object.keys(typedItem.data).length === 0 || !typedItem.data.name) {
+                continue;
+              }
+              
+              // 使用配置验证数据
+              const validation = validateAIData(key, typedItem.data);
+              const action: 'add' | 'update' = typedItem.action === 'update' ? 'update' : 'add';
+              
+              validatedItems.push({
+                action,
+                data: validation.cleanedData,
+                existingId: typedItem.existingId,
+                reason: typedItem.reason || '',
+                source: typedItem.source || '',
+                confidence: (['high', 'medium', 'low'].includes(typedItem.confidence || '') ? typedItem.confidence : 'medium') as 'high' | 'medium' | 'low',
+                validationErrors: validation.errors.length > 0 ? validation.errors : undefined,
+              });
+            }
+            checkResult[key] = validatedItems;
+          }
+        }
 
         const totalChanges = 
           (checkResult.projectInfo?.length || 0) +
@@ -605,6 +469,7 @@ ${dbDataSummary.projectCourses.map((c, i) => `${i + 1}. ID:${c.id} 名称:${c.na
             totalChanges,
             hasChanges: totalChanges > 0,
             filesAnalyzed: fileData.length,
+            schemaVersion: '1.0', // 标记使用的schema版本，便于后续升级
           },
         });
 

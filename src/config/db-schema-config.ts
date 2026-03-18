@@ -1,0 +1,932 @@
+/**
+ * 数据库Schema配置文件
+ * 
+ * 用于定义所有表的字段元数据，包括：
+ * - 字段名称、显示名称、说明
+ * - 字段类型、是否必填
+ * - AI提取规则和说明
+ * - 匹配规则（如何判断新增/更新）
+ * - 审计字段配置
+ * 
+ * 设计目的：
+ * 1. AI分析严格按照数据库字段定义输出
+ * 2. 后续添加字段只需修改此配置，无需修改AI逻辑
+ * 3. 统一管理所有表的元数据
+ */
+
+// ==================== 类型定义 ====================
+
+/** 字段类型 */
+export type FieldType = 'string' | 'number' | 'boolean' | 'date' | 'enum' | 'array' | 'json';
+
+/** 字段定义 */
+export interface FieldDefinition {
+  /** 数据库字段名 */
+  name: string;
+  /** 显示名称（中文） */
+  displayName: string;
+  /** 字段说明 */
+  description: string;
+  /** 字段类型 */
+  type: FieldType;
+  /** 如果是枚举类型，定义可选值 */
+  enumValues?: { value: string; label: string }[];
+  /** 是否必填 */
+  required?: boolean;
+  /** 是否需要AI提取（默认true） */
+  aiExtract?: boolean;
+  /** AI提取时的特殊说明（如示例、注意事项） */
+  aiHint?: string;
+  /** 字段验证规则 */
+  validation?: {
+    minLength?: number;
+    maxLength?: number;
+    min?: number;
+    max?: number;
+    pattern?: string;
+  };
+}
+
+/** 匹配规则 */
+export interface MatchRule {
+  /** 用于匹配的字段（如name） */
+  fields: string[];
+  /** 匹配方式：exact=精确匹配，similar=相似匹配 */
+  mode: 'exact' | 'similar';
+  /** 相似度阈值（mode=similar时使用） */
+  threshold?: number;
+}
+
+/** 审计字段配置 */
+export interface AuditConfig {
+  /** 是否有创建人字段 */
+  createdBy?: boolean;
+  /** 是否有创建人部门字段 */
+  createdByDepartment?: boolean;
+  /** 是否有更新人字段 */
+  updatedBy?: boolean;
+  /** 是否有审核人字段 */
+  verifiedBy?: boolean;
+  /** 是否有审核时间字段 */
+  verifiedAt?: boolean;
+  /** 是否有审核备注字段 */
+  verifyComment?: boolean;
+  /** 是否有状态字段 */
+  statusField?: string;
+}
+
+/** 表Schema定义 */
+export interface TableSchemaConfig {
+  /** 表名（数据库表名） */
+  tableName: string;
+  /** Schema键名（用于代码引用） */
+  schemaKey: string;
+  /** 显示名称 */
+  displayName: string;
+  /** 表说明 */
+  description: string;
+  /** 字段定义列表 */
+  fields: FieldDefinition[];
+  /** 匹配规则 */
+  matchRule: MatchRule;
+  /** 审计字段配置 */
+  auditConfig?: AuditConfig;
+  /** 是否启用（可用于临时禁用某个表） */
+  enabled?: boolean;
+}
+
+// ==================== 表配置定义 ====================
+
+/**
+ * 讲师表配置
+ * 数据库表：teachers
+ */
+export const teachersSchema: TableSchemaConfig = {
+  tableName: 'teachers',
+  schemaKey: 'teachers',
+  displayName: '讲师信息',
+  description: '存储讲师/专家的基本信息',
+  fields: [
+    {
+      name: 'name',
+      displayName: '姓名',
+      description: '讲师/专家姓名',
+      type: 'string',
+      required: true,
+      aiExtract: true,
+      aiHint: '必须准确提取，不能为空',
+      validation: { maxLength: 100 },
+    },
+    {
+      name: 'title',
+      displayName: '职称',
+      description: '专业技术职称，如教授、副教授、高级工程师、研究员等',
+      type: 'string',
+      aiExtract: true,
+      aiHint: '只填写职称本身，如"教授"、"副教授"、"高级工程师"，不要包含单位、专业等其他信息',
+      validation: { maxLength: 50 },
+    },
+    {
+      name: 'expertise',
+      displayName: '专业领域',
+      description: '讲师的专业领域或研究方向，如企业管理、人工智能、财务会计等',
+      type: 'string',
+      aiExtract: true,
+      aiHint: '可以包含多个领域，用顿号或逗号分隔，如"企业管理、战略管理"',
+      validation: { maxLength: 200 },
+    },
+    {
+      name: 'organization',
+      displayName: '所属单位',
+      description: '讲师所在的工作单位/机构',
+      type: 'string',
+      aiExtract: true,
+      aiHint: '填写完整单位名称，如"清华大学经济管理学院"',
+      validation: { maxLength: 200 },
+    },
+    {
+      name: 'bio',
+      displayName: '个人简介',
+      description: '讲师的个人简介、学术背景、主要成就等',
+      type: 'string',
+      aiExtract: true,
+      aiHint: '可以包含较长的介绍内容，如"XX大学教授，博士生导师，主要研究方向为..."',
+    },
+    {
+      name: 'hourlyRate',
+      displayName: '课时费',
+      description: '每课时的授课费用，单位：元',
+      type: 'number',
+      aiExtract: true,
+      aiHint: '提取数字即可，如文件中写"1000元/课时"，则填写1000',
+      validation: { min: 0 },
+    },
+    {
+      name: 'rating',
+      displayName: '评分',
+      description: '讲师评分（1-5分）',
+      type: 'number',
+      aiExtract: false,
+      validation: { min: 1, max: 5 },
+    },
+    {
+      name: 'teachingCount',
+      displayName: '授课次数',
+      description: '累计授课次数',
+      type: 'number',
+      aiExtract: false,
+    },
+    {
+      name: 'isActive',
+      displayName: '是否可用',
+      description: '讲师是否处于可用状态',
+      type: 'boolean',
+      aiExtract: false,
+    },
+    {
+      name: 'isVerified',
+      displayName: '是否已审核',
+      description: '是否经过人事处审核确认',
+      type: 'boolean',
+      aiExtract: false,
+    },
+  ],
+  matchRule: {
+    fields: ['name'],
+    mode: 'exact',
+  },
+  auditConfig: {
+    createdBy: true,
+    createdByDepartment: true,
+    verifiedBy: true,
+    verifiedAt: true,
+    verifyComment: true,
+  },
+};
+
+/**
+ * 场地表配置
+ * 数据库表：venues
+ */
+export const venuesSchema: TableSchemaConfig = {
+  tableName: 'venues',
+  schemaKey: 'venues',
+  displayName: '场地信息',
+  description: '存储培训场地/会议室的基本信息',
+  fields: [
+    {
+      name: 'name',
+      displayName: '场地名称',
+      description: '场地/会议室的名称',
+      type: 'string',
+      required: true,
+      aiExtract: true,
+      aiHint: '必须准确提取，如"第一会议室"、"学术报告厅"',
+      validation: { maxLength: 200 },
+    },
+    {
+      name: 'location',
+      displayName: '位置',
+      description: '场地的具体位置/地址',
+      type: 'string',
+      aiExtract: true,
+      aiHint: '如"培训中心A栋3楼"',
+      validation: { maxLength: 300 },
+    },
+    {
+      name: 'capacity',
+      displayName: '容纳人数',
+      description: '场地可容纳的人数',
+      type: 'number',
+      aiExtract: true,
+      aiHint: '提取数字，如"可容纳50人"，则填写50',
+      validation: { min: 1 },
+    },
+    {
+      name: 'dailyRate',
+      displayName: '日租金',
+      description: '场地每日租金，单位：元',
+      type: 'number',
+      aiExtract: true,
+      aiHint: '提取数字即可',
+      validation: { min: 0 },
+    },
+    {
+      name: 'facilities',
+      displayName: '配套设施',
+      description: '场地配备的设施，如投影仪、白板、空调等',
+      type: 'string',
+      aiExtract: true,
+      aiHint: '列举主要设施，如"投影仪、白板、空调、音响系统"',
+    },
+  ],
+  matchRule: {
+    fields: ['name'],
+    mode: 'exact',
+  },
+  auditConfig: {
+    createdBy: true,
+    createdByDepartment: true,
+  },
+};
+
+/**
+ * 参访基地表配置
+ * 数据库表：visit_sites
+ */
+export const visitSitesSchema: TableSchemaConfig = {
+  tableName: 'visit_sites',
+  schemaKey: 'visitSites',
+  displayName: '参访基地',
+  description: '存储可参观学习的企事业单位/基地信息',
+  fields: [
+    {
+      name: 'name',
+      displayName: '单位名称',
+      description: '参访单位/基地的名称',
+      type: 'string',
+      required: true,
+      aiExtract: true,
+      validation: { maxLength: 200 },
+    },
+    {
+      name: 'type',
+      displayName: '单位类型',
+      description: '参访单位的类型',
+      type: 'enum',
+      enumValues: [
+        { value: 'enterprise', label: '企业' },
+        { value: 'government', label: '政府部门' },
+        { value: 'institution', label: '事业单位' },
+        { value: 'other', label: '其他' },
+      ],
+      aiExtract: true,
+      aiHint: '根据单位性质选择：enterprise(企业)、government(政府部门)、institution(事业单位)、other(其他)',
+    },
+    {
+      name: 'industry',
+      displayName: '行业领域',
+      description: '参访单位所属行业',
+      type: 'string',
+      aiExtract: true,
+      aiHint: '如"互联网"、"制造业"、"金融业"',
+      validation: { maxLength: 100 },
+    },
+    {
+      name: 'address',
+      displayName: '详细地址',
+      description: '参访单位的详细地址',
+      type: 'string',
+      aiExtract: true,
+      validation: { maxLength: 300 },
+    },
+    {
+      name: 'contactPerson',
+      displayName: '联系人',
+      description: '参访单位的联系人姓名',
+      type: 'string',
+      aiExtract: true,
+      validation: { maxLength: 50 },
+    },
+    {
+      name: 'contactPhone',
+      displayName: '联系电话',
+      description: '参访单位的联系电话',
+      type: 'string',
+      aiExtract: true,
+      validation: { maxLength: 30 },
+    },
+    {
+      name: 'contactEmail',
+      displayName: '联系邮箱',
+      description: '参访单位的联系邮箱',
+      type: 'string',
+      aiExtract: true,
+      validation: { maxLength: 100 },
+    },
+    {
+      name: 'description',
+      displayName: '单位简介',
+      description: '参访单位的简介说明',
+      type: 'string',
+      aiExtract: true,
+    },
+    {
+      name: 'visitContent',
+      displayName: '参观内容',
+      description: '可参观学习的内容',
+      type: 'string',
+      aiExtract: true,
+      aiHint: '描述可以参观哪些内容、学习什么知识',
+    },
+    {
+      name: 'visitDuration',
+      displayName: '建议参观时长',
+      description: '建议参观时长，单位：小时',
+      type: 'number',
+      aiExtract: true,
+      aiHint: '提取数字，单位为小时',
+      validation: { min: 0.5 },
+    },
+    {
+      name: 'maxVisitors',
+      displayName: '最大接待人数',
+      description: '单次最大接待人数',
+      type: 'number',
+      aiExtract: true,
+      validation: { min: 1 },
+    },
+    {
+      name: 'visitFee',
+      displayName: '参观费用',
+      description: '参观费用，单位：元/人',
+      type: 'number',
+      aiExtract: true,
+      validation: { min: 0 },
+    },
+    {
+      name: 'facilities',
+      displayName: '配套设施',
+      description: '参访单位的配套设施，如会议室、停车场等',
+      type: 'string',
+      aiExtract: true,
+    },
+    {
+      name: 'requirements',
+      displayName: '参观要求',
+      description: '参观要求或注意事项',
+      type: 'string',
+      aiExtract: true,
+    },
+  ],
+  matchRule: {
+    fields: ['name'],
+    mode: 'exact',
+  },
+  auditConfig: {
+    createdBy: true,
+    createdByDepartment: true,
+    verifiedBy: true,
+    verifiedAt: true,
+    verifyComment: true,
+  },
+};
+
+/**
+ * 课程模板表配置
+ * 数据库表：course_templates
+ */
+export const courseTemplatesSchema: TableSchemaConfig = {
+  tableName: 'course_templates',
+  schemaKey: 'courseTemplates',
+  displayName: '课程模板',
+  description: '存储可复用的课程模板',
+  fields: [
+    {
+      name: 'name',
+      displayName: '课程名称',
+      description: '课程的名称',
+      type: 'string',
+      required: true,
+      aiExtract: true,
+      validation: { maxLength: 200 },
+    },
+    {
+      name: 'category',
+      displayName: '课程类别',
+      description: '课程所属类别',
+      type: 'enum',
+      enumValues: [
+        { value: '职业素养', label: '职业素养' },
+        { value: '管理技能', label: '管理技能' },
+        { value: '专业技能', label: '专业技能' },
+        { value: '综合提升', label: '综合提升' },
+      ],
+      aiExtract: true,
+      aiHint: '从以下类别中选择：职业素养、管理技能、专业技能、综合提升',
+    },
+    {
+      name: 'description',
+      displayName: '课程描述',
+      description: '课程的描述说明',
+      type: 'string',
+      aiExtract: true,
+    },
+    {
+      name: 'duration',
+      displayName: '课时数',
+      description: '课程的课时数，单位：课时',
+      type: 'number',
+      aiExtract: true,
+      aiHint: '提取数字，如"4课时"则填写4',
+      validation: { min: 1 },
+    },
+    {
+      name: 'targetAudience',
+      displayName: '目标人群',
+      description: '课程适合的人群',
+      type: 'string',
+      aiExtract: true,
+      aiHint: '如"中高层管理人员"、"新入职员工"',
+      validation: { maxLength: 100 },
+    },
+    {
+      name: 'content',
+      displayName: '课程内容',
+      description: '课程内容大纲',
+      type: 'string',
+      aiExtract: true,
+      aiHint: '提取课程的主要内容点或大纲',
+    },
+    {
+      name: 'difficulty',
+      displayName: '难度级别',
+      description: '课程的难度级别',
+      type: 'enum',
+      enumValues: [
+        { value: '初级', label: '初级' },
+        { value: '中级', label: '中级' },
+        { value: '高级', label: '高级' },
+      ],
+      aiExtract: true,
+      aiHint: '从以下级别中选择：初级、中级、高级',
+    },
+  ],
+  matchRule: {
+    fields: ['name'],
+    mode: 'similar',
+    threshold: 0.8,
+  },
+  auditConfig: {
+    createdBy: true,
+    createdByDepartment: true,
+  },
+};
+
+/**
+ * 项目课程表配置
+ * 数据库表：project_courses
+ */
+export const projectCoursesSchema: TableSchemaConfig = {
+  tableName: 'project_courses',
+  schemaKey: 'projectCourses',
+  displayName: '项目课程',
+  description: '项目中的课程安排',
+  fields: [
+    {
+      name: 'name',
+      displayName: '课程名称',
+      description: '本次课程/活动的名称',
+      type: 'string',
+      required: true,
+      aiExtract: true,
+      validation: { maxLength: 200 },
+    },
+    {
+      name: 'type',
+      displayName: '课程类型',
+      description: '本次安排的类型',
+      type: 'enum',
+      enumValues: [
+        { value: 'course', label: '课程' },
+        { value: 'visit', label: '参访' },
+        { value: 'break', label: '休息' },
+        { value: 'other', label: '其他' },
+      ],
+      aiExtract: true,
+      aiHint: '从以下类型中选择：course(课程授课)、visit(参访活动)、break(休息时间)、other(其他)',
+    },
+    {
+      name: 'day',
+      displayName: '第几天',
+      description: '培训第几天的安排',
+      type: 'number',
+      aiExtract: true,
+      validation: { min: 1 },
+    },
+    {
+      name: 'startTime',
+      displayName: '开始时间',
+      description: '课程开始时间',
+      type: 'string',
+      aiExtract: true,
+      aiHint: '格式如"09:00"或"上午9点"',
+      validation: { maxLength: 20 },
+    },
+    {
+      name: 'endTime',
+      displayName: '结束时间',
+      description: '课程结束时间',
+      type: 'string',
+      aiExtract: true,
+      aiHint: '格式如"12:00"或"中午12点"',
+      validation: { maxLength: 20 },
+    },
+    {
+      name: 'duration',
+      displayName: '课时',
+      description: '本次课程的课时数',
+      type: 'number',
+      aiExtract: true,
+      validation: { min: 0.5 },
+    },
+    {
+      name: 'description',
+      displayName: '课程描述',
+      description: '课程的详细描述',
+      type: 'string',
+      aiExtract: true,
+    },
+    // 关联字段（特殊处理）
+    {
+      name: 'teacherId',
+      displayName: '讲师ID',
+      description: '授课讲师的ID（关联teachers表）',
+      type: 'string',
+      aiExtract: false,
+    },
+    {
+      name: 'visitSiteId',
+      displayName: '参访基地ID',
+      description: '参访地点的ID（关联visit_sites表）',
+      type: 'string',
+      aiExtract: false,
+    },
+    {
+      name: 'courseTemplateId',
+      displayName: '课程模板ID',
+      description: '使用的课程模板ID（关联course_templates表）',
+      type: 'string',
+      aiExtract: false,
+    },
+  ],
+  matchRule: {
+    fields: ['name', 'day', 'startTime'],
+    mode: 'exact',
+  },
+  auditConfig: {},
+};
+
+/**
+ * 项目信息表配置（字段更新用）
+ * 数据库表：projects
+ */
+export const projectInfoSchema: TableSchemaConfig = {
+  tableName: 'projects',
+  schemaKey: 'projectInfo',
+  displayName: '项目信息',
+  description: '项目基本信息',
+  fields: [
+    {
+      name: 'participantCount',
+      displayName: '参训人数',
+      description: '实际参加培训的人数',
+      type: 'number',
+      aiExtract: true,
+      aiHint: '从学员名单中统计，或从文件中提取',
+      validation: { min: 1 },
+    },
+    {
+      name: 'trainingDays',
+      displayName: '培训天数',
+      description: '培训持续的天数',
+      type: 'number',
+      aiExtract: true,
+      validation: { min: 1 },
+    },
+    {
+      name: 'trainingHours',
+      displayName: '培训课时',
+      description: '培训总课时数',
+      type: 'number',
+      aiExtract: true,
+      validation: { min: 1 },
+    },
+    {
+      name: 'trainingPeriod',
+      displayName: '培训周期',
+      description: '培训的时间周期描述',
+      type: 'string',
+      aiExtract: true,
+      validation: { maxLength: 50 },
+    },
+    {
+      name: 'location',
+      displayName: '培训地点',
+      description: '培训举办的地点',
+      type: 'string',
+      aiExtract: true,
+      validation: { maxLength: 200 },
+    },
+    {
+      name: 'startDate',
+      displayName: '开始日期',
+      description: '培训开始日期',
+      type: 'date',
+      aiExtract: true,
+      aiHint: '格式：YYYY-MM-DD',
+    },
+    {
+      name: 'endDate',
+      displayName: '结束日期',
+      description: '培训结束日期',
+      type: 'date',
+      aiExtract: true,
+      aiHint: '格式：YYYY-MM-DD',
+    },
+    {
+      name: 'actualCost',
+      displayName: '实际成本',
+      description: '项目实际花费的总成本',
+      type: 'number',
+      aiExtract: true,
+      validation: { min: 0 },
+    },
+    {
+      name: 'avgSatisfaction',
+      displayName: '平均满意度',
+      description: '学员满意度评分的平均值（1-5分）',
+      type: 'number',
+      aiExtract: true,
+      aiHint: '从满意度调查中计算平均值',
+      validation: { min: 1, max: 5 },
+    },
+  ],
+  matchRule: {
+    fields: ['id'],
+    mode: 'exact',
+  },
+  auditConfig: {},
+};
+
+// ==================== 汇总配置 ====================
+
+/**
+ * 所有表的Schema配置映射
+ * 添加新表时，只需在此处添加映射
+ */
+export const dbSchemaConfig: Record<string, TableSchemaConfig> = {
+  teachers: teachersSchema,
+  venues: venuesSchema,
+  visitSites: visitSitesSchema,
+  courseTemplates: courseTemplatesSchema,
+  projectCourses: projectCoursesSchema,
+  projectInfo: projectInfoSchema,
+};
+
+// ==================== 工具函数 ====================
+
+/**
+ * 获取表的Schema配置
+ */
+export function getTableSchema(schemaKey: string): TableSchemaConfig | undefined {
+  return dbSchemaConfig[schemaKey];
+}
+
+/**
+ * 获取所有启用的表配置
+ */
+export function getAllEnabledSchemas(): TableSchemaConfig[] {
+  return Object.values(dbSchemaConfig).filter(s => s.enabled !== false);
+}
+
+/**
+ * 获取需要AI提取的字段列表
+ */
+export function getAIExtractFields(schemaKey: string): FieldDefinition[] {
+  const schema = dbSchemaConfig[schemaKey];
+  if (!schema) return [];
+  return schema.fields.filter(f => f.aiExtract !== false);
+}
+
+/**
+ * 生成AI提示词中的字段说明
+ * @param schemaKey 表的schema键名
+ * @returns 格式化的字段说明字符串
+ */
+export function generateAIFieldDescription(schemaKey: string): string {
+  const schema = dbSchemaConfig[schemaKey];
+  if (!schema) return '';
+
+  const fields = schema.fields.filter(f => f.aiExtract !== false);
+  
+  let description = `### ${schema.displayName}\n`;
+  description += `表说明：${schema.description}\n\n`;
+  description += `| 字段名 | 显示名 | 类型 | 必填 | 说明 |\n`;
+  description += `|--------|--------|------|------|------|\n`;
+  
+  for (const field of fields) {
+    const typeStr = field.type === 'enum' && field.enumValues 
+      ? `枚举(${field.enumValues.map(e => e.value).join('/')})`
+      : field.type;
+    const requiredStr = field.required ? '是' : '否';
+    const hintStr = field.aiHint ? `。${field.aiHint}` : '';
+    
+    description += `| ${field.name} | ${field.displayName} | ${typeStr} | ${requiredStr} | ${field.description}${hintStr} |\n`;
+  }
+
+  // 添加匹配规则说明
+  description += `\n**匹配规则**：`;
+  if (schema.matchRule.mode === 'exact') {
+    description += `根据${schema.matchRule.fields.join('、')}精确匹配判断是新增还是更新。\n`;
+  } else {
+    description += `根据${schema.matchRule.fields.join('、')}相似匹配（阈值${(schema.matchRule.threshold || 0.8) * 100}%），相似度超过阈值视为更新。\n`;
+  }
+
+  return description;
+}
+
+/**
+ * 生成AI输出格式的JSON Schema
+ * @param schemaKey 表的schema键名
+ * @returns JSON格式的字段定义
+ */
+export function generateAIOutputSchema(schemaKey: string): object {
+  const schema = dbSchemaConfig[schemaKey];
+  if (!schema) return {};
+
+  const fields = schema.fields.filter(f => f.aiExtract !== false);
+  const properties: Record<string, object> = {};
+  const required: string[] = [];
+
+  for (const field of fields) {
+    let typeDef: object;
+    
+    switch (field.type) {
+      case 'number':
+        typeDef = { type: 'number' };
+        if (field.validation?.min !== undefined) {
+          typeDef = { ...typeDef, minimum: field.validation.min };
+        }
+        if (field.validation?.max !== undefined) {
+          typeDef = { ...typeDef, maximum: field.validation.max };
+        }
+        break;
+      case 'boolean':
+        typeDef = { type: 'boolean' };
+        break;
+      case 'enum':
+        typeDef = { 
+          type: 'string',
+          enum: field.enumValues?.map(e => e.value) || [],
+        };
+        break;
+      case 'array':
+        typeDef = { type: 'array', items: { type: 'string' } };
+        break;
+      default:
+        typeDef = { type: 'string' };
+    }
+
+    properties[field.name] = {
+      ...typeDef,
+      description: field.displayName + ': ' + field.description,
+    };
+
+    if (field.required) {
+      required.push(field.name);
+    }
+  }
+
+  return {
+    type: 'object',
+    properties,
+    required: required.length > 0 ? required : undefined,
+  };
+}
+
+/**
+ * 获取数据对比时需要显示的字段
+ * @param schemaKey 表的schema键名
+ * @returns 用于显示对比的字段列表
+ */
+export function getComparisonFields(schemaKey: string): string[] {
+  const schema = dbSchemaConfig[schemaKey];
+  if (!schema) return [];
+  
+  // 返回需要AI提取的字段名
+  return schema.fields
+    .filter(f => f.aiExtract !== false)
+    .map(f => f.name);
+}
+
+/**
+ * 验证AI输出的数据是否符合Schema
+ * @param schemaKey 表的schema键名
+ * @param data AI输出的数据
+ * @returns 验证结果
+ */
+export function validateAIData(schemaKey: string, data: Record<string, unknown>): { 
+  valid: boolean; 
+  errors: string[];
+  cleanedData: Record<string, unknown>;
+} {
+  const schema = dbSchemaConfig[schemaKey];
+  const errors: string[] = [];
+  const cleanedData: Record<string, unknown> = {};
+
+  if (!schema) {
+    return { valid: false, errors: ['未找到表配置'], cleanedData: {} };
+  }
+
+  const fields = schema.fields.filter(f => f.aiExtract !== false);
+  const fieldMap = new Map(fields.map(f => [f.name, f]));
+
+  // 检查必填字段
+  for (const field of fields) {
+    if (field.required && (data[field.name] === undefined || data[field.name] === null || data[field.name] === '')) {
+      errors.push(`必填字段 ${field.displayName}(${field.name}) 缺失`);
+    }
+  }
+
+  // 验证并清理每个字段
+  for (const [key, value] of Object.entries(data)) {
+    const field = fieldMap.get(key);
+    
+    if (!field) {
+      // 字段不在配置中，跳过（可能是多余字段）
+      continue;
+    }
+
+    // 类型检查和清理
+    if (value !== undefined && value !== null && value !== '') {
+      switch (field.type) {
+        case 'number':
+          const numValue = Number(value);
+          if (isNaN(numValue)) {
+            errors.push(`字段 ${field.displayName} 应为数字，实际为: ${value}`);
+          } else {
+            cleanedData[key] = numValue;
+          }
+          break;
+        case 'boolean':
+          if (typeof value === 'boolean') {
+            cleanedData[key] = value;
+          } else if (value === 'true' || value === '1') {
+            cleanedData[key] = true;
+          } else if (value === 'false' || value === '0') {
+            cleanedData[key] = false;
+          } else {
+            errors.push(`字段 ${field.displayName} 应为布尔值，实际为: ${value}`);
+          }
+          break;
+        case 'enum':
+          const validValues = field.enumValues?.map(e => e.value) || [];
+          if (validValues.includes(String(value))) {
+            cleanedData[key] = String(value);
+          } else {
+            errors.push(`字段 ${field.displayName} 值无效，有效值为: ${validValues.join(', ')}`);
+          }
+          break;
+        default:
+          cleanedData[key] = String(value);
+      }
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    cleanedData,
+  };
+}
