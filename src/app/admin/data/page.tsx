@@ -187,7 +187,7 @@ const TABLES_CONFIG = [
   },
   { 
     name: 'course_templates', 
-    label: '课程管理', 
+    label: '课程信息', 
     icon: '📚',
     columns: [
       { key: 'id', label: 'ID', type: 'uuid', editable: false },
