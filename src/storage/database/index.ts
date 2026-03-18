@@ -235,6 +235,51 @@ const createTablesSQL = `
   CREATE INDEX IF NOT EXISTS visit_sites_industry_idx ON visit_sites(industry);
   CREATE INDEX IF NOT EXISTS visit_sites_is_verified_idx ON visit_sites(is_verified);
   CREATE INDEX IF NOT EXISTS visit_sites_created_by_department_idx ON visit_sites(created_by_department);
+  
+  -- 课程表（合并原 course_templates 和 project_courses）
+  CREATE TABLE IF NOT EXISTS courses (
+    id TEXT PRIMARY KEY,
+    -- 类型区分字段
+    is_template INTEGER DEFAULT 0,
+    project_id TEXT,
+    -- 课程基本信息
+    name TEXT NOT NULL,
+    category TEXT,
+    description TEXT,
+    duration INTEGER,
+    target_audience TEXT,
+    content TEXT,
+    difficulty TEXT,
+    -- 项目课程专用字段
+    type TEXT DEFAULT 'course',
+    teacher_id TEXT,
+    visit_site_id TEXT,
+    day INTEGER,
+    start_time TEXT,
+    end_time TEXT,
+    "order" INTEGER DEFAULT 0,
+    -- 模板统计字段
+    usage_count INTEGER DEFAULT 0,
+    avg_rating REAL DEFAULT 4.0,
+    -- 通用字段
+    is_active INTEGER DEFAULT 1,
+    created_by TEXT,
+    created_by_department TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    FOREIGN KEY (teacher_id) REFERENCES teachers(id),
+    FOREIGN KEY (visit_site_id) REFERENCES visit_sites(id)
+  );
+  CREATE INDEX IF NOT EXISTS courses_is_template_idx ON courses(is_template);
+  CREATE INDEX IF NOT EXISTS courses_project_id_idx ON courses(project_id);
+  CREATE INDEX IF NOT EXISTS courses_category_idx ON courses(category);
+  CREATE INDEX IF NOT EXISTS courses_target_audience_idx ON courses(target_audience);
+  CREATE INDEX IF NOT EXISTS courses_teacher_id_idx ON courses(teacher_id);
+  CREATE INDEX IF NOT EXISTS courses_visit_site_id_idx ON courses(visit_site_id);
+  CREATE INDEX IF NOT EXISTS courses_type_idx ON courses(type);
+  CREATE INDEX IF NOT EXISTS courses_created_by_department_idx ON courses(created_by_department);
+  
   CREATE TABLE IF NOT EXISTS course_templates (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -544,6 +589,59 @@ function runMigrations(db: SqlJsDatabase): void {
       console.log('Cleaned up invalid cost_file_excel records');
     } catch (err) {
       // 列可能不存在，忽略错误
+    }
+    
+    // 迁移课程数据：将 course_templates 和 project_courses 数据合并到 courses 表
+    try {
+      // 检查 courses 表是否有数据
+      const coursesCount = db.exec("SELECT COUNT(*) FROM courses");
+      const hasCoursesData = coursesCount.length > 0 && (coursesCount[0].values[0][0] as number) > 0;
+      
+      if (!hasCoursesData) {
+        // 检查 course_templates 表是否有数据
+        const templatesCount = db.exec("SELECT COUNT(*) FROM course_templates");
+        const hasTemplates = templatesCount.length > 0 && (templatesCount[0].values[0][0] as number) > 0;
+        
+        if (hasTemplates) {
+          // 迁移 course_templates 数据到 courses 表
+          db.run(`
+            INSERT OR IGNORE INTO courses (
+              id, is_template, project_id, name, category, description, duration,
+              target_audience, content, difficulty, type, usage_count, avg_rating,
+              is_active, created_by, created_by_department, created_at, updated_at
+            )
+            SELECT 
+              id, 1, NULL, name, category, description, duration,
+              target_audience, content, difficulty, 'course', usage_count, avg_rating,
+              is_active, created_by, created_by_department, created_at, updated_at
+            FROM course_templates
+          `);
+          console.log('Migration: Migrated course_templates data to courses table');
+        }
+        
+        // 检查 project_courses 表是否有数据
+        const projectCoursesCount = db.exec("SELECT COUNT(*) FROM project_courses");
+        const hasProjectCourses = projectCoursesCount.length > 0 && (projectCoursesCount[0].values[0][0] as number) > 0;
+        
+        if (hasProjectCourses) {
+          // 迁移 project_courses 数据到 courses 表
+          db.run(`
+            INSERT OR IGNORE INTO courses (
+              id, is_template, project_id, name, type, teacher_id, visit_site_id,
+              day, start_time, end_time, duration, description, "order",
+              is_active, created_at
+            )
+            SELECT 
+              id, 0, project_id, name, type, teacher_id, visit_site_id,
+              day, start_time, end_time, duration, description, "order",
+              1, created_at
+            FROM project_courses
+          `);
+          console.log('Migration: Migrated project_courses data to courses table');
+        }
+      }
+    } catch (err) {
+      console.warn('Migration: Failed to migrate course data:', err);
     }
   } catch (err) {
     console.warn('Migration check failed:', err);

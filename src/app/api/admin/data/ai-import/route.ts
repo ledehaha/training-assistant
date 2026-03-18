@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 import { 
-  db, teachers, venues, courseTemplates, normativeDocuments, 
-  projects, projectCourses, satisfactionSurveys, sql,
+  db, teachers, venues, courses, normativeDocuments, 
+  projects, satisfactionSurveys, sql,
   saveDatabaseImmediate, ensureDatabaseReady
 } from '@/storage/database';
 import { generateId, getTimestamp } from '@/storage/database';
@@ -12,6 +12,7 @@ import { getApiKey } from '@/lib/api-key';
 const ALLOWED_TABLES = [
   'teachers',
   'venues',
+  'courses', // 新增：统一的课程表
   'course_templates',
   'normative_documents',
   'projects',
@@ -23,10 +24,11 @@ const ALLOWED_TABLES = [
 const tableMap = {
   teachers,
   venues,
-  course_templates: courseTemplates,
+  courses, // 新增：统一的课程表
+  course_templates: courses, // 兼容旧API
   normative_documents: normativeDocuments,
   projects,
-  project_courses: projectCourses,
+  project_courses: courses, // 兼容旧API
   satisfaction_surveys: satisfactionSurveys,
 };
 

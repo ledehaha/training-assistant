@@ -4,13 +4,12 @@ import { S3Storage } from 'coze-coding-dev-sdk';
 import { getDb, ensureDatabaseReady } from '@/storage/database';
 import {
   projects,
-  projectCourses,
+  courses,
   teachers,
   venues,
-  courseTemplates,
   visitSites,
 } from '@/storage/database/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import {
   dbSchemaConfig,
   generateAIFieldDescription,
@@ -315,9 +314,9 @@ export async function POST(request: NextRequest) {
         const [allTeachers, allVenues, allCourseTemplates, allVisitSites, projectCoursesList] = await Promise.all([
           db.select().from(teachers),
           db.select().from(venues),
-          db.select().from(courseTemplates),
+          db.select().from(courses).where(eq(courses.isTemplate, true)), // 课程模板
           db.select().from(visitSites),
-          db.select().from(projectCourses).where(eq(projectCourses.projectId, projectId)),
+          db.select().from(courses).where(and(eq(courses.projectId, projectId), eq(courses.isTemplate, false))), // 项目课程
         ]);
         currentStepIndex++;
 

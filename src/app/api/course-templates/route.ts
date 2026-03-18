@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, courseTemplates, eq, desc, sql, saveDatabaseImmediate, ensureDatabaseReady } from '@/storage/database';
+import { db, courses, eq, desc, sql, and, saveDatabaseImmediate, ensureDatabaseReady } from '@/storage/database';
 import { generateId, getTimestamp } from '@/storage/database';
 
 // GET /api/course-templates - 获取课程模板列表
+// 现在从 courses 表中查询 isTemplate = true 的记录
 export async function GET(request: NextRequest) {
   try {
     await ensureDatabaseReady();
@@ -13,33 +14,36 @@ export async function GET(request: NextRequest) {
     
     let results;
     
+    // 构建基础条件：isTemplate = true 且 isActive = true
+    const baseConditions = [eq(courses.isTemplate, true), eq(courses.isActive, true)];
+    
     if (category && targetAudience) {
       results = db
         .select()
-        .from(courseTemplates)
-        .where(sql`${courseTemplates.isActive} = 1 AND ${courseTemplates.category} = ${category} AND ${courseTemplates.targetAudience} LIKE ${'%' + targetAudience + '%'}`)
-        .orderBy(desc(courseTemplates.usageCount))
+        .from(courses)
+        .where(and(...baseConditions, eq(courses.category, category), sql`${courses.targetAudience} LIKE ${'%' + targetAudience + '%'}`))
+        .orderBy(desc(courses.usageCount))
         .all();
     } else if (category) {
       results = db
         .select()
-        .from(courseTemplates)
-        .where(sql`${courseTemplates.isActive} = 1 AND ${courseTemplates.category} = ${category}`)
-        .orderBy(desc(courseTemplates.usageCount))
+        .from(courses)
+        .where(and(...baseConditions, eq(courses.category, category)))
+        .orderBy(desc(courses.usageCount))
         .all();
     } else if (targetAudience) {
       results = db
         .select()
-        .from(courseTemplates)
-        .where(sql`${courseTemplates.isActive} = 1 AND ${courseTemplates.targetAudience} LIKE ${'%' + targetAudience + '%'}`)
-        .orderBy(desc(courseTemplates.usageCount))
+        .from(courses)
+        .where(and(...baseConditions, sql`${courses.targetAudience} LIKE ${'%' + targetAudience + '%'}`))
+        .orderBy(desc(courses.usageCount))
         .all();
     } else {
       results = db
         .select()
-        .from(courseTemplates)
-        .where(eq(courseTemplates.isActive, true))
-        .orderBy(desc(courseTemplates.usageCount))
+        .from(courses)
+        .where(and(...baseConditions))
+        .orderBy(desc(courses.usageCount))
         .all();
     }
 
@@ -51,6 +55,7 @@ export async function GET(request: NextRequest) {
 }
 
 // POST /api/course-templates - 创建新课程模板
+// 现在写入 courses 表，设置 isTemplate = true
 export async function POST(request: NextRequest) {
   try {
     await ensureDatabaseReady();
@@ -60,9 +65,11 @@ export async function POST(request: NextRequest) {
     const now = getTimestamp();
 
     const result = db
-      .insert(courseTemplates)
+      .insert(courses)
       .values({
         id,
+        isTemplate: true, // 标记为模板
+        projectId: null, // 模板不关联项目
         name: body.name,
         category: body.category,
         description: body.description,
@@ -70,7 +77,11 @@ export async function POST(request: NextRequest) {
         targetAudience: body.targetAudience,
         content: body.content,
         difficulty: body.difficulty,
+        type: 'course', // 默认类型
+        isActive: true,
         createdAt: now,
+        createdBy: body.createdBy,
+        createdByDepartment: body.createdByDepartment,
       })
       .returning()
       .get();
@@ -97,11 +108,11 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: '缺少课程模板ID' }, { status: 400 });
     }
 
-    // 检查课程模板是否存在
+    // 检查课程模板是否存在（从 courses 表查询 isTemplate = true 的记录）
     const existing = db
       .select()
-      .from(courseTemplates)
-      .where(eq(courseTemplates.id, id))
+      .from(courses)
+      .where(and(eq(courses.id, id), eq(courses.isTemplate, true)))
       .limit(1)
       .all();
 
@@ -111,12 +122,12 @@ export async function PUT(request: NextRequest) {
 
     // 更新课程模板
     const result = db
-      .update(courseTemplates)
+      .update(courses)
       .set({
         ...updateData,
         updatedAt: getTimestamp(),
       })
-      .where(eq(courseTemplates.id, id))
+      .where(eq(courses.id, id))
       .returning()
       .get();
 

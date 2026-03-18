@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { 
-  db, teachers, venues, courseTemplates, normativeDocuments,
+  db, teachers, venues, courses, normativeDocuments,
   saveDatabaseImmediate, ensureDatabaseReady
 } from '@/storage/database';
 import { generateId, getTimestamp } from '@/storage/database';
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
       { name: '企业大学礼堂', location: '上海市闵行区莘庄', capacity: 200, dailyRate: 8000, rating: 4.4, usageCount: 12, facilities: '大型投影、专业音响、座椅、空调' },
     ];
 
-    // 初始化课程模板数据
+    // 初始化课程模板数据（写入 courses 表，设置 isTemplate = true）
     const courseTemplatesData = [
       { name: '班组长管理技能提升', category: '管理技能', duration: 8, targetAudience: '班组长', difficulty: '中级', usageCount: 45, avgRating: 4.7, description: '提升班组长的团队管理、沟通协调、问题解决能力' },
       { name: '安全生产培训', category: '专业技能', duration: 4, targetAudience: '全员', difficulty: '初级', usageCount: 38, avgRating: 4.6, description: '安全意识培养、危险识别、应急处置' },
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
 
     try {
       courseTemplatesData.forEach(c => {
-        db.insert(courseTemplates).values({ id: generateId(), ...c, createdAt: now }).run();
+        db.insert(courses).values({ id: generateId(), isTemplate: true, type: 'course', ...c, createdAt: now }).run();
       });
     } catch (e) {
       console.error('Course templates insert error:', e);

@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import { 
-  db, teachers, venues, courseTemplates, normativeDocuments, 
-  projects, projectCourses, satisfactionSurveys, userProfiles, userTrainingRecords, desc, sql 
+  db, teachers, venues, courses, normativeDocuments, 
+  projects, satisfactionSurveys, userProfiles, userTrainingRecords, desc, sql, eq 
 } from '@/storage/database';
 
 // 允许操作的表（白名单）
 const ALLOWED_TABLES = [
   'teachers',
   'venues',
+  'courses', // 新增：统一的课程表
   'course_templates',
   'normative_documents',
   'projects',
@@ -22,10 +23,11 @@ const ALLOWED_TABLES = [
 const tableMap = {
   teachers,
   venues,
-  course_templates: courseTemplates,
+  courses, // 新增：统一的课程表
+  course_templates: courses, // 兼容旧API
   normative_documents: normativeDocuments,
   projects,
-  project_courses: projectCourses,
+  project_courses: courses, // 兼容旧API
   satisfaction_surveys: satisfactionSurveys,
   user_profiles: userProfiles,
   user_training_records: userTrainingRecords,

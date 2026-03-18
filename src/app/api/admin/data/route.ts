@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { 
-  db, teachers, venues, courseTemplates, normativeDocuments, 
-  projects, projectCourses, satisfactionSurveys, visitSites,
-  eq, desc, sql,
+  db, teachers, venues, courses, normativeDocuments, 
+  projects, satisfactionSurveys, visitSites,
+  eq, desc, sql, and,
   saveDatabaseImmediate, ensureDatabaseReady
 } from '@/storage/database';
 import { generateId, getTimestamp } from '@/storage/database';
@@ -12,10 +12,11 @@ import { generateId, getTimestamp } from '@/storage/database';
 const tableMap = {
   teachers,
   venues,
-  course_templates: courseTemplates,
+  courses, // 新增：统一的课程表
+  course_templates: courses, // 兼容旧API，指向courses表
   normative_documents: normativeDocuments,
   projects,
-  project_courses: projectCourses,
+  project_courses: courses, // 兼容旧API，指向courses表
   satisfaction_surveys: satisfactionSurveys,
   visit_sites: visitSites,
 } as const;
@@ -104,6 +105,51 @@ export async function GET(request: NextRequest) {
     }
 
     // 查询全部记录
+    // 对于 courses 表，根据 table 参数过滤 isTemplate
+    if (tableSchema === courses) {
+      let results;
+      if (table === 'course_templates') {
+        // 查询课程模板
+        results = db
+          .select()
+          .from(courses)
+          .where(eq(courses.isTemplate, true))
+          .orderBy(desc(sql`created_at`))
+          .limit(1000)
+          .all();
+      } else if (table === 'project_courses') {
+        // 查询项目课程
+        const projectId = searchParams.get('projectId');
+        if (projectId) {
+          results = db
+            .select()
+            .from(courses)
+            .where(and(eq(courses.isTemplate, false), eq(courses.projectId, projectId)))
+            .orderBy(desc(sql`created_at`))
+            .limit(1000)
+            .all();
+        } else {
+          results = db
+            .select()
+            .from(courses)
+            .where(eq(courses.isTemplate, false))
+            .orderBy(desc(sql`created_at`))
+            .limit(1000)
+            .all();
+        }
+      } else {
+        // 查询所有课程（包括模板和项目课程）
+        results = db
+          .select()
+          .from(courses)
+          .orderBy(desc(sql`created_at`))
+          .limit(1000)
+          .all();
+      }
+      return NextResponse.json({ data: results });
+    }
+
+    // 其他表的通用查询
     const results = db
       .select()
       .from(tableSchema)
@@ -192,6 +238,9 @@ export async function POST(request: NextRequest) {
     const insertData = {
       id: generateId(),
       ...data,
+      // 课程表特殊处理：根据 table 设置 isTemplate
+      ...(table === 'course_templates' && { isTemplate: true, type: 'course' }),
+      ...(table === 'project_courses' && { isTemplate: false }),
       // 添加创建人信息（如果当前用户已登录）
       ...(currentUser && {
         createdBy: currentUser.userId,

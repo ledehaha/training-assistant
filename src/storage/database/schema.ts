@@ -268,7 +268,71 @@ export const visitSites = sqliteTable(
   ]
 );
 
-// 课程模板表
+// ==================== 课程表（统一管理课程模板和项目课程） ====================
+
+/**
+ * 课程表（courses）
+ * 
+ * 合并原 courseTemplates 和 projectCourses 两个表，通过以下字段区分：
+ * - isTemplate: true 表示课程模板，false 表示项目课程
+ * - projectId: 模板为 null，项目课程关联具体项目
+ * 
+ * 这样用户导入时无需区分，系统自动根据导入场景设置类型
+ */
+export const courses = sqliteTable(
+  'courses',
+  {
+    id: text('id').primaryKey(),
+    // === 类型区分字段 ===
+    isTemplate: integer('is_template', { mode: 'boolean' }).default(false), // 是否为模板
+    projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }), // 关联项目（项目课程专用）
+    
+    // === 课程基本信息（来自原 courseTemplates） ===
+    name: text('name').notNull(),
+    category: text('category'), // 课程类别
+    description: text('description'), // 课程描述
+    duration: integer('duration'), // 课时数（小时）
+    targetAudience: text('target_audience'), // 培训对象
+    content: text('content'), // 课程内容
+    difficulty: text('difficulty'), // 难度等级
+    
+    // === 项目课程专用字段（来自原 projectCourses） ===
+    type: text('type').default('course'), // 'course'(课程) / 'visit'(参访) / 'break'(休息) / 'other'(其他)
+    teacherId: text('teacher_id').references(() => teachers.id), // 授课教师
+    visitSiteId: text('visit_site_id').references(() => visitSites.id), // 参访基地（参访环节用）
+    day: integer('day'), // 培训第几天
+    startTime: text('start_time'), // 开始时间
+    endTime: text('end_time'), // 结束时间
+    order: integer('order').default(0), // 排序序号
+    
+    // === 模板统计字段 ===
+    usageCount: integer('usage_count').default(0), // 使用次数（模板专用）
+    avgRating: real('avg_rating').default(4.0), // 平均评分（模板专用）
+    
+    // === 通用字段 ===
+    isActive: integer('is_active', { mode: 'boolean' }).default(true), // 是否有效
+    // 创建人信息
+    createdBy: text('created_by'), // 创建人ID
+    createdByDepartment: text('created_by_department'), // 创建人部门ID
+    createdAt: text('created_at').default(sql`datetime('now')`).notNull(),
+    updatedAt: text('updated_at'),
+  },
+  (table) => [
+    index('courses_is_template_idx').on(table.isTemplate),
+    index('courses_project_id_idx').on(table.projectId),
+    index('courses_category_idx').on(table.category),
+    index('courses_target_audience_idx').on(table.targetAudience),
+    index('courses_teacher_id_idx').on(table.teacherId),
+    index('courses_visit_site_id_idx').on(table.visitSiteId),
+    index('courses_type_idx').on(table.type),
+    index('courses_created_by_department_idx').on(table.createdByDepartment),
+  ]
+);
+
+// ==================== 以下为兼容旧代码保留的表定义（已废弃） ====================
+
+// 课程模板表（已废弃，请使用 courses 表）
+// @deprecated 使用 courses 表，设置 isTemplate = true
 export const courseTemplates = sqliteTable(
   'course_templates',
   {
@@ -411,7 +475,8 @@ export const projects = sqliteTable(
   ]
 );
 
-// 项目课程关联表
+// 项目课程关联表（已废弃，请使用 courses 表）
+// @deprecated 使用 courses 表，设置 isTemplate = false 并关联 projectId
 export const projectCourses = sqliteTable(
   'project_courses',
   {
@@ -605,6 +670,31 @@ export const insertCourseTemplateSchema = createInsertSchema(courseTemplates).pi
   difficulty: true,
 });
 
+// 新增：课程表 Schema（合并课程模板和项目课程）
+export const insertCourseSchema = createInsertSchema(courses).pick({
+  isTemplate: true,
+  projectId: true,
+  name: true,
+  category: true,
+  description: true,
+  duration: true,
+  targetAudience: true,
+  content: true,
+  difficulty: true,
+  type: true,
+  teacherId: true,
+  visitSiteId: true,
+  day: true,
+  startTime: true,
+  endTime: true,
+  order: true,
+  usageCount: true,
+  avgRating: true,
+  isActive: true,
+  createdBy: true,
+  createdByDepartment: true,
+});
+
 // TypeScript types
 export type Project = typeof projects.$inferSelect;
 export type InsertProject = z.infer<typeof insertProjectSchema>;
@@ -614,6 +704,9 @@ export type Venue = typeof venues.$inferSelect;
 export type InsertVenue = z.infer<typeof insertVenueSchema>;
 export type CourseTemplate = typeof courseTemplates.$inferSelect;
 export type InsertCourseTemplate = z.infer<typeof insertCourseTemplateSchema>;
+// 新增：课程表类型（合并课程模板和项目课程）
+export type Course = typeof courses.$inferSelect;
+export type InsertCourse = z.infer<typeof insertCourseSchema>;
 export type ProjectCourse = typeof projectCourses.$inferSelect;
 export type SatisfactionSurvey = typeof satisfactionSurveys.$inferSelect;
 export type SurveyResponse = typeof surveyResponses.$inferSelect;

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 import { 
-  db, teachers, venues, courseTemplates, normativeDocuments, userProfiles,
-  eq, desc, sql, ensureDatabaseReady 
+  db, teachers, venues, courses, normativeDocuments, userProfiles,
+  eq, desc, sql, and, ensureDatabaseReady 
 } from '@/storage/database';
 import { getApiKey } from '@/lib/api-key';
 
@@ -37,11 +37,11 @@ export async function POST(request: NextRequest) {
 
     switch (type) {
       case 'courses': {
-        // 获取所有课程模板
+        // 获取所有课程模板（从 courses 表查询 isTemplate = true）
         const courseTemplatesData = db
           .select()
-          .from(courseTemplates)
-          .where(eq(courseTemplates.isActive, true))
+          .from(courses)
+          .where(and(eq(courses.isTemplate, true), eq(courses.isActive, true)))
           .all();
         
         // 获取所有讲师

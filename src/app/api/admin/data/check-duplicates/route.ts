@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { 
-  db, teachers, venues, courseTemplates, normativeDocuments, 
-  projects, projectCourses, satisfactionSurveys, sql,
+  db, teachers, venues, courses, normativeDocuments, 
+  projects, satisfactionSurveys, sql, eq,
   ensureDatabaseReady
 } from '@/storage/database';
 import type { SQL } from 'drizzle-orm';
@@ -10,10 +10,11 @@ import type { SQL } from 'drizzle-orm';
 const DUPLICATE_CHECK_FIELDS: Record<string, string[]> = {
   teachers: ['name'],
   venues: ['name', 'location'],
+  courses: ['name', 'project_id'],
   course_templates: ['name'],
   normative_documents: ['name', 'issuer'],
   projects: ['name'],
-  project_courses: ['project_id', 'course_name'],
+  project_courses: ['project_id', 'name'],
   satisfaction_surveys: ['project_id'],
 };
 
@@ -21,10 +22,11 @@ const DUPLICATE_CHECK_FIELDS: Record<string, string[]> = {
 const tableMap = {
   teachers,
   venues,
-  course_templates: courseTemplates,
+  courses,
+  course_templates: courses, // 兼容旧API
   normative_documents: normativeDocuments,
   projects,
-  project_courses: projectCourses,
+  project_courses: courses, // 兼容旧API
   satisfaction_surveys: satisfactionSurveys,
 } as const;
 

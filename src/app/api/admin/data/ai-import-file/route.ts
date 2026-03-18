@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 import { 
-  db, teachers, venues, courseTemplates, normativeDocuments, 
-  projects, projectCourses, satisfactionSurveys, sql,
+  db, teachers, venues, courses, normativeDocuments, 
+  projects, satisfactionSurveys, sql, eq, and,
   saveDatabaseImmediate, ensureDatabaseReady
 } from '@/storage/database';
 import { generateId, getTimestamp } from '@/storage/database';
@@ -176,12 +176,12 @@ async function parsePPT(buffer: Buffer, originalFileName: string): Promise<strin
 }
 
 // 允许操作的表
-const ALLOWED_TABLES = ['teachers', 'venues', 'course_templates', 'normative_documents', 'projects', 'project_courses', 'satisfaction_surveys'] as const;
+const ALLOWED_TABLES = ['teachers', 'venues', 'courses', 'course_templates', 'normative_documents', 'projects', 'project_courses', 'satisfaction_surveys'] as const;
 
 // 表映射
 const tableMap = {
-  teachers, venues, course_templates: courseTemplates, normative_documents: normativeDocuments,
-  projects, project_courses: projectCourses, satisfaction_surveys: satisfactionSurveys,
+  teachers, venues, courses, course_templates: courses, normative_documents: normativeDocuments,
+  projects, project_courses: courses, satisfaction_surveys: satisfactionSurveys,
 };
 
 // Schema键名到数据库表名的映射

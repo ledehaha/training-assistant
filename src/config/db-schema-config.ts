@@ -413,15 +413,20 @@ export const visitSitesSchema: TableSchemaConfig = {
 };
 
 /**
- * 课程模板表配置
- * 数据库表：course_templates
+ * 课程表配置（合并课程模板和项目课程）
+ * 数据库表：courses
+ * 
+ * 设计说明：
+ * - isTemplate=true 且 projectId=NULL → 课程模板（可复用的课程库）
+ * - projectId NOT NULL → 项目课程（某项目的具体课程安排）
  */
-export const courseTemplatesSchema: TableSchemaConfig = {
-  tableName: 'course_templates',
-  schemaKey: 'courseTemplates',
-  displayName: '课程模板',
-  description: '存储可复用的课程模板',
+export const coursesSchema: TableSchemaConfig = {
+  tableName: 'courses',
+  schemaKey: 'courses',
+  displayName: '课程',
+  description: '存储课程模板和项目课程安排。课程模板可复用于多个项目，项目课程是某项目的具体安排',
   fields: [
+    // ========== 基础信息（所有课程通用）==========
     {
       name: 'name',
       displayName: '课程名称',
@@ -453,6 +458,14 @@ export const courseTemplatesSchema: TableSchemaConfig = {
       aiExtract: true,
     },
     {
+      name: 'content',
+      displayName: '课程内容',
+      description: '课程内容大纲',
+      type: 'string',
+      aiExtract: true,
+      aiHint: '提取课程的主要内容点或大纲',
+    },
+    {
       name: 'duration',
       displayName: '课时数',
       description: '课程的课时数，单位：课时（每课时40-60分钟）',
@@ -476,14 +489,6 @@ export const courseTemplatesSchema: TableSchemaConfig = {
       validation: { maxLength: 100 },
     },
     {
-      name: 'content',
-      displayName: '课程内容',
-      description: '课程内容大纲',
-      type: 'string',
-      aiExtract: true,
-      aiHint: '提取课程的主要内容点或大纲',
-    },
-    {
       name: 'difficulty',
       displayName: '难度级别',
       description: '课程的难度级别',
@@ -496,41 +501,18 @@ export const courseTemplatesSchema: TableSchemaConfig = {
       aiExtract: true,
       aiHint: '从以下级别中选择：初级、中级、高级',
     },
-  ],
-  matchRule: {
-    fields: ['name'],
-    mode: 'similar',
-    threshold: 0.8,
-  },
-  auditConfig: {
-    createdBy: true,
-    createdByDepartment: true,
-  },
-};
-
-/**
- * 项目课程表配置
- * 数据库表：project_courses
- */
-export const projectCoursesSchema: TableSchemaConfig = {
-  tableName: 'project_courses',
-  schemaKey: 'projectCourses',
-  displayName: '项目课程',
-  description: '项目中的课程安排',
-  fields: [
+    // ========== 项目关联字段（项目课程专用，模板时为空）==========
     {
-      name: 'name',
-      displayName: '课程名称',
-      description: '本次课程/活动的名称',
+      name: 'projectId',
+      displayName: '所属项目',
+      description: '所属项目ID。为空表示这是课程模板，有值表示这是项目课程',
       type: 'string',
-      required: true,
-      aiExtract: true,
-      validation: { maxLength: 200 },
+      aiExtract: false,
     },
     {
       name: 'type',
       displayName: '课程类型',
-      description: '本次安排的类型',
+      description: '本次安排的类型（项目课程专用）',
       type: 'enum',
       enumValues: [
         { value: 'course', label: '课程' },
@@ -544,7 +526,7 @@ export const projectCoursesSchema: TableSchemaConfig = {
     {
       name: 'day',
       displayName: '第几天',
-      description: '培训第几天的安排',
+      description: '培训第几天的安排（项目课程专用）',
       type: 'number',
       aiExtract: true,
       validation: { min: 1 },
@@ -552,7 +534,7 @@ export const projectCoursesSchema: TableSchemaConfig = {
     {
       name: 'startTime',
       displayName: '开始时间',
-      description: '课程开始时间',
+      description: '课程开始时间（项目课程专用）',
       type: 'string',
       aiExtract: true,
       aiHint: '格式如"09:00"或"上午9点"',
@@ -561,62 +543,79 @@ export const projectCoursesSchema: TableSchemaConfig = {
     {
       name: 'endTime',
       displayName: '结束时间',
-      description: '课程结束时间',
+      description: '课程结束时间（项目课程专用）',
       type: 'string',
       aiExtract: true,
       aiHint: '格式如"12:00"或"中午12点"',
       validation: { maxLength: 20 },
     },
     {
-      name: 'duration',
-      displayName: '课时',
-      description: '本次课程的课时数（每课时40-60分钟）',
-      type: 'number',
-      aiExtract: true,
-      aiHint: `课时自动折算规则（非常重要）：
-- 1课时 = 40-60分钟
-- 如果文件中写的是分钟数，必须折算成课时
-- 例如：120分钟 → 2课时，90分钟 → 1.5课时，45分钟 → 1课时
-- 例如：2小时 → 2课时，半天(3-4小时) → 3-4课时
-- 提取课时数，保留一位小数`,
-      validation: { min: 0.5 },
-    },
-    {
-      name: 'description',
-      displayName: '课程描述',
-      description: '课程的详细描述',
-      type: 'string',
-      aiExtract: true,
-    },
-    // 关联字段（特殊处理）
-    {
       name: 'teacherId',
-      displayName: '讲师ID',
-      description: '授课讲师的ID（关联teachers表）',
+      displayName: '讲师',
+      description: '授课讲师的ID（项目课程专用，关联teachers表）',
       type: 'string',
       aiExtract: false,
     },
     {
       name: 'visitSiteId',
-      displayName: '参访基地ID',
-      description: '参访地点的ID（关联visit_sites表）',
+      displayName: '参访基地',
+      description: '参访地点的ID（项目课程专用，关联visit_sites表）',
       type: 'string',
       aiExtract: false,
     },
     {
-      name: 'courseTemplateId',
-      displayName: '课程模板ID',
-      description: '使用的课程模板ID（关联course_templates表）',
-      type: 'string',
+      name: 'order',
+      displayName: '排序',
+      description: '排序序号（项目课程专用）',
+      type: 'number',
+      aiExtract: false,
+    },
+    // ========== 模板标识和统计字段 ==========
+    {
+      name: 'isTemplate',
+      displayName: '是否为模板',
+      description: '是否为课程模板。true=可复用的课程模板，false=项目课程实例',
+      type: 'boolean',
+      aiExtract: false,
+    },
+    {
+      name: 'usageCount',
+      displayName: '使用次数',
+      description: '被引用的次数（模板专用）',
+      type: 'number',
+      aiExtract: false,
+    },
+    {
+      name: 'avgRating',
+      displayName: '平均评分',
+      description: '课程评分（模板专用）',
+      type: 'number',
+      aiExtract: false,
+    },
+    {
+      name: 'isActive',
+      displayName: '是否可用',
+      description: '课程是否处于可用状态',
+      type: 'boolean',
       aiExtract: false,
     },
   ],
   matchRule: {
-    fields: ['name', 'day', 'startTime'],
-    mode: 'exact',
+    fields: ['name'],
+    mode: 'similar',
+    threshold: 0.8,
   },
-  auditConfig: {},
+  auditConfig: {
+    createdBy: true,
+    createdByDepartment: true,
+  },
 };
+
+// 兼容旧代码的别名（逐步废弃）
+/** @deprecated 使用 coursesSchema 代替 */
+export const courseTemplatesSchema = coursesSchema;
+/** @deprecated 使用 coursesSchema 代替 */
+export const projectCoursesSchema = coursesSchema;
 
 /**
  * 项目信息表配置（字段更新用）
@@ -720,8 +719,10 @@ export const dbSchemaConfig: Record<string, TableSchemaConfig> = {
   teachers: teachersSchema,
   venues: venuesSchema,
   visitSites: visitSitesSchema,
-  courseTemplates: courseTemplatesSchema,
-  projectCourses: projectCoursesSchema,
+  courses: coursesSchema,
+  // 兼容旧代码（逐步废弃）
+  courseTemplates: coursesSchema,
+  projectCourses: coursesSchema,
   projectInfo: projectInfoSchema,
 };
 
