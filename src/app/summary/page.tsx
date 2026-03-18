@@ -50,6 +50,15 @@ import {
   Inbox,
   Eye,
   RefreshCw,
+  Sparkles,
+  UserPlus,
+  MapPin,
+  BookOpen,
+  Building2,
+  CalendarDays,
+  ChevronDown,
+  ChevronUp,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -185,6 +194,36 @@ export default function SummaryPage() {
   
   // 待上传文件（用于覆盖确认后继续上传）
   const pendingFileRef = useRef<{ fileType: string; file: File } | null>(null);
+
+  // AI检查状态
+  const [aiChecking, setAiChecking] = useState(false);
+  const [aiCheckResult, setAiCheckResult] = useState<{
+    hasChanges: boolean;
+    totalChanges: number;
+    checkResult: {
+      teachers: AiCheckItem[];
+      venues: AiCheckItem[];
+      courseTemplates: AiCheckItem[];
+      visitSites: AiCheckItem[];
+      projectCourses: AiCheckItem[];
+    };
+  } | null>(null);
+  const [showAiCheckDialog, setShowAiCheckDialog] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    teachers: true,
+    venues: true,
+    courseTemplates: true,
+    visitSites: true,
+    projectCourses: true,
+  });
+
+  // AI检查结果项类型
+  interface AiCheckItem {
+    action: 'add' | 'update';
+    data: Record<string, unknown>;
+    existingId?: string;
+    reason: string;
+  }
 
   // 加载项目列表
   const loadProjects = async () => {
@@ -1937,12 +1976,244 @@ export default function SummaryPage() {
     );
   };
 
+  // AI检查函数
+  const handleAiCheck = async () => {
+    if (!selectedProject) return;
+    
+    setAiChecking(true);
+    try {
+      const res = await fetch('/api/ai/check-archive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: selectedProject.id }),
+      });
+      
+      const data = await res.json();
+      
+      if (data.success) {
+        setAiCheckResult(data);
+        setShowAiCheckDialog(true);
+        
+        if (!data.hasChanges) {
+          toast.success('AI检查完成', { description: '未发现需要更新的数据' });
+        } else {
+          toast.info('AI检查完成', { description: `发现 ${data.totalChanges} 条数据需要更新或新增` });
+        }
+      } else {
+        throw new Error(data.error || 'AI检查失败');
+      }
+    } catch (error) {
+      console.error('AI check error:', error);
+      toast.error('AI检查失败', { description: error instanceof Error ? error.message : '请稍后重试' });
+    } finally {
+      setAiChecking(false);
+    }
+  };
+
+  // 确认添加/更新数据
+  const handleConfirmDataChange = async (type: string, item: AiCheckItem) => {
+    try {
+      const endpoint = type === 'teachers' ? '/api/data/teachers' :
+                       type === 'venues' ? '/api/data/venues' :
+                       type === 'courseTemplates' ? '/api/data/course-templates' :
+                       type === 'visitSites' ? '/api/data/visit-sites' :
+                       type === 'projectCourses' ? `/api/projects/${selectedProject?.id}/courses` : '';
+      
+      if (!endpoint) {
+        toast.error('不支持的数据类型');
+        return;
+      }
+      
+      const method = item.action === 'add' ? 'POST' : 'PUT';
+      const body = item.action === 'update' 
+        ? { ...item.data, id: item.existingId }
+        : item.data;
+      
+      const res = await fetch(endpoint, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      
+      if (res.ok) {
+        toast.success(item.action === 'add' ? '数据已添加' : '数据已更新');
+        // 从结果列表中移除已处理的项
+        if (aiCheckResult) {
+          const newResult = { ...aiCheckResult };
+          newResult.checkResult[type as keyof typeof newResult.checkResult] = 
+            newResult.checkResult[type as keyof typeof newResult.checkResult].filter(
+              (i: AiCheckItem) => i !== item
+            );
+          newResult.totalChanges = Object.values(newResult.checkResult).flat().length;
+          newResult.hasChanges = newResult.totalChanges > 0;
+          setAiCheckResult(newResult);
+        }
+      } else {
+        const errorData = await res.json();
+        throw new Error(errorData.error || '操作失败');
+      }
+    } catch (error) {
+      console.error('Confirm data change error:', error);
+      toast.error('操作失败', { description: error instanceof Error ? error.message : '请稍后重试' });
+    }
+  };
+
+  // 忽略变更
+  const handleIgnoreDataChange = (type: string, item: AiCheckItem) => {
+    if (aiCheckResult) {
+      const newResult = { ...aiCheckResult };
+      newResult.checkResult[type as keyof typeof newResult.checkResult] = 
+        newResult.checkResult[type as keyof typeof newResult.checkResult].filter(
+          (i: AiCheckItem) => i !== item
+        );
+      newResult.totalChanges = Object.values(newResult.checkResult).flat().length;
+      newResult.hasChanges = newResult.totalChanges > 0;
+      setAiCheckResult(newResult);
+      toast.success('已忽略该变更');
+    }
+  };
+
+  // 切换展开/折叠
+  const toggleSection = (section: string) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
+  };
+
+  // 渲染AI检查结果项
+  const renderCheckItems = (type: string, items: AiCheckItem[], icon: React.ReactNode, title: string) => {
+    if (!items || items.length === 0) return null;
+    
+    return (
+      <div className="border rounded-lg overflow-hidden">
+        <button
+          className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+          onClick={() => toggleSection(type)}
+        >
+          <div className="flex items-center gap-2">
+            {icon}
+            <span className="font-medium text-gray-900">{title}</span>
+            <Badge variant="secondary" className="text-xs">{items.length}</Badge>
+          </div>
+          {expandedSections[type] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
+        {expandedSections[type] && (
+          <div className="divide-y">
+            {items.map((item, index) => (
+              <div key={index} className="p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge variant={item.action === 'add' ? 'default' : 'outline'} className="text-xs">
+                        {item.action === 'add' ? '新增' : '更新'}
+                      </Badge>
+                      <span className="font-medium text-gray-900">
+                        {String(item.data.name || '未命名')}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mb-2">{item.reason}</p>
+                    <div className="text-xs text-gray-600 bg-gray-50 p-2 rounded max-h-20 overflow-y-auto">
+                      {Object.entries(item.data).map(([key, value]) => (
+                        value && key !== 'name' ? (
+                          <span key={key} className="inline-block mr-3">
+                            <span className="text-gray-400">{key}:</span> {String(value)}
+                          </span>
+                        ) : null
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex gap-1 flex-shrink-0">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs text-green-600 border-green-200 hover:bg-green-50"
+                      onClick={() => handleConfirmDataChange(type, item)}
+                    >
+                      <Check className="w-3 h-3 mr-1" />
+                      确认
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => handleIgnoreDataChange(type, item)}
+                    >
+                      <X className="w-3 h-3 mr-1" />
+                      忽略
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // 渲染第四步：确认下载
   const renderStep4 = () => {
     if (!selectedProject || !summaryReport) return null;
     
     return (
       <div className="space-y-6">
+        {/* AI检查提示 */}
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Sparkles className="w-6 h-6 text-blue-600" />
+                <div>
+                  <h4 className="font-medium text-blue-900">AI数据检查</h4>
+                  <p className="text-sm text-blue-700">在归档前，AI可以检查上传文件中是否有需要新增或更新的数据</p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                className="border-blue-300 text-blue-700 hover:bg-blue-100"
+                onClick={handleAiCheck}
+                disabled={aiChecking}
+              >
+                {aiChecking ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    检查中...
+                  </>
+                ) : (
+                  <>
+                    <Brain className="w-4 h-4 mr-2" />
+                    开始AI检查
+                  </>
+                )}
+              </Button>
+            </div>
+            {aiCheckResult && aiCheckResult.hasChanges && (
+              <div className="mt-3 pt-3 border-t border-blue-200">
+                <div className="flex items-center gap-2 text-blue-700">
+                  <AlertCircle className="w-4 h-4" />
+                  <span className="text-sm">发现 <strong>{aiCheckResult.totalChanges}</strong> 条数据变更建议，</span>
+                  <Button
+                    variant="link"
+                    className="h-auto p-0 text-blue-700 underline"
+                    onClick={() => setShowAiCheckDialog(true)}
+                  >
+                    点击查看详情
+                  </Button>
+                </div>
+              </div>
+            )}
+            {aiCheckResult && !aiCheckResult.hasChanges && (
+              <div className="mt-3 pt-3 border-t border-blue-200">
+                <div className="flex items-center gap-2 text-green-700">
+                  <CheckCircle className="w-4 h-4" />
+                  <span className="text-sm">未发现需要更新的数据，可以直接归档</span>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>项目总结报告</CardTitle>
@@ -2192,6 +2463,68 @@ export default function SummaryPage() {
             <Button onClick={handleConfirmOverwrite}>
               确认覆盖
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* AI检查结果对话框 */}
+      <Dialog open={showAiCheckDialog} onOpenChange={setShowAiCheckDialog}>
+        <DialogContent className="max-w-3xl max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-blue-600" />
+              AI数据检查结果
+            </DialogTitle>
+            <DialogDescription>
+              {aiCheckResult?.hasChanges 
+                ? `发现 ${aiCheckResult.totalChanges} 条数据变更建议，请确认是否添加或更新`
+                : '未发现需要更新的数据'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="overflow-y-auto" style={{ maxHeight: 'calc(90vh - 200px)' }}>
+            {aiCheckResult?.hasChanges ? (
+              <div className="space-y-4">
+                {renderCheckItems('teachers', aiCheckResult.checkResult.teachers, <UserPlus className="w-4 h-4 text-blue-600" />, '讲师信息')}
+                {renderCheckItems('venues', aiCheckResult.checkResult.venues, <MapPin className="w-4 h-4 text-green-600" />, '场地信息')}
+                {renderCheckItems('courseTemplates', aiCheckResult.checkResult.courseTemplates, <BookOpen className="w-4 h-4 text-purple-600" />, '课程模板')}
+                {renderCheckItems('visitSites', aiCheckResult.checkResult.visitSites, <Building2 className="w-4 h-4 text-orange-600" />, '参访基地')}
+                {renderCheckItems('projectCourses', aiCheckResult.checkResult.projectCourses, <CalendarDays className="w-4 h-4 text-indigo-600" />, '项目课程')}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <CheckCircle className="w-16 h-16 mx-auto text-green-500 mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">数据检查完成</h3>
+                <p className="text-gray-500">未发现需要新增或更新的数据，可以直接归档项目</p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAiCheckDialog(false)}>
+              关闭
+            </Button>
+            {aiCheckResult?.hasChanges && (
+              <Button onClick={() => {
+                // 一键确认所有变更
+                const allPromises: Promise<void>[] = [];
+                Object.entries(aiCheckResult.checkResult).forEach(([type, items]) => {
+                  items.forEach(item => {
+                    allPromises.push(
+                      new Promise<void>((resolve) => {
+                        handleConfirmDataChange(type, item);
+                        resolve();
+                      })
+                    );
+                  });
+                });
+                Promise.all(allPromises).then(() => {
+                  toast.success('所有变更已确认');
+                  setShowAiCheckDialog(false);
+                });
+              }}>
+                <Check className="w-4 h-4 mr-2" />
+                一键确认所有变更
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
