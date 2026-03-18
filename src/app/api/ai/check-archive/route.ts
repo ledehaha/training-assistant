@@ -14,8 +14,8 @@ import { eq } from 'drizzle-orm';
 import {
   dbSchemaConfig,
   generateAIFieldDescription,
-  generateAIOutputSchema,
   validateAIData,
+  processDurationField,
   getComparisonFields,
   type TableSchemaConfig,
 } from '@/config/db-schema-config';
@@ -426,11 +426,15 @@ ${fileData.length === 0 ? '注意：该项目暂未上传任何文件材料。' 
               
               // 使用配置验证数据
               const validation = validateAIData(key, typedItem.data);
+              
+              // 对duration字段进行课时折算
+              const processedData = processDurationField(key, validation.cleanedData) as Record<string, unknown>;
+              
               const action: 'add' | 'update' = typedItem.action === 'update' ? 'update' : 'add';
               
               validatedItems.push({
                 action,
-                data: validation.cleanedData,
+                data: processedData,
                 existingId: typedItem.existingId,
                 reason: typedItem.reason || '',
                 source: typedItem.source || '',

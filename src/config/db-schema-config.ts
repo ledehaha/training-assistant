@@ -455,11 +455,16 @@ export const courseTemplatesSchema: TableSchemaConfig = {
     {
       name: 'duration',
       displayName: '课时数',
-      description: '课程的课时数，单位：课时',
+      description: '课程的课时数，单位：课时（每课时40-60分钟）',
       type: 'number',
       aiExtract: true,
-      aiHint: '提取数字，如"4课时"则填写4',
-      validation: { min: 1 },
+      aiHint: `课时自动折算规则（非常重要）：
+- 1课时 = 40-60分钟
+- 如果文件中写的是分钟数，必须折算成课时
+- 例如：120分钟 → 2课时，90分钟 → 1.5课时，45分钟 → 1课时
+- 例如：2小时 → 2课时，半天(3-4小时) → 3-4课时
+- 提取课时数，保留一位小数`,
+      validation: { min: 0.5 },
     },
     {
       name: 'targetAudience',
@@ -565,9 +570,15 @@ export const projectCoursesSchema: TableSchemaConfig = {
     {
       name: 'duration',
       displayName: '课时',
-      description: '本次课程的课时数',
+      description: '本次课程的课时数（每课时40-60分钟）',
       type: 'number',
       aiExtract: true,
+      aiHint: `课时自动折算规则（非常重要）：
+- 1课时 = 40-60分钟
+- 如果文件中写的是分钟数，必须折算成课时
+- 例如：120分钟 → 2课时，90分钟 → 1.5课时，45分钟 → 1课时
+- 例如：2小时 → 2课时，半天(3-4小时) → 3-4课时
+- 提取课时数，保留一位小数`,
       validation: { min: 0.5 },
     },
     {
@@ -929,4 +940,159 @@ export function validateAIData(schemaKey: string, data: Record<string, unknown>)
     errors,
     cleanedData,
   };
+}
+
+/**
+ * 课时自动折算函数
+ * 将分钟数或小时数折算成课时（1课时 = 40-60分钟）
+ * 
+ * @param value 输入值（可能是数字或字符串）
+ * @param unit 输入单位：'minute'（分钟）、'hour'（小时）、'auto'（自动判断）
+ * @returns 折算后的课时数
+ * 
+ * @example
+ * convertToDuration(120, 'minute')  // 返回 2（120分钟 = 2课时）
+ * convertToDuration(2, 'hour')      // 返回 2（2小时 = 2课时）
+ * convertToDuration('90分钟', 'auto') // 返回 1.5
+ * convertToDuration('2小时', 'auto')  // 返回 2
+ */
+export function convertToDuration(value: string | number | undefined | null, unit: 'minute' | 'hour' | 'auto' = 'auto'): number {
+  if (value === undefined || value === null || value === '') return 0;
+  
+  const strValue = String(value).trim();
+  let numValue: number;
+  let detectedUnit: 'minute' | 'hour' | 'duration' = 'duration'; // 默认当做课时
+  
+  // 如果是纯数字
+  if (/^-?\d+(\.\d+)?$/.test(strValue)) {
+    numValue = parseFloat(strValue);
+    // 根据传入的unit参数决定
+    if (unit === 'minute') {
+      detectedUnit = 'minute';
+    } else if (unit === 'hour') {
+      detectedUnit = 'hour';
+    } else {
+      // auto模式：根据数值大小判断
+      // 如果数字很大（>24），可能是分钟
+      // 如果数字在合理课时范围内（0.5-24），当做课时
+      if (numValue > 24) {
+        detectedUnit = 'minute';
+      } else {
+        detectedUnit = 'duration';
+      }
+    }
+  } else {
+    // 尝试从字符串中提取数字和单位
+    const minutePatterns = [
+      /(\d+(?:\.\d+)?)\s*分钟/,
+      /(\d+(?:\.\d+)?)\s*min/i,
+      /(\d+(?:\.\d+)?)\s*分/,
+    ];
+    const hourPatterns = [
+      /(\d+(?:\.\d+)?)\s*小时/,
+      /(\d+(?:\.\d+)?)\s*hour/i,
+      /(\d+(?:\.\d+)?)\s*h/i,
+      /(\d+(?:\.\d+)?)\s*时/,
+    ];
+    const durationPatterns = [
+      /(\d+(?:\.\d+)?)\s*课时/,
+      /(\d+(?:\.\d+)?)\s*节/,
+      /(\d+(?:\.\d+)?)\s*学时/,
+    ];
+    
+    // 检查分钟模式
+    for (const pattern of minutePatterns) {
+      const match = strValue.match(pattern);
+      if (match) {
+        numValue = parseFloat(match[1]);
+        detectedUnit = 'minute';
+        break;
+      }
+    }
+    
+    // 检查小时模式
+    if (detectedUnit === 'duration') {
+      for (const pattern of hourPatterns) {
+        const match = strValue.match(pattern);
+        if (match) {
+          numValue = parseFloat(match[1]);
+          detectedUnit = 'hour';
+          break;
+        }
+      }
+    }
+    
+    // 检查课时模式
+    if (detectedUnit === 'duration') {
+      for (const pattern of durationPatterns) {
+        const match = strValue.match(pattern);
+        if (match) {
+          numValue = parseFloat(match[1]);
+          detectedUnit = 'duration';
+          break;
+        }
+      }
+    }
+    
+    // 如果都没匹配到，尝试提取数字
+    if (detectedUnit === 'duration') {
+      const numMatch = strValue.match(/(\d+(?:\.\d+)?)/);
+      if (numMatch) {
+        numValue = parseFloat(numMatch[1]);
+        // 根据数字大小判断
+        if (numValue > 24) {
+          detectedUnit = 'minute';
+        }
+      } else {
+        return 0;
+      }
+    }
+  }
+  
+  // 进行折算
+  switch (detectedUnit) {
+    case 'minute':
+      // 分钟转课时：50分钟 ≈ 1课时（取中间值）
+      return Math.round((numValue! / 50) * 10) / 10;
+    case 'hour':
+      // 小时转课时：1小时 = 1课时
+      return Math.round(numValue! * 10) / 10;
+    case 'duration':
+    default:
+      // 已经是课时，直接返回
+      return Math.round(numValue! * 10) / 10;
+  }
+}
+
+/**
+ * 批量处理数据中的duration字段
+ * 遍历数据，对duration字段进行自动折算
+ * 
+ * @param schemaKey 表的schema键名
+ * @param data 数据对象或数组
+ * @returns 处理后的数据
+ */
+export function processDurationField(schemaKey: string, data: Record<string, unknown> | Record<string, unknown>[]): Record<string, unknown> | Record<string, unknown>[] {
+  const schema = dbSchemaConfig[schemaKey];
+  if (!schema) return data;
+  
+  // 检查该表是否有duration字段
+  const hasDurationField = schema.fields.some(f => f.name === 'duration');
+  if (!hasDurationField) return data;
+  
+  const processItem = (item: Record<string, unknown>): Record<string, unknown> => {
+    if (item.duration !== undefined && item.duration !== null) {
+      return {
+        ...item,
+        duration: convertToDuration(item.duration as string | number, 'auto'),
+      };
+    }
+    return item;
+  };
+  
+  if (Array.isArray(data)) {
+    return data.map(processItem);
+  } else {
+    return processItem(data);
+  }
 }
