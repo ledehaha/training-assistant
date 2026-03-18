@@ -1874,6 +1874,65 @@ export default function SummaryPage() {
           </CardContent>
         </Card>
 
+        {/* AI数据检查卡片 */}
+        <Card className="border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                  <Sparkles className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <h4 className="font-medium text-blue-900">AI数据检查</h4>
+                  <p className="text-sm text-blue-700">分析上传文件，检查是否有讲师、场地、课程等数据需要新增或更新</p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                className="border-blue-300 text-blue-700 hover:bg-blue-100"
+                onClick={handleAiCheck}
+                disabled={aiChecking || progress === 0}
+              >
+                {aiChecking ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    检查中...
+                  </>
+                ) : (
+                  <>
+                    <Brain className="w-4 h-4 mr-2" />
+                    开始检查
+                  </>
+                )}
+              </Button>
+            </div>
+            {aiCheckResult && (
+              <div className="mt-4 pt-4 border-t border-blue-200">
+                {aiCheckResult.hasChanges ? (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-blue-700">
+                      <AlertCircle className="w-4 h-4" />
+                      <span className="text-sm">发现 <strong>{aiCheckResult.totalChanges}</strong> 条数据变更建议</span>
+                    </div>
+                    <Button
+                      variant="link"
+                      className="h-auto p-0 text-blue-700 underline"
+                      onClick={() => setShowAiCheckDialog(true)}
+                    >
+                      查看详情并处理
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-green-700">
+                    <CheckCircle className="w-4 h-4" />
+                    <span className="text-sm">未发现需要更新的数据</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* 操作按钮 */}
         <div className="flex justify-between">
           <Button variant="outline" onClick={handlePrevStep}>
@@ -2158,61 +2217,37 @@ export default function SummaryPage() {
     
     return (
       <div className="space-y-6">
-        {/* AI检查提示 */}
-        <Card className="border-blue-200 bg-blue-50">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
+        {/* AI检查状态提示 */}
+        {aiCheckResult && (
+          <Card className={aiCheckResult.hasChanges ? "border-amber-200 bg-amber-50" : "border-green-200 bg-green-50"}>
+            <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <Sparkles className="w-6 h-6 text-blue-600" />
-                <div>
-                  <h4 className="font-medium text-blue-900">AI数据检查</h4>
-                  <p className="text-sm text-blue-700">在归档前，AI可以检查上传文件中是否有需要新增或更新的数据</p>
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                className="border-blue-300 text-blue-700 hover:bg-blue-100"
-                onClick={handleAiCheck}
-                disabled={aiChecking}
-              >
-                {aiChecking ? (
+                {aiCheckResult.hasChanges ? (
                   <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    检查中...
+                    <AlertCircle className="w-5 h-5 text-amber-600" />
+                    <div>
+                      <span className="text-sm text-amber-700">
+                        已完成AI检查，发现 <strong>{aiCheckResult.totalChanges}</strong> 条数据变更建议待处理
+                      </span>
+                      <Button
+                        variant="link"
+                        className="h-auto p-0 ml-2 text-amber-700 underline"
+                        onClick={() => setShowAiCheckDialog(true)}
+                      >
+                        查看详情
+                      </Button>
+                    </div>
                   </>
                 ) : (
                   <>
-                    <Brain className="w-4 h-4 mr-2" />
-                    开始AI检查
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    <span className="text-sm text-green-700">AI检查已完成，未发现需要更新的数据</span>
                   </>
                 )}
-              </Button>
-            </div>
-            {aiCheckResult && aiCheckResult.hasChanges && (
-              <div className="mt-3 pt-3 border-t border-blue-200">
-                <div className="flex items-center gap-2 text-blue-700">
-                  <AlertCircle className="w-4 h-4" />
-                  <span className="text-sm">发现 <strong>{aiCheckResult.totalChanges}</strong> 条数据变更建议，</span>
-                  <Button
-                    variant="link"
-                    className="h-auto p-0 text-blue-700 underline"
-                    onClick={() => setShowAiCheckDialog(true)}
-                  >
-                    点击查看详情
-                  </Button>
-                </div>
               </div>
-            )}
-            {aiCheckResult && !aiCheckResult.hasChanges && (
-              <div className="mt-3 pt-3 border-t border-blue-200">
-                <div className="flex items-center gap-2 text-green-700">
-                  <CheckCircle className="w-4 h-4" />
-                  <span className="text-sm">未发现需要更新的数据，可以直接归档</span>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>
