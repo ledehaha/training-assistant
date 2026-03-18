@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, projects, projectCourses, projectDocuments, eq, asc, desc, saveDatabaseImmediate, ensureDatabaseReady } from '@/storage/database';
+import { db, projects, courses, projectDocuments, eq, asc, desc, and, saveDatabaseImmediate, ensureDatabaseReady } from '@/storage/database';
 import { generateId, getTimestamp } from '@/storage/database';
 
 // 检查文件是否是有效的上传文件（以 "projects/" 开头）
@@ -73,11 +73,11 @@ export async function GET(
     }
 
     // 获取项目课程
-    const courses = db
+    const coursesList = db
       .select()
-      .from(projectCourses)
-      .where(eq(projectCourses.projectId, id))
-      .orderBy(asc(projectCourses.order))
+      .from(courses)
+      .where(and(eq(courses.projectId, id), eq(courses.isTemplate, false)))
+      .orderBy(asc(courses.order))
       .all();
 
     // 获取项目文档
@@ -91,7 +91,7 @@ export async function GET(
     return NextResponse.json({
       data: {
         ...project,
-        courses: courses || [],
+        courses: coursesList || [],
         documents: documents || [],
       },
     });
@@ -201,22 +201,26 @@ export async function PUT(
     // 更新课程数据
     if (body.courses !== undefined) {
       // 删除旧的课程记录
-      db.delete(projectCourses).where(eq(projectCourses.projectId, id)).run();
+      db.delete(courses).where(and(eq(courses.projectId, id), eq(courses.isTemplate, false))).run();
       
       // 插入新的课程记录
       if (Array.isArray(body.courses) && body.courses.length > 0) {
         for (let i = 0; i < body.courses.length; i++) {
           const course = body.courses[i];
-          db.insert(projectCourses)
+          db.insert(courses)
             .values({
               id: course.id || generateId(),
+              isTemplate: false,
               projectId: id,
               name: course.name,
               day: course.day,
               duration: course.duration,
               description: course.description,
               teacherId: course.teacherId,
+              visitSiteId: course.visitSiteId,
+              type: course.type || 'course',
               order: i,
+              isActive: true,
               createdAt: course.createdAt || now,
             })
             .run();

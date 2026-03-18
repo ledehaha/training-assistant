@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, projects, projectCourses, teachers, eq, desc, sql, ensureDatabaseReady } from '@/storage/database';
+import { db, projects, courses, teachers, eq, desc, sql, and, ensureDatabaseReady } from '@/storage/database';
 
 // GET /api/projects/completed - 获取已完成项目列表（含课程方案）
 export async function GET(request: NextRequest) {
@@ -30,27 +30,27 @@ export async function GET(request: NextRequest) {
 
     // 为每个项目获取课程和讲师信息
     const projectsWithCourses = projectResults.map((project: Record<string, unknown>) => {
-      const courses = db
+      const coursesList = db
         .select({
-          id: projectCourses.id,
-          name: projectCourses.name,
-          day: projectCourses.day,
-          startTime: projectCourses.startTime,
-          endTime: projectCourses.endTime,
-          duration: projectCourses.duration,
-          description: projectCourses.description,
-          teacherId: projectCourses.teacherId,
+          id: courses.id,
+          name: courses.name,
+          day: courses.day,
+          startTime: courses.startTime,
+          endTime: courses.endTime,
+          duration: courses.duration,
+          description: courses.description,
+          teacherId: courses.teacherId,
           teacherName: teachers.name,
           teacherTitle: teachers.title,
         })
-        .from(projectCourses)
-        .leftJoin(teachers, eq(projectCourses.teacherId, teachers.id))
-        .where(eq(projectCourses.projectId, project.id as string))
+        .from(courses)
+        .leftJoin(teachers, eq(courses.teacherId, teachers.id))
+        .where(and(eq(courses.projectId, project.id as string), eq(courses.isTemplate, false)))
         .all();
 
       return {
         ...project,
-        courses,
+        courses: coursesList,
       };
     });
 

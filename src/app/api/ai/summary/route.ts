@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { LLMClient, FetchClient, Config, HeaderUtils, Message } from 'coze-coding-dev-sdk';
 import { S3Storage } from 'coze-coding-dev-sdk';
 import { getDb, saveDatabaseImmediate, ensureDatabaseReady } from '@/storage/database';
-import { projects, projectCourses, teachers } from '@/storage/database/schema';
-import { eq } from 'drizzle-orm';
+import { projects, courses, teachers } from '@/storage/database/schema';
+import { eq, and } from 'drizzle-orm';
 
 // 初始化对象存储
 const storage = new S3Storage({
@@ -63,10 +63,10 @@ export async function POST(request: NextRequest) {
     const project = projectList[0];
 
     // 获取课程信息
-    const courses = await db.select().from(projectCourses).where(eq(projectCourses.projectId, projectId));
+    const coursesList = await db.select().from(courses).where(and(eq(courses.projectId, projectId), eq(courses.isTemplate, false)));
 
     // 获取讲师ID列表
-    const teacherIds = [...new Set(courses.map(c => c.teacherId).filter((id): id is string => id !== null))];
+    const teacherIds = [...new Set(coursesList.map(c => c.teacherId).filter((id): id is string => id !== null))];
     
     // 获取讲师信息
     let teacherList: (typeof teachers.$inferSelect)[] = [];
@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
 
 课程信息：`;
 
-    courses.forEach((course, index) => {
+    coursesList.forEach((course, index) => {
       const courseTeacher = teacherList.find(t => t.id === course.teacherId);
       userPrompt += `
 ${index + 1}. ${course.name}

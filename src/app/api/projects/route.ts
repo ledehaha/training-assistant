@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, projects, projectCourses, eq, desc, sql, saveDatabaseImmediate, ensureDatabaseReady, getSqlite } from '@/storage/database';
+import { db, projects, courses, eq, desc, sql, saveDatabaseImmediate, ensureDatabaseReady, getSqlite } from '@/storage/database';
 import { generateId, getTimestamp } from '@/storage/database';
 
 // 一次性数据清理标志
@@ -145,16 +145,20 @@ export async function POST(request: NextRequest) {
     if (body.courses && Array.isArray(body.courses) && body.courses.length > 0) {
       for (let i = 0; i < body.courses.length; i++) {
         const course = body.courses[i];
-        db.insert(projectCourses)
+        db.insert(courses)
           .values({
             id: generateId(),
+            isTemplate: false,
             projectId: id,
             name: course.name,
             day: course.day,
             duration: course.duration,
             description: course.description,
             teacherId: course.teacherId,
+            visitSiteId: course.visitSiteId,
+            type: course.type || 'course',
             order: i,
+            isActive: true,
             createdAt: now,
           })
           .run();

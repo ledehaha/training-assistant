@@ -187,10 +187,11 @@ const TABLES_CONFIG = [
   },
   { 
     name: 'course_templates', 
-    label: '课程模板', 
+    label: '课程管理', 
     icon: '📚',
     columns: [
       { key: 'id', label: 'ID', type: 'uuid', editable: false },
+      { key: 'isTemplate', label: '是否模板', type: 'boolean', editable: true },
       { key: 'name', label: '课程名称', type: 'text', editable: true, required: true },
       { key: 'category', label: '类别', type: 'select', options: ['管理技能', '专业技能', '职业素养', '综合提升'], editable: true },
       { key: 'duration', label: '课时', type: 'number', editable: true },
@@ -199,6 +200,15 @@ const TABLES_CONFIG = [
       { key: 'description', label: '描述', type: 'textarea', editable: true },
       { key: 'usageCount', label: '使用次数', type: 'number', editable: true },
       { key: 'avgRating', label: '平均评分', type: 'number', editable: true },
+      { key: 'type', label: '类型', type: 'select', options: ['course', 'visit', 'break', 'other'], editable: true },
+      { key: 'teacherId', label: '讲师ID', type: 'uuid', editable: true },
+      { key: 'visitSiteId', label: '参访基地ID', type: 'uuid', editable: true },
+      { key: 'projectId', label: '关联项目ID', type: 'uuid', editable: true },
+      { key: 'day', label: '培训天数', type: 'number', editable: true },
+      { key: 'startTime', label: '开始时间', type: 'text', editable: true },
+      { key: 'endTime', label: '结束时间', type: 'text', editable: true },
+      { key: 'order', label: '排序', type: 'number', editable: true },
+      { key: 'isActive', label: '状态', type: 'boolean', editable: true },
       { key: 'createdBy', label: '添加人ID', type: 'text', editable: false },
       { key: 'createdByDepartment', label: '添加部门ID', type: 'text', editable: false },
     ]
@@ -232,21 +242,6 @@ const TABLES_CONFIG = [
       { key: 'participantCount', label: '参训人数', type: 'number', editable: true },
       { key: 'trainingDays', label: '培训天数', type: 'number', editable: true },
       { key: 'totalBudget', label: '总预算', type: 'number', editable: true },
-    ]
-  },
-  { 
-    name: 'project_courses', 
-    label: '项目课程', 
-    icon: '📖',
-    columns: [
-      { key: 'id', label: 'ID', type: 'uuid', editable: false },
-      { key: 'projectId', label: '项目ID', type: 'uuid', editable: false },
-      { key: 'name', label: '课程名称', type: 'text', editable: true },
-      { key: 'day', label: '培训天数', type: 'number', editable: true },
-      { key: 'duration', label: '课时', type: 'number', editable: true },
-      { key: 'teacherId', label: '讲师ID', type: 'uuid', editable: true },
-      { key: 'description', label: '课程描述', type: 'textarea', editable: true },
-      { key: 'order', label: '排序', type: 'number', editable: true },
     ]
   },
   { 
