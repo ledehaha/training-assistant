@@ -98,7 +98,7 @@ async function readFileContent(fileKey: string, customHeaders: Record<string, st
       .map(item => item.text)
       .join('\n');
     
-    return textContent.substring(0, 10000);
+    return textContent.substring(0, 6000); // 减少每个文件的内容大小，避免上下文过长
   } catch (error) {
     console.error('读取文件失败:', error);
     return '';
@@ -320,8 +320,30 @@ export async function POST(request: NextRequest) {
         ]);
         currentStepIndex++;
 
-        // 构建用户提示词
+        // 构建用户提示词（限制总大小避免超时）
         const systemPrompt = generateSystemPrompt();
+        
+        // 计算文件内容总大小，如果超过限制则截断
+        const MAX_TOTAL_CONTENT = 30000; // 总内容限制约30k字符
+        let totalFileContent = fileData.map((file, index) => 
+          `### 文件${index + 1}：${file.name}\n\`\`\`\n${file.content}\n\`\`\`\n`
+        ).join('\n');
+        
+        if (totalFileContent.length > MAX_TOTAL_CONTENT) {
+          console.log(`文件内容总长度 ${totalFileContent.length} 超过限制，进行截断`);
+          totalFileContent = totalFileContent.substring(0, MAX_TOTAL_CONTENT) + '\n\n...（内容过长已截断）';
+        }
+
+        // 限制数据库数据的显示数量
+        const MAX_DB_ITEMS = 50; // 每个表最多显示50条
+        const formatLimitedDbData = (key: string, data: Record<string, unknown>[]) => {
+          if (data.length === 0) return '暂无数据';
+          const displayData = data.slice(0, MAX_DB_ITEMS);
+          const result = formatDbDataForAI(key, displayData);
+          return data.length > MAX_DB_ITEMS 
+            ? `${result}\n...（共${data.length}条，仅显示前${MAX_DB_ITEMS}条）`
+            : result;
+        };
 
         const userPrompt = `## 项目基本信息
 - 项目名称：${project.name}
@@ -335,47 +357,78 @@ export async function POST(request: NextRequest) {
 ## 数据库已有数据
 
 ### 讲师信息（共${allTeachers.length}条）
-${formatDbDataForAI('teachers', allTeachers)}
+${formatLimitedDbData('teachers', allTeachers)}
 
 ### 场地信息（共${allVenues.length}条）
-${formatDbDataForAI('venues', allVenues)}
+${formatLimitedDbData('venues', allVenues)}
 
 ### 课程模板（共${allCourseTemplates.length}条）
-${formatDbDataForAI('courseTemplates', allCourseTemplates)}
+${formatLimitedDbData('courseTemplates', allCourseTemplates)}
 
 ### 参访基地（共${allVisitSites.length}条）
-${formatDbDataForAI('visitSites', allVisitSites)}
+${formatLimitedDbData('visitSites', allVisitSites)}
 
 ### 本项目已有课程（共${projectCoursesList.length}条）
-${formatDbDataForAI('projectCourses', projectCoursesList)}
+${formatLimitedDbData('projectCourses', projectCoursesList)}
 
 ## 上传的文件内容（共${fileData.length}个文件）
 
-${fileData.map((file, index) => `### 文件${index + 1}：${file.name}\n\`\`\`\n${file.content}\n\`\`\`\n`).join('\n')}
+${totalFileContent}
 
 ${fileData.length === 0 ? '注意：该项目暂未上传任何文件材料。' : ''}
 
 请分析以上文件内容，提取数据并返回JSON格式的结果。`;
 
-        // Step 10: AI分析
+        // Step 10: AI分析（使用流式调用）
         sendEvent(sendProgress('正在进行AI智能分析与整合...', BASE_STEPS.length));
-        const config = new Config();
+        
+        console.log('开始AI分析，prompt大小:', systemPrompt.length + userPrompt.length);
+        
+        const config = new Config({ timeout: 180000 }); // 设置3分钟超时
         const client = new LLMClient(config, customHeaders);
         const messages: Message[] = [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ];
 
-        const response = await client.invoke(messages, {
-          model: 'doubao-seed-1-6-251015',
-          temperature: 0.2,
-        });
+        // 使用流式调用，避免长时间等待
+        let fullContent = '';
+        let streamStartTime = Date.now();
+        
+        try {
+          const stream = client.stream(messages, {
+            model: 'doubao-seed-1-6-251015',
+            temperature: 0.2,
+          });
+
+          for await (const chunk of stream) {
+            if (chunk.content) {
+              fullContent += chunk.content.toString();
+            }
+          }
+          console.log('AI流式调用完成，耗时:', Date.now() - streamStartTime, 'ms');
+        } catch (streamError) {
+          console.error('AI流式调用失败:', streamError, '耗时:', Date.now() - streamStartTime, 'ms');
+          // 如果流式调用失败，尝试非流式调用作为备选
+          try {
+            const response = await client.invoke(messages, {
+              model: 'doubao-seed-1-6-251015',
+              temperature: 0.2,
+            });
+            fullContent = response.content;
+            console.log('AI非流式调用完成');
+          } catch (invokeError) {
+            console.error('AI非流式调用也失败:', invokeError);
+            throw new Error('AI分析服务暂时不可用，请稍后重试');
+          }
+        }
         currentStepIndex++;
 
         // 解析AI响应
         let rawResult: Record<string, unknown> = {};
         try {
-          const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+          console.log('AI响应内容长度:', fullContent.length);
+          const jsonMatch = fullContent.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
             rawResult = JSON.parse(jsonMatch[0]);
           }
