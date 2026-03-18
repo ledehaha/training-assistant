@@ -362,7 +362,19 @@ export async function POST(request: NextRequest) {
 
 ### 1. 讲师信息（teachers）
 重点关注：专家介绍文件、项目申报书、合同文件
-提取：姓名、职称、专业领域、所属单位、简介、课时费
+
+**字段映射（非常重要）**：
+- name: 讲师姓名（必须）
+- title: 职称（如：教授、副教授、高级工程师、研究员等）
+- expertise: 专业领域/研究方向（如：企业管理、人工智能、财务会计等）
+- organization: 所属单位/工作单位
+- bio: 个人简介/学术背景/主要成就
+- hourlyRate: 课时费（数字，单位：元）
+
+**注意**：
+- title 只填写职称，不要把单位、专业、简介等其他信息放进去
+- 如果专家介绍中写的是"XX大学教授、博士生导师"，title填"教授"，expertise可以包含博士生导师方向
+- bio字段可以包含较长的个人介绍内容
 
 ### 2. 场地信息（venues）
 重点关注：合同文件、项目申报书
@@ -393,22 +405,87 @@ export async function POST(request: NextRequest) {
   }],
   "teachers": [{ 
     "action": "add/update", 
-    "data": { "name": "xxx", "title": "xxx", ... }, 
+    "data": {
+      "name": "张三",
+      "title": "教授",
+      "expertise": "企业管理、战略管理",
+      "organization": "清华大学经济管理学院",
+      "bio": "张三，清华大学教授，博士生导师，主要研究方向为企业战略管理...",
+      "hourlyRate": 1000
+    },
     "existingId": "如果是更新，填写已有记录的ID",
     "reason": "判断理由", 
     "source": "数据来源文件名",
     "confidence": "high/medium/low"
   }],
-  "venues": [...],
-  "courseTemplates": [...],
-  "visitSites": [...],
-  "projectCourses": [...]
+  "venues": [{
+    "action": "add/update",
+    "data": {
+      "name": "XX会议室",
+      "location": "培训中心A栋3楼",
+      "capacity": 50,
+      "facilities": "投影仪、白板、空调"
+    },
+    "existingId": "如果是更新，填写已有记录的ID",
+    "reason": "判断理由",
+    "source": "数据来源文件名",
+    "confidence": "high/medium/low"
+  }],
+  "courseTemplates": [{
+    "action": "add/update",
+    "data": {
+      "name": "课程名称",
+      "category": "课程类别",
+      "description": "课程描述",
+      "duration": 4,
+      "targetAudience": "目标受众"
+    },
+    "existingId": "如果是更新，填写已有记录的ID",
+    "reason": "判断理由",
+    "source": "数据来源文件名",
+    "confidence": "high/medium/low"
+  }],
+  "visitSites": [{
+    "action": "add/update",
+    "data": {
+      "name": "参访单位名称",
+      "type": "enterprise/government/institution/other",
+      "industry": "行业",
+      "address": "详细地址",
+      "contactPerson": "联系人",
+      "contactPhone": "联系电话"
+    },
+    "existingId": "如果是更新，填写已有记录的ID",
+    "reason": "判断理由",
+    "source": "数据来源文件名",
+    "confidence": "high/medium/low"
+  }],
+  "projectCourses": [{
+    "action": "add/update",
+    "data": {
+      "name": "课程名称",
+      "type": "lecture/workshop/visit/other",
+      "day": 1,
+      "startTime": "09:00",
+      "endTime": "12:00",
+      "duration": 3,
+      "teacherName": "讲师姓名",
+      "visitSiteName": "参访地点"
+    },
+    "existingId": "如果是更新，填写已有记录的ID",
+    "reason": "判断理由",
+    "source": "数据来源文件名",
+    "confidence": "high/medium/low"
+  }]
 }
 
 **重要提醒**：
 - 专家介绍文件中的专家信息通常是最完整的，要充分利用
 - 如果数据库中已有同名专家，检查是否需要补充职称、专业领域、简介等信息
-- 只有真正有价值的新增或更新才返回，避免返回重复或无效数据`;
+- 只有真正有价值的新增或更新才返回，避免返回重复或无效数据
+- **字段映射必须正确**：职称≠单位≠专业≠简介，请仔细区分各字段内容
+- title字段只填职称（如教授、副教授），不要把单位、专业等信息混入
+- bio字段可以包含较长的个人介绍和成就描述`;
 
         let userPrompt = `## 项目基本信息
 - 项目名称：${project.name}
