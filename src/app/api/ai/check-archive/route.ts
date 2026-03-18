@@ -98,11 +98,16 @@ async function readFileContent(fileKey: string, customHeaders: Record<string, st
       .map(item => item.text)
       .join('\n');
     
-    return textContent.substring(0, 6000); // 减少每个文件的内容大小，避免上下文过长
+    return textContent.substring(0, 10000); // 恢复原来的大小限制
   } catch (error) {
     console.error('读取文件失败:', error);
     return '';
   }
+}
+
+// 判断文件是否为PDF
+function isPdfFile(fileKey: string): boolean {
+  return fileKey.toLowerCase().endsWith('.pdf');
 }
 
 /**
@@ -245,59 +250,64 @@ export async function POST(request: NextRequest) {
         const project = projectList[0];
         currentStepIndex++;
 
-        // 收集文件内容（包含来源信息）
+        // 收集文件内容（包含来源信息，跳过PDF文件）
         const fileData: { name: string; content: string; type: string }[] = [];
 
-        // Step 3: 解析合同文件
+        // Step 3: 解析合同文件（跳过PDF）
         sendEvent(sendProgress('正在解析合同文件...', BASE_STEPS.length));
-        if (project.contractFilePdf) {
+        if (project.contractFilePdf && !isPdfFile(project.contractFilePdf)) {
           const content = await readFileContent(project.contractFilePdf, customHeaders);
           if (content) fileData.push({ name: '合同文件', content, type: 'contract' });
         }
         currentStepIndex++;
 
-        // Step 4: 解析成本测算表
+        // Step 4: 解析成本测算表（优先Excel，跳过PDF）
         sendEvent(sendProgress('正在解析成本测算表...', BASE_STEPS.length));
-        if (project.costFilePdf) {
-          const content = await readFileContent(project.costFilePdf, customHeaders);
-          if (content) fileData.push({ name: '成本测算表PDF', content, type: 'cost' });
-        } else if (project.costFileExcel) {
+        if (project.costFileExcel) {
           const content = await readFileContent(project.costFileExcel, customHeaders);
           if (content) fileData.push({ name: '成本测算表Excel', content, type: 'cost' });
+        } else if (project.costFilePdf && !isPdfFile(project.costFilePdf)) {
+          const content = await readFileContent(project.costFilePdf, customHeaders);
+          if (content) fileData.push({ name: '成本测算表', content, type: 'cost' });
         }
         currentStepIndex++;
 
-        // Step 5: 解析项目申报书
+        // Step 5: 解析项目申报书（跳过PDF）
         sendEvent(sendProgress('正在解析项目申报书...', BASE_STEPS.length));
-        if (project.declarationFilePdf) {
+        if (project.declarationFilePdf && !isPdfFile(project.declarationFilePdf)) {
           const content = await readFileContent(project.declarationFilePdf, customHeaders);
           if (content) fileData.push({ name: '项目申报书', content, type: 'declaration' });
         }
         currentStepIndex++;
 
-        // Step 6: 解析学员名单
+        // Step 6: 解析学员名单（跳过PDF）
         sendEvent(sendProgress('正在解析学员名单...', BASE_STEPS.length));
-        if (project.studentListFile) {
+        if (project.studentListFile && !isPdfFile(project.studentListFile)) {
           const content = await readFileContent(project.studentListFile, customHeaders);
           if (content) fileData.push({ name: '学员名单', content, type: 'studentList' });
         }
         currentStepIndex++;
 
-        // Step 7: 解析满意度调查
+        // Step 7: 解析满意度调查（跳过PDF）
         sendEvent(sendProgress('正在解析满意度调查...', BASE_STEPS.length));
-        if (project.satisfactionSurveyFile) {
+        if (project.satisfactionSurveyFile && !isPdfFile(project.satisfactionSurveyFile)) {
           const content = await readFileContent(project.satisfactionSurveyFile, customHeaders);
           if (content) fileData.push({ name: '满意度调查', content, type: 'satisfaction' });
         }
         currentStepIndex++;
 
-        // Step 8: 解析其它附件
+        // Step 8: 解析其它附件（跳过PDF）
         sendEvent(sendProgress('正在解析其它附件...', BASE_STEPS.length));
         const otherMaterials: { key: string; name: string }[] = project.otherMaterials 
           ? JSON.parse(project.otherMaterials) 
           : [];
         
         for (const material of otherMaterials) {
+          // 跳过PDF文件
+          if (isPdfFile(material.key)) {
+            console.log('跳过PDF文件:', material.name);
+            continue;
+          }
           const content = await readFileContent(material.key, customHeaders);
           if (content) {
             fileData.push({ 
@@ -320,30 +330,8 @@ export async function POST(request: NextRequest) {
         ]);
         currentStepIndex++;
 
-        // 构建用户提示词（限制总大小避免超时）
+        // 构建用户提示词
         const systemPrompt = generateSystemPrompt();
-        
-        // 计算文件内容总大小，如果超过限制则截断
-        const MAX_TOTAL_CONTENT = 30000; // 总内容限制约30k字符
-        let totalFileContent = fileData.map((file, index) => 
-          `### 文件${index + 1}：${file.name}\n\`\`\`\n${file.content}\n\`\`\`\n`
-        ).join('\n');
-        
-        if (totalFileContent.length > MAX_TOTAL_CONTENT) {
-          console.log(`文件内容总长度 ${totalFileContent.length} 超过限制，进行截断`);
-          totalFileContent = totalFileContent.substring(0, MAX_TOTAL_CONTENT) + '\n\n...（内容过长已截断）';
-        }
-
-        // 限制数据库数据的显示数量
-        const MAX_DB_ITEMS = 50; // 每个表最多显示50条
-        const formatLimitedDbData = (key: string, data: Record<string, unknown>[]) => {
-          if (data.length === 0) return '暂无数据';
-          const displayData = data.slice(0, MAX_DB_ITEMS);
-          const result = formatDbDataForAI(key, displayData);
-          return data.length > MAX_DB_ITEMS 
-            ? `${result}\n...（共${data.length}条，仅显示前${MAX_DB_ITEMS}条）`
-            : result;
-        };
 
         const userPrompt = `## 项目基本信息
 - 项目名称：${project.name}
@@ -357,25 +345,25 @@ export async function POST(request: NextRequest) {
 ## 数据库已有数据
 
 ### 讲师信息（共${allTeachers.length}条）
-${formatLimitedDbData('teachers', allTeachers)}
+${formatDbDataForAI('teachers', allTeachers)}
 
 ### 场地信息（共${allVenues.length}条）
-${formatLimitedDbData('venues', allVenues)}
+${formatDbDataForAI('venues', allVenues)}
 
 ### 课程模板（共${allCourseTemplates.length}条）
-${formatLimitedDbData('courseTemplates', allCourseTemplates)}
+${formatDbDataForAI('courseTemplates', allCourseTemplates)}
 
 ### 参访基地（共${allVisitSites.length}条）
-${formatLimitedDbData('visitSites', allVisitSites)}
+${formatDbDataForAI('visitSites', allVisitSites)}
 
 ### 本项目已有课程（共${projectCoursesList.length}条）
-${formatLimitedDbData('projectCourses', projectCoursesList)}
+${formatDbDataForAI('projectCourses', projectCoursesList)}
 
-## 上传的文件内容（共${fileData.length}个文件）
+## 上传的文件内容（共${fileData.length}个文件，已排除PDF文件）
 
-${totalFileContent}
+${fileData.map((file, index) => `### 文件${index + 1}：${file.name}\n\`\`\`\n${file.content}\n\`\`\`\n`).join('\n')}
 
-${fileData.length === 0 ? '注意：该项目暂未上传任何文件材料。' : ''}
+${fileData.length === 0 ? '注意：该项目暂未上传非PDF格式的文件材料。' : ''}
 
 请分析以上文件内容，提取数据并返回JSON格式的结果。`;
 
