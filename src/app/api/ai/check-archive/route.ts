@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { LLMClient, FetchClient, Config, HeaderUtils, Message } from 'coze-coding-dev-sdk';
 import { S3Storage } from 'coze-coding-dev-sdk';
 import { getDb, ensureDatabaseReady } from '@/storage/database';
@@ -23,37 +23,14 @@ const storage = new S3Storage({
   region: 'cn-beijing',
 });
 
-// 读取并解析文件内容（支持PDF、Word、Excel等）
-async function readFileContent(fileKey: string, customHeaders: Record<string, string>): Promise<string> {
-  try {
-    // 生成签名URL
-    const signedUrl = await storage.generatePresignedUrl({ 
-      key: fileKey, 
-      expireTime: 3600 // 1小时有效期 
-    });
-    
-    // 使用 FetchClient 解析文件内容
-    const config = new Config();
-    const fetchClient = new FetchClient(config, customHeaders);
-    const response = await fetchClient.fetch(signedUrl);
-    
-    if (response.status_code !== 0) {
-      console.error('FetchClient解析文件失败:', response.status_message);
-      return '';
-    }
-    
-    // 提取文本内容
-    const textContent = response.content
-      .filter(item => item.type === 'text' && item.text)
-      .map(item => item.text)
-      .join('\n');
-    
-    // 限制内容长度，避免超过token限制
-    return textContent.substring(0, 8000);
-  } catch (error) {
-    console.error('读取文件失败:', error);
-    return '';
-  }
+// 进度事件类型
+interface ProgressEvent {
+  type: 'progress' | 'result' | 'error';
+  step: string;
+  stepName: string;
+  progress: number; // 0-100
+  total: number;
+  data?: unknown;
 }
 
 // AI检查结果类型
@@ -126,7 +103,6 @@ interface CheckResult {
     existingId?: string;
     reason: string;
   }[];
-  // 项目基本信息校验结果
   projectInfo: {
     field: string;
     fieldName: string;
@@ -137,354 +113,319 @@ interface CheckResult {
   }[];
 }
 
-export async function POST(request: NextRequest) {
+// 进度步骤定义
+const PROGRESS_STEPS = [
+  { step: 'init', name: '初始化数据库连接' },
+  { step: 'project', name: '获取项目信息' },
+  { step: 'contract', name: '解析合同文件' },
+  { step: 'cost', name: '解析成本测算表' },
+  { step: 'declaration', name: '解析项目申报书' },
+  { step: 'studentList', name: '解析学员名单' },
+  { step: 'satisfaction', name: '解析满意度调查' },
+  { step: 'database', name: '获取数据库数据' },
+  { step: 'ai', name: 'AI智能分析' },
+  { step: 'complete', name: '分析完成' },
+];
+
+// 读取并解析文件内容
+async function readFileContent(fileKey: string, customHeaders: Record<string, string>): Promise<string> {
   try {
-    // 确保数据库已初始化
-    await ensureDatabaseReady();
+    const signedUrl = await storage.generatePresignedUrl({ key: fileKey, expireTime: 3600 });
+    const config = new Config();
+    const fetchClient = new FetchClient(config, customHeaders);
+    const response = await fetchClient.fetch(signedUrl);
     
-    // 提取请求头，用于后续API调用
-    const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
+    if (response.status_code !== 0) {
+      console.error('FetchClient解析文件失败:', response.status_message);
+      return '';
+    }
     
-    const { projectId } = await request.json();
-
-    if (!projectId) {
-      return NextResponse.json({ error: '缺少项目ID' }, { status: 400 });
-    }
-
-    // 获取项目信息
-    const db = getDb();
-    const projectList = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
-
-    if (!projectList[0]) {
-      return NextResponse.json({ error: '项目不存在' }, { status: 404 });
-    }
-
-    const project = projectList[0];
-
-    // 收集上传的文件内容和URL
-    const fileContents: Record<string, string> = {};
-    const fileUrls: Record<string, string> = {};
+    const textContent = response.content
+      .filter(item => item.type === 'text' && item.text)
+      .map(item => item.text)
+      .join('\n');
     
-    // 合同文件
-    if (project.contractFilePdf) {
-      fileContents.contract = await readFileContent(project.contractFilePdf, customHeaders);
-      fileUrls.contract = project.contractFilePdf;
-    }
-    // 成本测算表
-    if (project.costFilePdf) {
-      fileContents.cost = await readFileContent(project.costFilePdf, customHeaders);
-      fileUrls.cost = project.costFilePdf;
-    } else if (project.costFileExcel) {
-      fileContents.cost = await readFileContent(project.costFileExcel, customHeaders);
-      fileUrls.cost = project.costFileExcel;
-    }
-    // 项目申报书
-    if (project.declarationFilePdf) {
-      fileContents.declaration = await readFileContent(project.declarationFilePdf, customHeaders);
-      fileUrls.declaration = project.declarationFilePdf;
-    }
-    // 学员名单
-    if (project.studentListFile) {
-      fileContents.studentList = await readFileContent(project.studentListFile, customHeaders);
-      fileUrls.studentList = project.studentListFile;
-    }
-    // 满意度调查
-    if (project.satisfactionSurveyFile) {
-      fileContents.satisfaction = await readFileContent(project.satisfactionSurveyFile, customHeaders);
-      fileUrls.satisfaction = project.satisfactionSurveyFile;
-    }
+    return textContent.substring(0, 8000);
+  } catch (error) {
+    console.error('读取文件失败:', error);
+    return '';
+  }
+}
 
-    // 获取数据库中的相关数据
-    const [
-      allTeachers,
-      allVenues,
-      allCourseTemplates,
-      allVisitSites,
-      projectCoursesList,
-      projectSurveys,
-      projectResponses,
-    ] = await Promise.all([
-      db.select().from(teachers),
-      db.select().from(venues),
-      db.select().from(courseTemplates),
-      db.select().from(visitSites),
-      db.select().from(projectCourses).where(eq(projectCourses.projectId, projectId)),
-      db.select().from(satisfactionSurveys).where(eq(satisfactionSurveys.projectId, projectId)),
-      db.select().from(surveyResponses).where(eq(surveyResponses.projectId, projectId)),
-    ]);
-
-    // 构建数据库数据摘要
-    const dbDataSummary = {
-      teachers: allTeachers.map(t => ({
-        id: t.id,
-        name: t.name,
-        title: t.title,
-        expertise: t.expertise,
-        organization: t.organization,
-        hourlyRate: t.hourlyRate,
-      })),
-      venues: allVenues.map(v => ({
-        id: v.id,
-        name: v.name,
-        location: v.location,
-        capacity: v.capacity,
-        facilities: v.facilities,
-      })),
-      courseTemplates: allCourseTemplates.map(c => ({
-        id: c.id,
-        name: c.name,
-        category: c.category,
-        description: c.description,
-        duration: c.duration,
-        targetAudience: c.targetAudience,
-      })),
-      visitSites: allVisitSites.map(s => ({
-        id: s.id,
-        name: s.name,
-        type: s.type,
-        industry: s.industry,
-        address: s.address,
-        contactPerson: s.contactPerson,
-        contactPhone: s.contactPhone,
-      })),
-      projectCourses: projectCoursesList.map(c => ({
-        id: c.id,
-        name: c.name,
-        type: c.type,
-        day: c.day,
-        duration: c.duration,
-        description: c.description,
-      })),
+// 创建进度发送器
+function createProgressSender(
+  encoder: TextEncoder,
+  totalSteps: number
+): (stepIndex: number, stepName: string, data?: unknown) => void {
+  return (stepIndex: number, stepName: string, data?: unknown) => {
+    // 在controller中发送，这里只返回事件数据
+    return {
+      type: 'progress' as const,
+      step: PROGRESS_STEPS[stepIndex]?.step || 'unknown',
+      stepName,
+      progress: Math.round(((stepIndex + 1) / totalSteps) * 100),
+      total: totalSteps,
+      data,
     };
+  };
+}
 
-    // 构建AI提示词
-    const systemPrompt = `你是一个专业的培训项目数据分析师。你的任务是分析项目上传的文件内容，与系统数据库中已有的数据进行比对，找出需要新增或更新的数据。
+export async function POST(request: NextRequest) {
+  const encoder = new TextEncoder();
+  const totalSteps = PROGRESS_STEPS.length;
+  let currentStepIndex = 0;
+  
+  // 发送进度事件的辅助函数
+  const sendProgress = (stepName: string, data?: unknown): ProgressEvent => ({
+    type: 'progress',
+    step: PROGRESS_STEPS[currentStepIndex]?.step || 'unknown',
+    stepName,
+    progress: Math.round(((currentStepIndex + 1) / totalSteps) * 100),
+    total: totalSteps,
+    data,
+  });
 
-你需要检查以下几类数据：
+  const stream = new ReadableStream({
+    async start(controller) {
+      try {
+        const sendEvent = (event: ProgressEvent) => {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+        };
+        
+        const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
+        const { projectId } = await request.json();
 
-**【最重要】0. 项目基本信息（projectInfo）**：
-   - 从文件中提取参训人数、培训天数、培训课时、培训时段、培训地点、开始日期、结束日期等信息
-   - 对比项目记录中的现有值，如果文件中的值与现有值不一致或现有值为空，需要提示更新
-   - 对于每个不一致的字段，说明来源文件（如"来自合同"、"来自学员名单"等）
+        if (!projectId) {
+          sendEvent({ type: 'error', step: 'init', stepName: '参数错误', progress: 0, total: totalSteps, data: { error: '缺少项目ID' } });
+          controller.close();
+          return;
+        }
 
-1. **讲师信息（teachers）**：
-   - 从文件中识别讲师姓名、职称、专业领域、所属单位、简介、课时费等信息
-   - 对比数据库中已有的讲师，判断是新增还是更新
+        // Step 1: 初始化数据库
+        sendEvent(sendProgress('正在初始化数据库连接...'));
+        await ensureDatabaseReady();
+        currentStepIndex++;
 
-2. **场地信息（venues）**：
-   - 识别培训场地名称、位置、容纳人数、配套设施等
-   - 对比数据库已有场地，判断是新增还是更新
+        // Step 2: 获取项目信息
+        sendEvent(sendProgress('正在获取项目信息...'));
+        const db = getDb();
+        const projectList = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
 
-3. **课程模板（courseTemplates）**：
-   - 识别课程名称、类别、描述、时长、目标受众、课程内容等
-   - 对比数据库已有模板，判断是新增还是更新
+        if (!projectList[0]) {
+          sendEvent({ type: 'error', step: 'project', stepName: '项目不存在', progress: 10, total: totalSteps, data: { error: '项目不存在' } });
+          controller.close();
+          return;
+        }
+        const project = projectList[0];
+        currentStepIndex++;
 
-4. **参访基地/单位（visitSites）**：
-   - 识别参访单位名称、类型、行业、地址、联系人、联系电话等
-   - 对比数据库已有基地，判断是新增还是更新
+        // 收集文件内容
+        const fileContents: Record<string, string> = {};
 
-5. **项目课程（projectCourses）**：
-   - 识别具体的项目课程安排，包括课程名称、类型、天次、时间、时长、描述等
-   - 对比项目已有的课程安排，判断是新增还是更新
+        // Step 3: 解析合同文件
+        sendEvent(sendProgress('正在解析合同文件...'));
+        if (project.contractFilePdf) {
+          fileContents.contract = await readFileContent(project.contractFilePdf, customHeaders);
+        }
+        currentStepIndex++;
 
-**输出格式要求**：
-返回JSON格式的结果，包含以下字段：
+        // Step 4: 解析成本测算表
+        sendEvent(sendProgress('正在解析成本测算表...'));
+        if (project.costFilePdf) {
+          fileContents.cost = await readFileContent(project.costFilePdf, customHeaders);
+        } else if (project.costFileExcel) {
+          fileContents.cost = await readFileContent(project.costFileExcel, customHeaders);
+        }
+        currentStepIndex++;
+
+        // Step 5: 解析项目申报书
+        sendEvent(sendProgress('正在解析项目申报书...'));
+        if (project.declarationFilePdf) {
+          fileContents.declaration = await readFileContent(project.declarationFilePdf, customHeaders);
+        }
+        currentStepIndex++;
+
+        // Step 6: 解析学员名单
+        sendEvent(sendProgress('正在解析学员名单...'));
+        if (project.studentListFile) {
+          fileContents.studentList = await readFileContent(project.studentListFile, customHeaders);
+        }
+        currentStepIndex++;
+
+        // Step 7: 解析满意度调查
+        sendEvent(sendProgress('正在解析满意度调查...'));
+        if (project.satisfactionSurveyFile) {
+          fileContents.satisfaction = await readFileContent(project.satisfactionSurveyFile, customHeaders);
+        }
+        currentStepIndex++;
+
+        // Step 8: 获取数据库数据
+        sendEvent(sendProgress('正在获取数据库数据...'));
+        const [allTeachers, allVenues, allCourseTemplates, allVisitSites, projectCoursesList] = await Promise.all([
+          db.select().from(teachers),
+          db.select().from(venues),
+          db.select().from(courseTemplates),
+          db.select().from(visitSites),
+          db.select().from(projectCourses).where(eq(projectCourses.projectId, projectId)),
+        ]);
+        currentStepIndex++;
+
+        // 构建数据库数据摘要
+        const dbDataSummary = {
+          teachers: allTeachers.map(t => ({ id: t.id, name: t.name, title: t.title, expertise: t.expertise, organization: t.organization })),
+          venues: allVenues.map(v => ({ id: v.id, name: v.name, location: v.location, capacity: v.capacity })),
+          courseTemplates: allCourseTemplates.map(c => ({ id: c.id, name: c.name, category: c.category, duration: c.duration })),
+          visitSites: allVisitSites.map(s => ({ id: s.id, name: s.name, type: s.type, industry: s.industry })),
+          projectCourses: projectCoursesList.map(c => ({ id: c.id, name: c.name, type: c.type, day: c.day })),
+        };
+
+        // 构建AI提示词
+        const systemPrompt = `你是一个专业的培训项目数据分析师。分析项目上传的文件内容，与系统数据库中已有的数据进行比对，找出需要新增或更新的数据。
+
+检查以下数据类型：
+0. 项目基本信息（projectInfo）：参训人数、培训天数、培训课时、培训时段、培训地点、开始日期、结束日期
+1. 讲师信息（teachers）：姓名、职称、专业领域、所属单位
+2. 场地信息（venues）：名称、位置、容纳人数、配套设施
+3. 课程模板（courseTemplates）：名称、类别、描述、时长
+4. 参访基地（visitSites）：名称、类型、行业、地址
+5. 项目课程（projectCourses）：课程名称、类型、天次、时长
+
+返回JSON格式：
 {
-  "projectInfo": [
-    {
-      "field": "字段名（如 participantCount, trainingDays, trainingHours, location, startDate, endDate）",
-      "fieldName": "字段中文名（如 参训人数, 培训天数）",
-      "currentValue": "项目记录中的当前值（可为null或数字）",
-      "extractedValue": "从文件中提取的值",
-      "source": "来源文件名",
-      "reason": "需要更新的理由"
-    }
-  ],
-  "teachers": [
-    {
-      "action": "add" 或 "update",
-      "data": { "name": "xxx", "title": "xxx", ... },
-      "existingId": "如果是更新，填写已有记录的ID",
-      "reason": "判断理由"
-    }
-  ],
+  "projectInfo": [{ "field": "字段名", "fieldName": "字段中文名", "currentValue": "当前值", "extractedValue": "提取值", "source": "来源文件", "reason": "更新理由" }],
+  "teachers": [{ "action": "add/update", "data": {...}, "existingId": "ID", "reason": "理由" }],
   "venues": [...],
   "courseTemplates": [...],
   "visitSites": [...],
   "projectCourses": [...]
-}
+}`;
 
-**判断标准**：
-- 项目基本信息：如果文件中的值与项目记录不一致，或项目记录为空但文件中有值，必须返回差异
-- 讲师/场地等：如果数据库中存在同名记录且信息更完整，标记为"update"；不存在则标记为"add"
-- 如果信息完全一致，则不需要返回该项
-- 只有当确实有新增或有价值的信息时才返回结果
-
-**特别注意**：
-- 参训人数通常可以从学员名单中统计得出
-- 培训天数可以从课程安排或合同中获取
-- 请仔细分析文件内容，准确提取数据，避免臆造信息
-- 项目基本信息的校验是最重要的，必须优先检查`;
-
-    let userPrompt = `## 项目当前记录的基本信息
+        let userPrompt = `## 项目基本信息
 - 项目名称：${project.name}
-- 培训目标：${project.trainingTarget || '未填写'}
-- 目标人群：${project.targetAudience || '未填写'}
 - 参训人数：${project.participantCount ?? '未填写'}
 - 培训天数：${project.trainingDays ?? '未填写'}
 - 培训课时：${project.trainingHours ?? '未填写'}
-- 培训时段：${project.trainingPeriod || '未填写'}
 - 培训地点：${project.location || '未填写'}
 - 开始日期：${project.startDate || '未填写'}
 - 结束日期：${project.endDate || '未填写'}
-- 总预算：${project.totalBudget ?? '未填写'}
 
-**请重点检查上述字段是否与文件内容一致！**
+## 数据库数据
+讲师(${dbDataSummary.teachers.length})、场地(${dbDataSummary.venues.length})、课程模板(${dbDataSummary.courseTemplates.length})、参访基地(${dbDataSummary.visitSites.length})
 
-## 数据库中已有的数据
-
-### 讲师信息（共${dbDataSummary.teachers.length}条）
-${dbDataSummary.teachers.map((t, i) => `${i + 1}. ID:${t.id} 姓名:${t.name} 职称:${t.title || '未知'} 专业:${t.expertise || '未知'} 单位:${t.organization || '未知'}`).join('\n')}
-
-### 场地信息（共${dbDataSummary.venues.length}条）
-${dbDataSummary.venues.map((v, i) => `${i + 1}. ID:${v.id} 名称:${v.name} 位置:${v.location || '未知'} 容量:${v.capacity || '未知'}`).join('\n')}
-
-### 课程模板（共${dbDataSummary.courseTemplates.length}条）
-${dbDataSummary.courseTemplates.map((c, i) => `${i + 1}. ID:${c.id} 名称:${c.name} 类别:${c.category || '未知'} 时长:${c.duration || '未知'}课时`).join('\n')}
-
-### 参访基地（共${dbDataSummary.visitSites.length}条）
-${dbDataSummary.visitSites.map((s, i) => `${i + 1}. ID:${s.id} 名称:${s.name} 类型:${s.type} 行业:${s.industry || '未知'}`).join('\n')}
-
-### 本项目已有课程（共${dbDataSummary.projectCourses.length}条）
-${dbDataSummary.projectCourses.map((c, i) => `${i + 1}. ID:${c.id} 名称:${c.name} 类型:${c.type} 第${c.day || '?'}天 时长:${c.duration || '?'}课时`).join('\n')}
-
-## 上传的文件内容
-
+## 文件内容
 `;
+        if (fileContents.contract) userPrompt += `\n### 合同\n${fileContents.contract.substring(0, 2000)}\n`;
+        if (fileContents.cost) userPrompt += `\n### 成本测算表\n${fileContents.cost.substring(0, 2000)}\n`;
+        if (fileContents.declaration) userPrompt += `\n### 项目申报书\n${fileContents.declaration.substring(0, 2000)}\n`;
+        if (fileContents.studentList) userPrompt += `\n### 学员名单\n${fileContents.studentList.substring(0, 2000)}\n`;
+        if (fileContents.satisfaction) userPrompt += `\n### 满意度调查\n${fileContents.satisfaction.substring(0, 2000)}\n`;
 
-    // 添加文件内容
-    if (fileContents.contract) {
-      userPrompt += `### 合同文件内容
-\`\`\`
-${fileContents.contract}
-\`\`\`
+        if (Object.keys(fileContents).length === 0) {
+          userPrompt += `\n注意：该项目暂未上传任何文件材料。`;
+        }
 
-`;
-    }
-    if (fileContents.cost) {
-      userPrompt += `### 成本测算表内容
-\`\`\`
-${fileContents.cost}
-\`\`\`
+        // Step 9: AI分析
+        sendEvent(sendProgress('正在进行AI智能分析...'));
+        const config = new Config();
+        const client = new LLMClient(config, customHeaders);
+        const messages: Message[] = [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ];
 
-`;
-    }
-    if (fileContents.declaration) {
-      userPrompt += `### 项目申报书内容
-\`\`\`
-${fileContents.declaration}
-\`\`\`
+        const response = await client.invoke(messages, {
+          model: 'doubao-seed-1-6-251015',
+          temperature: 0.3,
+        });
+        currentStepIndex++;
 
-`;
-    }
-    if (fileContents.studentList) {
-      userPrompt += `### 学员名单内容
-\`\`\`
-${fileContents.studentList}
-\`\`\`
+        // 解析AI响应
+        let checkResult: CheckResult = {
+          projectInfo: [],
+          teachers: [],
+          venues: [],
+          courseTemplates: [],
+          visitSites: [],
+          projectCourses: [],
+        };
 
-`;
-    }
-    if (fileContents.satisfaction) {
-      userPrompt += `### 满意度调查结果
-\`\`\`
-${fileContents.satisfaction}
-\`\`\`
+        try {
+          const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            checkResult = JSON.parse(jsonMatch[0]);
+          }
+        } catch (parseError) {
+          console.error('解析AI响应失败:', parseError);
+        }
 
-`;
-    }
+        // 过滤无效结果
+        const filterValidResults = <T extends { data: Record<string, unknown> }>(items: T[]): T[] => 
+          items.filter(item => item.data && Object.keys(item.data).length > 0 && item.data.name);
 
-    if (Object.keys(fileContents).length === 0) {
-      userPrompt += `注意：该项目暂未上传任何文件材料，无法进行数据比对分析。`;
-    }
+        if (checkResult.projectInfo) {
+          checkResult.projectInfo = checkResult.projectInfo.filter(item => 
+            item.field && item.extractedValue !== undefined && item.extractedValue !== null
+          );
+        } else {
+          checkResult.projectInfo = [];
+        }
 
-    // 调用LLM进行分析
-    const config = new Config();
-    const client = new LLMClient(config, customHeaders);
+        checkResult.teachers = filterValidResults(checkResult.teachers || []);
+        checkResult.venues = filterValidResults(checkResult.venues || []);
+        checkResult.courseTemplates = filterValidResults(checkResult.courseTemplates || []);
+        checkResult.visitSites = filterValidResults(checkResult.visitSites || []);
+        checkResult.projectCourses = filterValidResults(checkResult.projectCourses || []);
 
-    const messages: Message[] = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ];
+        const totalChanges = 
+          (checkResult.projectInfo?.length || 0) +
+          checkResult.teachers.length + 
+          checkResult.venues.length + 
+          checkResult.courseTemplates.length + 
+          checkResult.visitSites.length + 
+          checkResult.projectCourses.length;
 
-    const response = await client.invoke(messages, {
-      model: 'doubao-seed-1-6-251015',
-      temperature: 0.3, // 使用较低温度以确保结果稳定
-    });
+        // Step 10: 完成
+        sendEvent(sendProgress('分析完成'));
+        currentStepIndex++;
 
-    // 解析AI响应
-    let checkResult: CheckResult = {
-      projectInfo: [],
-      teachers: [],
-      venues: [],
-      courseTemplates: [],
-      visitSites: [],
-      projectCourses: [],
-    };
+        // 发送最终结果
+        sendEvent({
+          type: 'result',
+          step: 'complete',
+          stepName: '分析完成',
+          progress: 100,
+          total: totalSteps,
+          data: {
+            success: true,
+            projectId,
+            projectName: project.name,
+            checkResult,
+            totalChanges,
+            hasChanges: totalChanges > 0,
+          },
+        });
 
-    try {
-      // 尝试从响应中提取JSON
-      const jsonMatch = response.content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        checkResult = JSON.parse(jsonMatch[0]);
+        controller.close();
+      } catch (error) {
+        console.error('AI归档检查失败:', error);
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+          type: 'error',
+          step: 'error',
+          stepName: '分析失败',
+          progress: 0,
+          total: totalSteps,
+          data: { error: error instanceof Error ? error.message : '未知错误' },
+        })}\n\n`));
+        controller.close();
       }
-    } catch (parseError) {
-      console.error('解析AI响应失败:', parseError);
-      // 解析失败时返回空结果
-    }
+    },
+  });
 
-    // 过滤掉无效的结果
-    const filterValidResults = <T extends { data: Record<string, unknown> }>(items: T[]): T[] => {
-      return items.filter(item => item.data && Object.keys(item.data).length > 0 && item.data.name);
-    };
-
-    // 过滤项目基本信息结果（保留有效的字段变更）
-    if (checkResult.projectInfo) {
-      checkResult.projectInfo = checkResult.projectInfo.filter(item => 
-        item.field && item.extractedValue !== undefined && item.extractedValue !== null
-      );
-    } else {
-      checkResult.projectInfo = [];
-    }
-
-    checkResult.teachers = filterValidResults(checkResult.teachers || []);
-    checkResult.venues = filterValidResults(checkResult.venues || []);
-    checkResult.courseTemplates = filterValidResults(checkResult.courseTemplates || []);
-    checkResult.visitSites = filterValidResults(checkResult.visitSites || []);
-    checkResult.projectCourses = filterValidResults(checkResult.projectCourses || []);
-
-    // 计算总变更数量
-    const totalChanges = 
-      (checkResult.projectInfo?.length || 0) +
-      checkResult.teachers.length + 
-      checkResult.venues.length + 
-      checkResult.courseTemplates.length + 
-      checkResult.visitSites.length + 
-      checkResult.projectCourses.length;
-
-    return NextResponse.json({
-      success: true,
-      projectId,
-      projectName: project.name,
-      checkResult,
-      totalChanges,
-      hasChanges: totalChanges > 0,
-    });
-  } catch (error) {
-    console.error('AI归档检查失败:', error);
-    return NextResponse.json({ 
-      error: 'AI检查失败', 
-      message: error instanceof Error ? error.message : '未知错误' 
-    }, { status: 500 });
-  }
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    },
+  });
 }

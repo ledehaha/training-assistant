@@ -198,6 +198,11 @@ export default function SummaryPage() {
 
   // AI检查状态
   const [aiChecking, setAiChecking] = useState(false);
+  const [aiCheckProgress, setAiCheckProgress] = useState<{
+    current: number;
+    total: number;
+    stepName: string;
+  } | null>(null);
   const [aiCheckResult, setAiCheckResult] = useState<{
     hasChanges: boolean;
     totalChanges: number;
@@ -2029,7 +2034,28 @@ export default function SummaryPage() {
                 )}
               </Button>
             </div>
-            {aiCheckResult && (
+            
+            {/* 进度显示 */}
+            {aiChecking && aiCheckProgress && (
+              <div className="mt-4 space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-blue-700 font-medium">{aiCheckProgress.stepName}</span>
+                  <span className="text-blue-600">{aiCheckProgress.current}%</span>
+                </div>
+                <div className="w-full bg-blue-100 rounded-full h-2.5">
+                  <div 
+                    className="bg-blue-600 h-2.5 rounded-full transition-all duration-300 ease-out"
+                    style={{ width: `${aiCheckProgress.current}%` }}
+                  />
+                </div>
+                <div className="flex items-center gap-1 text-xs text-blue-600">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  <span>正在分析，请稍候...</span>
+                </div>
+              </div>
+            )}
+            
+            {aiCheckResult && !aiChecking && (
               <div className="mt-4 pt-4 border-t border-blue-200">
                 {aiCheckResult.hasChanges ? (
                   <div className="flex items-center justify-between">
@@ -2158,11 +2184,14 @@ export default function SummaryPage() {
     );
   };
 
-  // AI检查函数
+  // AI检查函数（流式响应）
   const handleAiCheck = async () => {
     if (!selectedProject) return;
     
     setAiChecking(true);
+    setAiCheckProgress(null);
+    setAiCheckResult(null);
+    
     try {
       const res = await fetch('/api/ai/check-archive', {
         method: 'POST',
@@ -2170,25 +2199,62 @@ export default function SummaryPage() {
         body: JSON.stringify({ projectId: selectedProject.id }),
       });
       
-      const data = await res.json();
+      if (!res.ok) {
+        throw new Error('请求失败');
+      }
       
-      if (data.success) {
-        setAiCheckResult(data);
-        setShowAiCheckDialog(true);
+      const reader = res.body?.getReader();
+      if (!reader) {
+        throw new Error('无法读取响应流');
+      }
+      
+      const decoder = new TextDecoder();
+      let buffer = '';
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
         
-        if (!data.hasChanges) {
-          toast.success('AI检查完成', { description: '未发现需要更新的数据' });
-        } else {
-          toast.info('AI检查完成', { description: `发现 ${data.totalChanges} 条数据需要更新或新增` });
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const event = JSON.parse(line.slice(6));
+              
+              if (event.type === 'progress') {
+                setAiCheckProgress({
+                  current: event.progress,
+                  total: event.total,
+                  stepName: event.stepName,
+                });
+              } else if (event.type === 'result') {
+                const data = event.data;
+                setAiCheckResult(data);
+                setShowAiCheckDialog(true);
+                
+                if (!data.hasChanges) {
+                  toast.success('AI检查完成', { description: '未发现需要更新的数据' });
+                } else {
+                  toast.info('AI检查完成', { description: `发现 ${data.totalChanges} 条数据需要更新或新增` });
+                }
+              } else if (event.type === 'error') {
+                throw new Error(event.data?.error || 'AI检查失败');
+              }
+            } catch (parseError) {
+              console.error('解析事件失败:', parseError);
+            }
+          }
         }
-      } else {
-        throw new Error(data.error || 'AI检查失败');
       }
     } catch (error) {
       console.error('AI check error:', error);
       toast.error('AI检查失败', { description: error instanceof Error ? error.message : '请稍后重试' });
     } finally {
       setAiChecking(false);
+      setAiCheckProgress(null);
     }
   };
 
