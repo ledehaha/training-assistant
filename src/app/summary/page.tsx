@@ -185,15 +185,16 @@ export default function SummaryPage() {
     fileType: string | null;
   }>({ open: false, url: null, fileName: null, fileType: null });
   
-  // 覆盖确认状态
+  // 覆盖确认状态（支持多文件）
   const [overwriteDialog, setOverwriteDialog] = useState<{
     open: boolean;
     fileType: string | null;
-    file: File | null;
-  }>({ open: false, fileType: null, file: null });
+    files: File[];  // 待确认的文件列表
+    currentIndex: number;  // 当前处理的文件索引
+  }>({ open: false, fileType: null, files: [], currentIndex: 0 });
   
-  // 待上传文件（用于覆盖确认后继续上传）
-  const pendingFileRef = useRef<{ fileType: string; file: File } | null>(null);
+  // 待上传文件队列（用于覆盖确认后继续上传）
+  const pendingFilesRef = useRef<{ fileType: string; files: File[]; currentIndex: number } | null>(null);
 
   // AI检查状态
   const [aiChecking, setAiChecking] = useState(false);
@@ -496,11 +497,19 @@ export default function SummaryPage() {
     return Math.round((uploaded / requirements.length) * 100);
   };
   
-  // 检查文件是否已存在
-  const checkFileExists = (fileType: string): boolean => {
+  // 检查文件是否已存在（支持检查其它附件中的重复文件名）
+  const checkFileExists = (fileType: string, fileName?: string): boolean => {
     if (!selectedProject) return false;
-    if (fileType === 'other') return false; // 其它附件不检查，允许多个
     
+    // 其它附件：检查是否有同名文件
+    if (fileType === 'other' && fileName) {
+      const otherMaterials = selectedProject.otherMaterials 
+        ? JSON.parse(selectedProject.otherMaterials) 
+        : [];
+      return otherMaterials.some((m: { name: string }) => m.name === fileName);
+    }
+    
+    // 其他类型：检查字段是否已有值
     const mapping: Record<string, string | null> = {
       contractPdf: selectedProject.contractFilePdf,
       contractWord: selectedProject.contractFileWord,
@@ -517,29 +526,101 @@ export default function SummaryPage() {
   
   // 处理文件选择（带覆盖确认）
   const handleFileSelect = (fileType: string, file: File) => {
-    if (checkFileExists(fileType)) {
+    const exists = fileType === 'other' 
+      ? checkFileExists(fileType, file.name) 
+      : checkFileExists(fileType);
+    
+    if (exists) {
       // 显示覆盖确认对话框
-      pendingFileRef.current = { fileType, file };
-      setOverwriteDialog({ open: true, fileType, file });
+      pendingFilesRef.current = { fileType, files: [file], currentIndex: 0 };
+      setOverwriteDialog({ open: true, fileType, files: [file], currentIndex: 0 });
     } else {
       // 直接上传
       handleFileUpload(fileType, file);
     }
   };
   
-  // 确认覆盖后上传
-  const handleConfirmOverwrite = () => {
-    if (pendingFileRef.current) {
-      handleFileUpload(pendingFileRef.current.fileType, pendingFileRef.current.file);
-      pendingFileRef.current = null;
+  // 处理多文件选择（带覆盖确认）
+  const handleMultipleFileSelect = (fileType: string, files: File[]) => {
+    if (files.length === 0) return;
+    
+    // 对于其它附件类型，检查重复文件
+    if (fileType === 'other') {
+      const existingFiles: File[] = [];
+      const newFiles: File[] = [];
+      
+      files.forEach(file => {
+        if (checkFileExists(fileType, file.name)) {
+          existingFiles.push(file);
+        } else {
+          newFiles.push(file);
+        }
+      });
+      
+      // 先上传新文件
+      newFiles.forEach(file => handleFileUpload(fileType, file));
+      
+      // 如果有重复文件，显示确认对话框
+      if (existingFiles.length > 0) {
+        pendingFilesRef.current = { fileType, files: existingFiles, currentIndex: 0 };
+        setOverwriteDialog({ open: true, fileType, files: existingFiles, currentIndex: 0 });
+      }
+    } else {
+      // 非其它附件类型，只取第一个文件
+      const file = files[0];
+      if (checkFileExists(fileType)) {
+        pendingFilesRef.current = { fileType, files: [file], currentIndex: 0 };
+        setOverwriteDialog({ open: true, fileType, files: [file], currentIndex: 0 });
+      } else {
+        handleFileUpload(fileType, file);
+      }
     }
-    setOverwriteDialog({ open: false, fileType: null, file: null });
+  };
+  
+  // 确认覆盖后上传
+  const handleConfirmOverwrite = async () => {
+    if (pendingFilesRef.current) {
+      const { fileType, files, currentIndex } = pendingFilesRef.current;
+      
+      if (currentIndex < files.length) {
+        // 上传当前文件
+        await handleFileUpload(fileType, files[currentIndex]);
+        
+        // 移到下一个文件
+        const nextIndex = currentIndex + 1;
+        if (nextIndex < files.length) {
+          pendingFilesRef.current = { fileType, files, currentIndex: nextIndex };
+          setOverwriteDialog({ open: true, fileType, files, currentIndex: nextIndex });
+        } else {
+          // 所有文件处理完毕
+          pendingFilesRef.current = null;
+          setOverwriteDialog({ open: false, fileType: null, files: [], currentIndex: 0 });
+        }
+      }
+    }
+  };
+  
+  // 跳过当前文件，处理下一个
+  const handleSkipFile = () => {
+    if (pendingFilesRef.current) {
+      const { fileType, files, currentIndex } = pendingFilesRef.current;
+      const nextIndex = currentIndex + 1;
+      
+      if (nextIndex < files.length) {
+        pendingFilesRef.current = { fileType, files, currentIndex: nextIndex };
+        setOverwriteDialog({ open: true, fileType, files, currentIndex: nextIndex });
+      } else {
+        // 所有文件处理完毕
+        pendingFilesRef.current = null;
+        setOverwriteDialog({ open: false, fileType: null, files: [], currentIndex: 0 });
+      }
+    }
   };
   
   // 取消覆盖
   const handleCancelOverwrite = () => {
-    pendingFileRef.current = null;
-    setOverwriteDialog({ open: false, fileType: null, file: null });
+    pendingFilesRef.current = null;
+    setOverwriteDialog({ open: false, fileType: null, files: [], currentIndex: 0 });
   };
   
   // 文件预览
@@ -572,6 +653,23 @@ export default function SummaryPage() {
 
     setUploading(fileType);
     try {
+      // 对于其它附件，如果存在同名文件，先删除旧文件
+      if (fileType === 'other') {
+        const materials = selectedProject.otherMaterials ? JSON.parse(selectedProject.otherMaterials) : [];
+        const existingIndex = materials.findIndex((m: { name: string }) => m.name === file.name);
+        if (existingIndex >= 0) {
+          // 删除旧文件
+          const oldFile = materials[existingIndex];
+          try {
+            await fetch(`/api/upload?fileKey=${encodeURIComponent(oldFile.key)}`, { method: 'DELETE' });
+            // 从数组中移除旧文件
+            materials.splice(existingIndex, 1);
+          } catch (error) {
+            console.error('删除旧文件失败:', error);
+          }
+        }
+      }
+      
       const formData = new FormData();
       formData.append('file', file);
       formData.append('projectId', selectedProject.id);
@@ -590,7 +688,13 @@ export default function SummaryPage() {
         if (fileType === 'other') {
           // 其它附件：添加到数组中
           const materials = selectedProject.otherMaterials ? JSON.parse(selectedProject.otherMaterials) : [];
-          materials.push({ key: data.fileKey, name: data.fileName, uploadedAt: new Date().toISOString() });
+          // 再次检查是否已存在同名文件（可能在前面的步骤已经删除了）
+          const existingIndex = materials.findIndex((m: { name: string }) => m.name === data.fileName);
+          if (existingIndex >= 0) {
+            materials[existingIndex] = { key: data.fileKey, name: data.fileName, uploadedAt: new Date().toISOString() };
+          } else {
+            materials.push({ key: data.fileKey, name: data.fileName, uploadedAt: new Date().toISOString() });
+          }
           setSelectedProject(prev => prev ? { ...prev, otherMaterials: JSON.stringify(materials) } : null);
         } else {
           // 其他类型：直接更新字段
@@ -758,19 +862,26 @@ export default function SummaryPage() {
     e.stopPropagation();
     setDragActive(null);
     
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      const file = files[0];
-      // 根据文件类型校验
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+    
+    // 根据文件类型校验
+    const validFiles: File[] = [];
+    for (const file of files) {
       if (fileType.endsWith('Pdf') && !file.name.toLowerCase().endsWith('.pdf')) {
-        toast.error('文件格式错误', { description: '请上传PDF格式文件' });
-        return;
+        toast.error('文件格式错误', { description: `${file.name} 不是PDF格式，已跳过` });
+        continue;
       }
       if (fileType.endsWith('Word') && !/\.(doc|docx)$/i.test(file.name)) {
-        toast.error('文件格式错误', { description: '请上传Word格式文件' });
-        return;
+        toast.error('文件格式错误', { description: `${file.name} 不是Word格式，已跳过` });
+        continue;
       }
-      handleFileSelect(fileType, file);
+      validFiles.push(file);
+    }
+    
+    if (validFiles.length > 0) {
+      // 使用多文件处理函数
+      handleMultipleFileSelect(fileType, validFiles);
     }
   };
 
@@ -2643,7 +2754,10 @@ export default function SummaryPage() {
       </Dialog>
       
       {/* 覆盖确认对话框 */}
-      <Dialog open={overwriteDialog.open} onOpenChange={(open) => setOverwriteDialog(prev => ({ ...prev, open }))}>
+      <Dialog open={overwriteDialog.open} onOpenChange={(open) => {
+        if (!open) handleCancelOverwrite();
+        else setOverwriteDialog(prev => ({ ...prev, open }));
+      }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-amber-600">
@@ -2651,18 +2765,32 @@ export default function SummaryPage() {
               确认覆盖文件
             </DialogTitle>
             <DialogDescription>
-              该位置已有文件，上传新文件将覆盖原有文件。是否继续？
+              {overwriteDialog.files.length > 1 
+                ? `共 ${overwriteDialog.files.length} 个重复文件，当前第 ${overwriteDialog.currentIndex + 1} 个`
+                : '该位置已有同名文件，上传新文件将覆盖原有文件。是否继续？'}
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <p className="text-sm text-gray-600">
-              即将上传：<span className="font-medium">{overwriteDialog.file?.name}</span>
-            </p>
+          <div className="py-4 space-y-3">
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-600">
+                即将覆盖：<span className="font-medium text-gray-900">{overwriteDialog.files[overwriteDialog.currentIndex]?.name}</span>
+              </p>
+            </div>
+            {overwriteDialog.files.length > 1 && (
+              <div className="text-sm text-gray-500">
+                剩余待处理：{overwriteDialog.files.length - overwriteDialog.currentIndex - 1} 个文件
+              </div>
+            )}
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex gap-2 sm:gap-0">
             <Button variant="outline" onClick={handleCancelOverwrite}>
-              取消
+              全部取消
             </Button>
+            {overwriteDialog.files.length > 1 && (
+              <Button variant="outline" onClick={handleSkipFile}>
+                跳过此文件
+              </Button>
+            )}
             <Button onClick={handleConfirmOverwrite}>
               确认覆盖
             </Button>
