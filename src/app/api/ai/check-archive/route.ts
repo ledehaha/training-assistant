@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { LLMClient, Config, HeaderUtils, Message } from 'coze-coding-dev-sdk';
 import { S3Storage } from 'coze-coding-dev-sdk';
-import { getDb } from '@/storage/database';
+import { getDb, ensureDatabaseReady } from '@/storage/database';
 import {
   projects,
   projectCourses,
@@ -121,6 +121,9 @@ interface CheckResult {
 
 export async function POST(request: NextRequest) {
   try {
+    // 确保数据库已初始化
+    await ensureDatabaseReady();
+    
     const { projectId } = await request.json();
 
     if (!projectId) {
