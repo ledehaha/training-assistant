@@ -61,6 +61,9 @@ interface Course {
   teacherName?: string;
   teacherTitle?: string;
   location?: string;
+  // 是否来自课程模板
+  isFromTemplate?: boolean;
+  templateId?: string;
   // 参访相关字段
   type?: 'course' | 'visit' | 'break' | 'other';
   visitSiteId?: string;
@@ -836,6 +839,9 @@ export default function DesignPage() {
           description: c.description as string || '',
           category: c.category as string || '综合提升类',
           teacherTitle: c.teacherTitle as string,
+          teacherName: c.teacherName as string,
+          isFromTemplate: c.isFromTemplate as boolean || false,
+          templateId: c.templateId as string,
         }));
         
         setCourses(generatedCourses);
@@ -917,6 +923,9 @@ export default function DesignPage() {
           description: c.description as string || '',
           category: c.category as string || '综合提升类',
           teacherTitle: c.teacherTitle as string,
+          teacherName: c.teacherName as string,
+          isFromTemplate: c.isFromTemplate as boolean || false,
+          templateId: c.templateId as string,
         }));
         
         setCourses(generatedCourses);
@@ -1772,7 +1781,7 @@ export default function DesignPage() {
                             <TableHead className="w-20 text-center">天数</TableHead>
                             <TableHead>课程名称</TableHead>
                             <TableHead className="w-20 text-center">课时</TableHead>
-                            <TableHead className="w-32">建议讲师职称</TableHead>
+                            <TableHead className="w-32">建议讲师</TableHead>
                             <TableHead>课程描述</TableHead>
                             <TableHead className="w-20 text-center">操作</TableHead>
                           </TableRow>
@@ -1814,9 +1823,20 @@ export default function DesignPage() {
                               </TableCell>
                               <TableCell className="text-center font-medium">{index + 1}</TableCell>
                               <TableCell className="text-center">第{course.day}天</TableCell>
-                              <TableCell className="font-medium">{course.name}</TableCell>
+                              <TableCell className="font-medium">
+                                {course.name}
+                                {course.isFromTemplate && (
+                                  <Badge variant="secondary" className="ml-2 text-xs">模板</Badge>
+                                )}
+                              </TableCell>
                               <TableCell className="text-center">{course.duration}</TableCell>
-                              <TableCell>{course.teacherTitle || '-'}</TableCell>
+                              <TableCell>
+                                {course.teacherName ? (
+                                  <span className="text-green-600 font-medium">{course.teacherName}</span>
+                                ) : course.teacherTitle ? (
+                                  <span className="text-muted-foreground">{course.teacherTitle}</span>
+                                ) : '-'}
+                              </TableCell>
                               <TableCell className="text-muted-foreground text-sm">
                                 {course.description || '-'}
                               </TableCell>
@@ -2313,12 +2333,23 @@ export default function DesignPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>建议讲师职称</Label>
-                  <Input
-                    value={editingCourse.teacherTitle || ''}
-                    onChange={(e) => setEditingCourse({ ...editingCourse, teacherTitle: e.target.value })}
-                    placeholder="例如：教授、高级工程师"
-                  />
+                  <Label>建议讲师</Label>
+                  {editingCourse.isFromTemplate && editingCourse.teacherName ? (
+                    <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-md">
+                      <User className="w-4 h-4 text-green-600" />
+                      <span className="text-green-700 font-medium">{editingCourse.teacherName}</span>
+                      <span className="text-xs text-green-600 ml-auto">来自课程模板</span>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Input
+                        value={editingCourse.teacherTitle || ''}
+                        onChange={(e) => setEditingCourse({ ...editingCourse, teacherTitle: e.target.value })}
+                        placeholder="输入建议讲师职称，如：教授、高级工程师"
+                      />
+                      <p className="text-xs text-muted-foreground">新课程需填写建议讲师职称</p>
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>课程描述</Label>

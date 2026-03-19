@@ -252,11 +252,26 @@ ${templateContext}${userProfileContext}
 返回JSON格式：
 {
   "courses": [
-    {"day": 1, "name": "课程名", "duration": 4, "description": "内容概述", "category": "类别", "teacherTitle": "讲师职称", "teacherName": "讲师姓名（如使用模板讲师）"}
+    {
+      "day": 1, 
+      "name": "课程名", 
+      "duration": 4, 
+      "description": "内容概述", 
+      "category": "类别", 
+      "teacherTitle": "讲师职称（仅当templateId为空时填写）", 
+      "teacherName": "讲师姓名（使用模板讲师时必填）",
+      "templateId": "模板ID（如使用模板）",
+      "isFromTemplate": true/false
+    }
   ],
   "summary": "方案说明",
   "templateUsage": {"used": 3, "total": 5}
 }
+
+【重要字段说明】：
+- isFromTemplate: 布尔值，true表示使用了课程模板
+- teacherName: 如果使用了模板且模板有匹配的讲师，填写讲师姓名
+- teacherTitle: 仅当没有使用模板时填写建议讲师职称，如果已填写teacherName则不需要填写此字段
 
 只返回JSON。`;
         break;
