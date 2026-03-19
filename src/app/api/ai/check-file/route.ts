@@ -120,7 +120,12 @@ function generateSystemPrompt(fileType: FileType): string {
     declaration: '这是项目申报书，可能包含完整的项目基本信息、课程安排、讲师信息等。',
     studentList: '这是学员名单，主要包含学员信息，不要从中提取项目基本信息。',
     satisfaction: '这是满意度调查文件，主要包含满意度相关数据，不要从中提取项目基本信息或讲师信息。',
-    other: '这是其它附件，请根据文件内容智能判断提取什么数据。注意：不要从专家介绍文件中提取项目基本信息。',
+    other: `这是其它附件，请根据文件名和内容智能判断提取什么数据：
+- 如果是**课程安排/日程安排**文件：提取课程信息（添加到projectCourses）、讲师信息
+- 如果是**专家介绍**文件：提取讲师信息，但不要提取项目基本信息
+- 如果是**参访安排**文件：提取参访基地信息、行程安排
+- 如果是**合同或协议**文件：可提取项目基本信息、讲师信息
+- 如果是**其他类型**：根据内容智能判断`,
   };
 
   const projectInfoSection = shouldExtractProjectInfo 
@@ -353,6 +358,12 @@ ${formatDbDataForAI('visitSites', allVisitSites)}
 ${formatDbDataForAI('projectCourses', projectCoursesList)}
 
 ## 待分析文件：${fileName || FILE_TYPE_NAMES[fileType as FileType]}
+${fileType === 'other' ? `\n⚠️ 这是一个"其它附件"类型的文件，请根据文件名"${fileName}"识别其真实类型：
+- 文件名包含"课程"或"日程"→ 这是课程安排文件，应提取课程信息(projectCourses)和讲师信息
+- 文件名包含"专家"或"师资"→ 这是专家介绍文件，应提取讲师信息
+- 文件名包含"参访"或"参观"→ 这是参访安排文件，应提取参访基地信息
+- 文件名包含"合同"或"协议"→ 可提取项目基本信息和讲师信息
+` : ''}
 
 \`\`\`
 ${fileContent}
