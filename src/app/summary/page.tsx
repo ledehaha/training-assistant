@@ -2374,6 +2374,7 @@ export default function SummaryPage() {
       
       if (res.ok) {
         toast.success(item.action === 'add' ? '数据已添加' : '数据已更新');
+        
         // 从结果列表中移除已处理的项
         if (aiCheckResult) {
           const newResult = { ...aiCheckResult };
@@ -2382,7 +2383,6 @@ export default function SummaryPage() {
             (newResult.checkResult[type as keyof typeof newResult.checkResult] as unknown[]) = 
               targetArray.filter((i: unknown) => i !== item);
           }
-          // 重新计算总变更数量
           const { projectInfo, teachers, venues, courseTemplates, visitSites, projectCourses } = newResult.checkResult;
           newResult.totalChanges = 
             (projectInfo?.length || 0) +
@@ -2393,6 +2393,24 @@ export default function SummaryPage() {
             projectCourses.length;
           newResult.hasChanges = newResult.totalChanges > 0;
           setAiCheckResult(newResult);
+        }
+        if (fileAiCheckResult) {
+          const newResult = { ...fileAiCheckResult };
+          const targetArray = newResult.checkResult[type as keyof typeof newResult.checkResult];
+          if (Array.isArray(targetArray)) {
+            (newResult.checkResult[type as keyof typeof newResult.checkResult] as unknown[]) = 
+              targetArray.filter((i: unknown) => i !== item);
+          }
+          const { projectInfo, teachers, venues, courseTemplates, visitSites, projectCourses } = newResult.checkResult;
+          newResult.totalChanges = 
+            (projectInfo?.length || 0) +
+            teachers.length + 
+            venues.length + 
+            courseTemplates.length + 
+            visitSites.length + 
+            projectCourses.length;
+          newResult.hasChanges = newResult.totalChanges > 0;
+          setFileAiCheckResult(newResult);
         }
       } else {
         const errorData = await res.json();
@@ -2413,7 +2431,6 @@ export default function SummaryPage() {
         (newResult.checkResult[type as keyof typeof newResult.checkResult] as unknown[]) = 
           targetArray.filter((i: unknown) => i !== item);
       }
-      // 重新计算总变更数量
       const { projectInfo, teachers, venues, courseTemplates, visitSites, projectCourses } = newResult.checkResult;
       newResult.totalChanges = 
         (projectInfo?.length || 0) +
@@ -2424,8 +2441,26 @@ export default function SummaryPage() {
         projectCourses.length;
       newResult.hasChanges = newResult.totalChanges > 0;
       setAiCheckResult(newResult);
-      toast.success('已忽略该变更');
     }
+    if (fileAiCheckResult) {
+      const newResult = { ...fileAiCheckResult };
+      const targetArray = newResult.checkResult[type as keyof typeof newResult.checkResult];
+      if (Array.isArray(targetArray)) {
+        (newResult.checkResult[type as keyof typeof newResult.checkResult] as unknown[]) = 
+          targetArray.filter((i: unknown) => i !== item);
+      }
+      const { projectInfo, teachers, venues, courseTemplates, visitSites, projectCourses } = newResult.checkResult;
+      newResult.totalChanges = 
+        (projectInfo?.length || 0) +
+        teachers.length + 
+        venues.length + 
+        courseTemplates.length + 
+        visitSites.length + 
+        projectCourses.length;
+      newResult.hasChanges = newResult.totalChanges > 0;
+      setFileAiCheckResult(newResult);
+    }
+    toast.success('已忽略该变更');
   };
 
   // 切换展开/折叠
@@ -2528,11 +2563,11 @@ export default function SummaryPage() {
         toast.success('项目信息已更新');
         // 更新本地状态
         setSelectedProject(prev => prev ? { ...prev, [item.field]: updateData[item.field] } : null);
+        
         // 从结果列表中移除已处理的项
         if (aiCheckResult) {
           const newResult = { ...aiCheckResult };
           newResult.checkResult.projectInfo = newResult.checkResult.projectInfo.filter(i => i !== item);
-          // 重新计算总变更数量
           const { projectInfo, teachers, venues, courseTemplates, visitSites, projectCourses } = newResult.checkResult;
           newResult.totalChanges = 
             (projectInfo?.length || 0) +
@@ -2543,6 +2578,20 @@ export default function SummaryPage() {
             projectCourses.length;
           newResult.hasChanges = newResult.totalChanges > 0;
           setAiCheckResult(newResult);
+        }
+        if (fileAiCheckResult) {
+          const newResult = { ...fileAiCheckResult };
+          newResult.checkResult.projectInfo = newResult.checkResult.projectInfo.filter(i => i !== item);
+          const { projectInfo, teachers, venues, courseTemplates, visitSites, projectCourses } = newResult.checkResult;
+          newResult.totalChanges = 
+            (projectInfo?.length || 0) +
+            teachers.length + 
+            venues.length + 
+            courseTemplates.length + 
+            visitSites.length + 
+            projectCourses.length;
+          newResult.hasChanges = newResult.totalChanges > 0;
+          setFileAiCheckResult(newResult);
         }
       } else {
         const errorData = await res.json();
@@ -2559,7 +2608,6 @@ export default function SummaryPage() {
     if (aiCheckResult) {
       const newResult = { ...aiCheckResult };
       newResult.checkResult.projectInfo = newResult.checkResult.projectInfo.filter(i => i !== item);
-      // 重新计算总变更数量
       const { projectInfo, teachers, venues, courseTemplates, visitSites, projectCourses } = newResult.checkResult;
       newResult.totalChanges = 
         (projectInfo?.length || 0) +
@@ -2570,8 +2618,22 @@ export default function SummaryPage() {
         projectCourses.length;
       newResult.hasChanges = newResult.totalChanges > 0;
       setAiCheckResult(newResult);
-      toast.success('已忽略该变更');
     }
+    if (fileAiCheckResult) {
+      const newResult = { ...fileAiCheckResult };
+      newResult.checkResult.projectInfo = newResult.checkResult.projectInfo.filter(i => i !== item);
+      const { projectInfo, teachers, venues, courseTemplates, visitSites, projectCourses } = newResult.checkResult;
+      newResult.totalChanges = 
+        (projectInfo?.length || 0) +
+        teachers.length + 
+        venues.length + 
+        courseTemplates.length + 
+        visitSites.length + 
+        projectCourses.length;
+      newResult.hasChanges = newResult.totalChanges > 0;
+      setFileAiCheckResult(newResult);
+    }
+    toast.success('已忽略该变更');
   };
 
   // 渲染AI检查结果项
