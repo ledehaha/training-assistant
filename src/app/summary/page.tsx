@@ -196,7 +196,7 @@ export default function SummaryPage() {
   // 待上传文件队列（用于覆盖确认后继续上传）
   const pendingFilesRef = useRef<{ fileType: string; files: File[]; currentIndex: number } | null>(null);
 
-  // AI检查状态
+  // AI检查状态（总检查，已废弃）
   const [aiChecking, setAiChecking] = useState(false);
   const [aiCheckProgress, setAiCheckProgress] = useState<{
     current: number;
@@ -224,6 +224,23 @@ export default function SummaryPage() {
     visitSites: true,
     projectCourses: true,
   });
+
+  // 单文件AI检查状态
+  const [fileAiChecking, setFileAiChecking] = useState<string | null>(null); // 当前正在检查的文件类型
+  const [fileAiCheckResult, setFileAiCheckResult] = useState<{
+    fileType: string;
+    fileName: string;
+    hasChanges: boolean;
+    totalChanges: number;
+    checkResult: {
+      projectInfo: ProjectInfoItem[];
+      teachers: AiCheckItem[];
+      venues: AiCheckItem[];
+      courseTemplates: AiCheckItem[];
+      visitSites: AiCheckItem[];
+      projectCourses: AiCheckItem[];
+    };
+  } | null>(null);
 
   // AI检查结果项类型
   interface AiCheckItem {
@@ -1122,18 +1139,47 @@ export default function SummaryPage() {
     secondFileName: string | null,
     secondFileKey: string | null,
     description: string,
-    secondFileFormat: 'word' | 'excel' = 'word'  // 默认Word，可选Excel
+    secondFileFormat: 'word' | 'excel' = 'word',  // 默认Word，可选Excel
+    enableAiCheck: boolean = false  // 是否启用AI检查
   ) => {
     // 根据文件格式确定参数
     const secondAccept = secondFileFormat === 'excel' ? '.xls,.xlsx' : '.doc,.docx';
     const secondLabel = secondFileFormat === 'excel' ? 'Excel版本' : 'Word版本';
     const secondUploadedLabel = secondFileFormat === 'excel' ? 'Excel已上传' : 'Word已上传';
     
+    // 确定用于AI检查的文件（优先使用Word/Excel版本）
+    const aiCheckFileKey = secondFileKey || pdfFileKey;
+    const aiCheckFileName = secondFileName || pdfFileName;
+    const aiCheckFileType = pdfFileType.replace('Pdf', '').toLowerCase(); // 从pdfFileType提取类型
+    
     return (
     <div className="p-4 border rounded-lg">
-      <div className="flex items-center gap-2 mb-2">
-        <FileText className="w-4 h-4 text-gray-500" />
-        <span className="font-medium text-gray-900">{title}</span>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <FileText className="w-4 h-4 text-gray-500" />
+          <span className="font-medium text-gray-900">{title}</span>
+        </div>
+        {enableAiCheck && aiCheckFileKey && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs border-purple-200 text-purple-600 hover:bg-purple-50"
+            onClick={() => handleFileAiCheck(aiCheckFileType, aiCheckFileKey, aiCheckFileName || '')}
+            disabled={fileAiChecking === aiCheckFileType}
+          >
+            {fileAiChecking === aiCheckFileType ? (
+              <>
+                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                检查中...
+              </>
+            ) : (
+              <>
+                <Brain className="w-3 h-3 mr-1" />
+                AI检查
+              </>
+            )}
+          </Button>
+        )}
       </div>
       <p className="text-xs text-gray-500 mb-4">{description}</p>
       
@@ -1379,20 +1425,48 @@ export default function SummaryPage() {
     fileName: string | null,
     fileKey: string | null,
     description: string,
-    accept: string = '.pdf,.doc,.docx,.xls,.xlsx'
-  ) => (
+    accept: string = '.pdf,.doc,.docx,.xls,.xlsx',
+    enableAiCheck: boolean = false  // 是否启用AI检查
+  ) => {
+    // 从fileType提取AI检查类型
+    const aiCheckFileType = fileType.toLowerCase();
+    
+    return (
     <div className="p-4 border rounded-lg">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <FileText className="w-4 h-4 text-gray-500" />
           <span className="font-medium text-gray-900">{title}</span>
         </div>
-        {fileName && (
-          <Badge variant="default" className="bg-green-100 text-green-700">
-            <CheckCircle className="w-3 h-3 mr-1" />
-            已上传
-          </Badge>
-        )}
+        <div className="flex items-center gap-2">
+          {fileName && (
+            <Badge variant="default" className="bg-green-100 text-green-700">
+              <CheckCircle className="w-3 h-3 mr-1" />
+              已上传
+            </Badge>
+          )}
+          {enableAiCheck && fileKey && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs border-purple-200 text-purple-600 hover:bg-purple-50"
+              onClick={() => handleFileAiCheck(aiCheckFileType, fileKey, fileName || '')}
+              disabled={fileAiChecking === aiCheckFileType}
+            >
+              {fileAiChecking === aiCheckFileType ? (
+                <>
+                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                  检查中...
+                </>
+              ) : (
+                <>
+                  <Brain className="w-3 h-3 mr-1" />
+                  AI检查
+                </>
+              )}
+            </Button>
+          )}
+        </div>
       </div>
       <p className="text-xs text-gray-500 mb-3">{description}</p>
       
@@ -1503,7 +1577,8 @@ export default function SummaryPage() {
         </div>
       )}
     </div>
-  );
+    );
+  };
 
   // 渲染第一步：选择项目
   const renderStep1 = () => (
@@ -1856,7 +1931,9 @@ export default function SummaryPage() {
             'contractWord',
             selectedProject.contractFileNameWord,
             selectedProject.contractFileWord,
-            '上传合同扫描件或电子版（需PDF和Word两个版本）'
+            '上传合同扫描件或电子版（需PDF和Word两个版本）',
+            'word',
+            true  // 启用AI检查
           )}
           {renderDualFileUpload(
             '成本测算表 *',
@@ -1867,7 +1944,8 @@ export default function SummaryPage() {
             selectedProject.costFileNameExcel,
             selectedProject.costFileExcel,
             '上传成本明细表（需PDF和Excel两个版本）',
-            'excel'  // 指定第二个文件类型为Excel
+            'excel',
+            true  // 启用AI检查
           )}
           {renderDualFileUpload(
             '项目申报书 *',
@@ -1877,7 +1955,9 @@ export default function SummaryPage() {
             'declarationWord',
             selectedProject.declarationFileNameWord,
             selectedProject.declarationFileWord,
-            '上传项目申报材料（需PDF和Word两个版本）'
+            '上传项目申报材料（需PDF和Word两个版本）',
+            'word',
+            true  // 启用AI检查
           )}
         </div>
 
@@ -1889,14 +1969,17 @@ export default function SummaryPage() {
             selectedProject.studentListFileName,
             selectedProject.studentListFile,
             '上传学员名单Excel文件',
-            '.xls,.xlsx'
+            '.xls,.xlsx',
+            true  // 启用AI检查
           )}
           {renderSingleFileUpload(
             '满意度调查结果',
             'satisfaction',
             selectedProject.satisfactionSurveyFileName,
             selectedProject.satisfactionSurveyFile,
-            '上传满意度调查原始数据（非必传）'
+            '上传满意度调查原始数据（非必传）',
+            '.pdf,.doc,.docx,.xls,.xlsx',
+            true  // 启用AI检查
           )}
         </div>
 
@@ -1935,6 +2018,19 @@ export default function SummaryPage() {
                   <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
                     <span className="text-sm text-gray-700 truncate flex-1">{file.name}</span>
                     <div className="flex items-center gap-1">
+                      <Button 
+                        variant="outline"
+                        size="sm" 
+                        className="h-6 px-2 text-xs border-purple-200 text-purple-600 hover:bg-purple-50" 
+                        onClick={() => handleFileAiCheck('other', file.key, file.name)}
+                        disabled={fileAiChecking === 'other'}
+                      >
+                        {fileAiChecking === 'other' ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <Brain className="w-3 h-3" />
+                        )}
+                      </Button>
                       <Button 
                         variant="ghost" 
                         size="sm" 
@@ -2001,86 +2097,6 @@ export default function SummaryPage() {
                 </div>
               )}
             </div>
-          </CardContent>
-        </Card>
-
-        {/* AI数据检查卡片 */}
-        <Card className="border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                  <Sparkles className="w-5 h-5 text-blue-600" />
-                </div>
-                <div>
-                  <h4 className="font-medium text-blue-900">AI数据检查</h4>
-                  <p className="text-sm text-blue-700">分析上传文件，检查是否有讲师、场地、课程等数据需要新增或更新</p>
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                className="border-blue-300 text-blue-700 hover:bg-blue-100"
-                onClick={handleAiCheck}
-                disabled={aiChecking || progress === 0}
-              >
-                {aiChecking ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    检查中...
-                  </>
-                ) : (
-                  <>
-                    <Brain className="w-4 h-4 mr-2" />
-                    开始检查
-                  </>
-                )}
-              </Button>
-            </div>
-            
-            {/* 进度显示 */}
-            {aiChecking && aiCheckProgress && (
-              <div className="mt-4 space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-blue-700 font-medium">{aiCheckProgress.stepName}</span>
-                  <span className="text-blue-600">{aiCheckProgress.current}%</span>
-                </div>
-                <div className="w-full bg-blue-100 rounded-full h-2.5">
-                  <div 
-                    className="bg-blue-600 h-2.5 rounded-full transition-all duration-300 ease-out"
-                    style={{ width: `${aiCheckProgress.current}%` }}
-                  />
-                </div>
-                <div className="flex items-center gap-1 text-xs text-blue-600">
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  <span>正在分析，请稍候...</span>
-                </div>
-              </div>
-            )}
-            
-            {aiCheckResult && !aiChecking && (
-              <div className="mt-4 pt-4 border-t border-blue-200">
-                {aiCheckResult.hasChanges ? (
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-blue-700">
-                      <AlertCircle className="w-4 h-4" />
-                      <span className="text-sm">发现 <strong>{aiCheckResult.totalChanges}</strong> 条数据变更建议</span>
-                    </div>
-                    <Button
-                      variant="link"
-                      className="h-auto p-0 text-blue-700 underline"
-                      onClick={() => setShowAiCheckDialog(true)}
-                    >
-                      查看详情并处理
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 text-green-700">
-                    <CheckCircle className="w-4 h-4" />
-                    <span className="text-sm">未发现需要更新的数据</span>
-                  </div>
-                )}
-              </div>
-            )}
           </CardContent>
         </Card>
 
@@ -2186,7 +2202,78 @@ export default function SummaryPage() {
     );
   };
 
-  // AI检查函数（流式响应）
+  // 单文件AI检查函数
+  const handleFileAiCheck = async (fileType: string, fileKey: string, fileName: string) => {
+    if (!selectedProject || !fileKey) return;
+    
+    setFileAiChecking(fileType);
+    setFileAiCheckResult(null);
+    
+    try {
+      const res = await fetch('/api/ai/check-file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          projectId: selectedProject.id, 
+          fileType,
+          fileKey,
+          fileName,
+        }),
+      });
+      
+      if (!res.ok) {
+        throw new Error('请求失败');
+      }
+      
+      const reader = res.body?.getReader();
+      if (!reader) {
+        throw new Error('无法读取响应流');
+      }
+      
+      const decoder = new TextDecoder();
+      let buffer = '';
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const event = JSON.parse(line.slice(6));
+              
+              if (event.type === 'result') {
+                const data = event.data;
+                setFileAiCheckResult(data);
+                setShowAiCheckDialog(true);
+                
+                if (!data.hasChanges) {
+                  toast.success('AI检查完成', { description: '未发现需要更新的数据' });
+                } else {
+                  toast.info('AI检查完成', { description: `发现 ${data.totalChanges} 条数据需要更新或新增` });
+                }
+              } else if (event.type === 'error') {
+                throw new Error(event.data?.error || 'AI检查失败');
+              }
+            } catch (parseError) {
+              console.error('解析事件失败:', parseError);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('File AI check error:', error);
+      toast.error('AI检查失败', { description: error instanceof Error ? error.message : '请稍后重试' });
+    } finally {
+      setFileAiChecking(null);
+    }
+  };
+
+  // AI检查函数（流式响应）- 已废弃，保留兼容
   const handleAiCheck = async () => {
     if (!selectedProject) return;
     
