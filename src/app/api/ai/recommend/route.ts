@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 import { 
-  db, teachers, venues, courses, normativeDocuments, userProfiles,
+  db, teachers, venues, courses, normativeDocuments, userProfiles, visitSites,
   eq, desc, sql, and, ensureDatabaseReady 
 } from '@/storage/database';
 import { getApiKey } from '@/lib/api-key';
@@ -218,6 +218,75 @@ ${templatesWithTeachers.map((t: Record<string, unknown>, idx: number) => {
 【重要】请优先从上述模板中选择课程组合方案，如果模板课程总课时不足，再自行设计补充课程。`;
         }
         
+        // 获取参访基地数据并匹配
+        const visitSitesData = db
+          .select()
+          .from(visitSites)
+          .where(eq(visitSites.isActive, true))
+          .all();
+        
+        // 计算参访基地匹配分数
+        const scoredVisitSites = visitSitesData.map((site: Record<string, unknown>) => {
+          let score = 0;
+          const siteIndustry = (site.industry as string) || '';
+          const siteType = (site.type as string) || '';
+          const siteName = (site.name as string) || '';
+          const visitContent = (site.visitContent as string) || '';
+          
+          // 培训类型匹配
+          if (trainingTarget && (siteIndustry || siteType)) {
+            if (siteIndustry.includes(trainingTarget) || trainingTarget.includes(siteIndustry)) {
+              score += 30;
+            }
+            if (siteType.includes(trainingTarget) || trainingTarget.includes(siteType)) {
+              score += 20;
+            }
+          }
+          
+          // 项目名称关键词匹配
+          if (projectName && siteName) {
+            const projectKeywords = projectName.split(/[，,、\s]+/).filter((k: string) => k.length > 1);
+            projectKeywords.forEach((keyword: string) => {
+              if (siteName.includes(keyword) || visitContent.includes(keyword)) {
+                score += 10;
+              }
+            });
+          }
+          
+          // 访问次数加分
+          score += Math.min((site.visitCount as number) || 0, 20);
+          
+          // 评分加分
+          score += ((site.rating as number) || 4) * 2;
+          
+          return { site, score };
+        });
+        
+        // 筛选高匹配度的参访基地（分数 >= 20）
+        const matchedVisitSites = scoredVisitSites
+          .filter(ss => ss.score >= 20)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 5)
+          .map(ss => ss.site);
+        
+        // 构建参访基地上下文
+        let visitSitesContext = '';
+        if (matchedVisitSites.length > 0) {
+          visitSitesContext = `\n\n【优先使用以下匹配的参访基地】（已按匹配度排序）：
+${matchedVisitSites.map((site: Record<string, unknown>, idx: number) => {
+  return `${idx + 1}. ${site.name}
+   - 类型：${site.type || '未分类'}
+   - 行业：${site.industry || '未指定'}
+   - 地址：${site.address || '未指定'}
+   - 参访内容：${site.visitContent || '暂无详情'}
+   - 最大接待人数：${site.maxVisitors || '不限'}人
+   - 参访时长：${site.visitDuration || 2}小时
+   - 费用：${site.visitFee ? site.visitFee + '元/人' : '免费'}`;
+}).join('\n')}
+
+【重要】如果培训方案中包含参访环节，请优先从上述基地中选择。`;
+        }
+        
         prompt = `你是培训方案设计专家。请为以下培训项目设计课程安排：
 
 培训主题：${projectData.name || projectData.trainingTarget || '未指定'}
@@ -229,49 +298,63 @@ ${templatesWithTeachers.map((t: Record<string, unknown>, idx: number) => {
 平均每天课时：${avgHoursPerDay}
 预算：${budgetStr}
 特殊要求：${projectData.specialRequirements || '无'}
-${templateContext}${userProfileContext}
+${templateContext}${visitSitesContext}${userProfileContext}
 
 要求：
 1. 【优先使用模板】如果上述有匹配的课程模板，请优先选择模板课程组合方案
-2. 所有课程必须紧扣培训主题，不要生成无关课程
-3. 总课时必须严格等于${totalHours}课时，不能多也不能少
-4. 【重要】根据"平均每天课时"合理安排每天的课时量：
+2. 【参访安排】根据培训主题和天数，合理安排1-2次参访活动（如果培训天数>=2天）
+   - 如果有匹配的参访基地，优先从中选择
+   - 参访通常安排2-4课时，计入总课时
+   - 参访内容应与培训主题相关
+3. 所有课程必须紧扣培训主题，不要生成无关课程
+4. 总课时必须严格等于${totalHours}课时，不能多也不能少
+5. 【重要】根据"平均每天课时"合理安排每天的课时量：
    - 如果平均每天≤4课时：每天安排半天课程即可
    - 如果平均每天在5-8课时：安排上午+下午的课程
    - 如果平均每天>8课时：可以考虑安排晚上课程
    - 不要机械地每天安排相同课时，可以有适当变化
-5. 每门课程时长必须是4课时或2课时：
+6. 每门课程时长必须是4课时或2课时：
    - 4课时 = 半天（上午或下午的标准单位）
    - 2课时 = 短课程（如晚上课程）
+   - 参访活动可以是2-4课时
    - 禁止生成6、8、10、12课时的单门课程
    - 如果内容较多需要拆分为多门课程，命名使用"（上）"、"（下）"、"（中）"区分
-6. 每门课程标注建议讲师职称
-7. 如果使用了模板中的讲师，在 teacherName 字段中标注讲师姓名
-8. 考虑目标人群的特征偏好进行个性化设计
+7. 每门课程标注建议讲师职称
+8. 如果使用了模板中的讲师，在 teacherName 字段中标注讲师姓名
+9. 考虑目标人群的特征偏好进行个性化设计
 
 返回JSON格式：
 {
   "courses": [
     {
       "day": 1, 
-      "name": "课程名", 
+      "name": "课程名或参访活动名", 
       "duration": 4, 
       "description": "内容概述", 
       "category": "类别", 
-      "teacherTitle": "讲师职称（仅当templateId为空时填写）", 
+      "type": "course或visit",
+      "teacherTitle": "讲师职称（仅当type=course且isFromTemplate=false时填写）", 
       "teacherName": "讲师姓名（使用模板讲师时必填）",
       "templateId": "模板ID（如使用模板）",
-      "isFromTemplate": true/false
+      "isFromTemplate": true/false,
+      "visitSiteId": "参访基地ID（如使用库中基地）",
+      "visitSiteName": "参访基地名称",
+      "isFromVisitLibrary": true/false
     }
   ],
   "summary": "方案说明",
-  "templateUsage": {"used": 3, "total": 5}
+  "templateUsage": {"used": 3, "total": 5},
+  "visitUsage": {"used": 1, "total": 2}
 }
 
 【重要字段说明】：
+- type: "course"表示课程，"visit"表示参访活动
 - isFromTemplate: 布尔值，true表示使用了课程模板
+- isFromVisitLibrary: 布尔值，true表示使用了参访基地库中的基地
 - teacherName: 如果使用了模板且模板有匹配的讲师，填写讲师姓名
-- teacherTitle: 仅当没有使用模板时填写建议讲师职称，如果已填写teacherName则不需要填写此字段
+- teacherTitle: 仅当没有使用模板时填写建议讲师职称
+- visitSiteId: 如果使用了参访基地库中的基地，填写基地ID
+- visitSiteName: 参访基地名称（使用库中基地时必填）
 
 只返回JSON。`;
         break;

@@ -72,6 +72,8 @@ interface Course {
   visitSiteAddress?: string;
   visitDuration?: number;
   visitFee?: number;
+  // 是否来自参访基地库
+  isFromVisitLibrary?: boolean;
 }
 
 interface Teacher {
@@ -851,6 +853,11 @@ export default function DesignPage() {
           teacherName: c.teacherName as string,
           isFromTemplate: c.isFromTemplate as boolean || false,
           templateId: c.templateId as string,
+          // 参访相关字段
+          type: (c.type as 'course' | 'visit' | 'break' | 'other') || 'course',
+          visitSiteId: c.visitSiteId as string,
+          visitSiteName: c.visitSiteName as string,
+          isFromVisitLibrary: c.isFromVisitLibrary as boolean || false,
         }));
         
         setCourses(generatedCourses);
@@ -935,6 +942,11 @@ export default function DesignPage() {
           teacherName: c.teacherName as string,
           isFromTemplate: c.isFromTemplate as boolean || false,
           templateId: c.templateId as string,
+          // 参访相关字段
+          type: (c.type as 'course' | 'visit' | 'break' | 'other') || 'course',
+          visitSiteId: c.visitSiteId as string,
+          visitSiteName: c.visitSiteName as string,
+          isFromVisitLibrary: c.isFromVisitLibrary as boolean || false,
         }));
         
         setCourses(generatedCourses);
@@ -1834,13 +1846,25 @@ export default function DesignPage() {
                               <TableCell className="text-center">第{course.day}天</TableCell>
                               <TableCell className="font-medium">
                                 {course.name}
+                                {course.type === 'visit' && (
+                                  <Badge variant="outline" className="ml-2 text-xs border-orange-300 text-orange-600">参访</Badge>
+                                )}
                                 {course.isFromTemplate && (
                                   <Badge variant="secondary" className="ml-2 text-xs">模板</Badge>
+                                )}
+                                {course.isFromVisitLibrary && (
+                                  <Badge variant="outline" className="ml-2 text-xs border-blue-300 text-blue-600">基地库</Badge>
                                 )}
                               </TableCell>
                               <TableCell className="text-center">{course.duration}</TableCell>
                               <TableCell>
-                                {course.teacherName ? (
+                                {course.type === 'visit' ? (
+                                  course.visitSiteName ? (
+                                    <span className="text-orange-600 font-medium">{course.visitSiteName}</span>
+                                  ) : (
+                                    <span className="text-muted-foreground">待安排</span>
+                                  )
+                                ) : course.teacherName ? (
                                   <span className="text-green-600 font-medium">{course.teacherName}</span>
                                 ) : course.teacherTitle ? (
                                   <span className="text-muted-foreground">{course.teacherTitle}</span>
@@ -2341,32 +2365,52 @@ export default function DesignPage() {
                     />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>建议讲师</Label>
-                  {editingCourse.isFromTemplate && editingCourse.teacherName ? (
-                    <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-md">
-                      <User className="w-4 h-4 text-green-600" />
-                      <span className="text-green-700 font-medium">{editingCourse.teacherName}</span>
-                      <span className="text-xs text-green-600 ml-auto">来自课程模板</span>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
+                {/* 根据类型显示不同字段 */}
+                {editingCourse.type === 'visit' ? (
+                  <div className="space-y-2">
+                    <Label>参访基地</Label>
+                    {editingCourse.isFromVisitLibrary && editingCourse.visitSiteName ? (
+                      <div className="flex items-center gap-2 p-2 bg-orange-50 border border-orange-200 rounded-md">
+                        <MapPin className="w-4 h-4 text-orange-600" />
+                        <span className="text-orange-700 font-medium">{editingCourse.visitSiteName}</span>
+                        <span className="text-xs text-orange-600 ml-auto">来自参访基地库</span>
+                      </div>
+                    ) : (
                       <Input
-                        value={editingCourse.teacherTitle || ''}
-                        onChange={(e) => setEditingCourse({ ...editingCourse, teacherTitle: e.target.value })}
-                        placeholder="输入建议讲师职称，如：教授、高级工程师"
+                        value={editingCourse.visitSiteName || ''}
+                        onChange={(e) => setEditingCourse({ ...editingCourse, visitSiteName: e.target.value })}
+                        placeholder="输入参访基地名称"
                       />
-                      <p className="text-xs text-muted-foreground">新课程需填写建议讲师职称</p>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label>建议讲师</Label>
+                    {editingCourse.isFromTemplate && editingCourse.teacherName ? (
+                      <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-md">
+                        <User className="w-4 h-4 text-green-600" />
+                        <span className="text-green-700 font-medium">{editingCourse.teacherName}</span>
+                        <span className="text-xs text-green-600 ml-auto">来自课程模板</span>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <Input
+                          value={editingCourse.teacherTitle || ''}
+                          onChange={(e) => setEditingCourse({ ...editingCourse, teacherTitle: e.target.value })}
+                          placeholder="输入建议讲师职称，如：教授、高级工程师"
+                        />
+                        <p className="text-xs text-muted-foreground">新课程需填写建议讲师职称</p>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="space-y-2">
-                  <Label>课程描述</Label>
+                  <Label>{editingCourse.type === 'visit' ? '参访内容' : '课程描述'}</Label>
                   <Textarea
                     value={editingCourse.description || ''}
                     onChange={(e) => setEditingCourse({ ...editingCourse, description: e.target.value })}
                     rows={3}
-                    placeholder="课程内容概述..."
+                    placeholder={editingCourse.type === 'visit' ? '参访内容概述...' : '课程内容概述...'}
                   />
                 </div>
                 <div className="flex justify-end gap-2">
