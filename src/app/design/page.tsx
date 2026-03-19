@@ -969,11 +969,68 @@ export default function DesignPage() {
     setShowEditCourseDialog(true);
   };
 
+  // 新增课程/参访
+  const handleAddCourse = (type: 'course' | 'visit' = 'course') => {
+    // 计算新课程的天数（默认最后一天的下一天，或最后一天）
+    const lastDay = courses.length > 0 
+      ? Math.max(...courses.map(c => c.day || 1)) 
+      : 1;
+    const lastDayCourses = courses.filter(c => c.day === lastDay);
+    const lastDayTotalDuration = lastDayCourses.reduce((sum, c) => sum + (c.duration || 0), 0);
+    
+    // 如果最后一天课时数>=8，则新增到下一天
+    const newDay = lastDayTotalDuration >= 8 ? lastDay + 1 : lastDay;
+    
+    if (type === 'visit') {
+      // 新增参访
+      const newCourse: Course = {
+        id: `visit-${Date.now()}`,
+        name: '',
+        day: newDay,
+        duration: 4,
+        description: '',
+        category: '参访',
+        type: 'visit',
+      };
+      setEditingCourse(newCourse);
+      setEditingCourseIndex(courses.length); // 添加到末尾
+    } else {
+      // 新增课程
+      const newCourse: Course = {
+        id: `course-${Date.now()}`,
+        name: '',
+        day: newDay,
+        duration: 4,
+        description: '',
+        category: '综合提升类',
+        type: 'course',
+      };
+      setEditingCourse(newCourse);
+      setEditingCourseIndex(courses.length); // 添加到末尾
+    }
+    
+    setShowEditCourseDialog(true);
+  };
+
   // 保存编辑的课程
   const handleSaveEditedCourse = () => {
     if (editingCourse && editingCourseIndex !== null) {
+      // 验证必填字段
+      if (!editingCourse.name || editingCourse.name.trim() === '') {
+        showToast('error', '请输入课程名称');
+        return;
+      }
+      
       const newCourses = [...courses];
-      newCourses[editingCourseIndex] = editingCourse;
+      if (editingCourseIndex >= courses.length) {
+        // 新增课程
+        newCourses.push(editingCourse);
+        showToast('success', editingCourse.type === 'visit' ? '参访活动已添加' : '课程已添加');
+      } else {
+        // 编辑课程
+        newCourses[editingCourseIndex] = editingCourse;
+        showToast('success', '课程已更新');
+      }
       setCourses(newCourses);
       setShowEditCourseDialog(false);
       setEditingCourse(null);
@@ -1793,6 +1850,36 @@ export default function DesignPage() {
                   </div>
                 ) : (
                   <div className="space-y-4">
+                    {/* 课程操作按钮栏 */}
+                    <div className="flex justify-between items-center">
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="outline"
+                          onClick={() => handleAddCourse('course')}
+                          className="text-primary border-primary/30 hover:bg-primary/5"
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          新增课程
+                        </Button>
+                        <Button 
+                          variant="outline"
+                          onClick={() => handleAddCourse('visit')}
+                          className="text-orange-600 border-orange-300 hover:bg-orange-50"
+                        >
+                          <MapPin className="h-4 w-4 mr-2" />
+                          新增参访
+                        </Button>
+                      </div>
+                      <Button 
+                        onClick={handleGenerateScheme}
+                        disabled={generateLoading}
+                        variant="default"
+                        size="sm"
+                      >
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        重新生成方案
+                      </Button>
+                    </div>
                     <div className="rounded-md border">
                       <Table>
                         <TableHeader>
@@ -2333,18 +2420,25 @@ export default function DesignPage() {
         <Dialog open={showEditCourseDialog} onOpenChange={setShowEditCourseDialog}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>编辑课程</DialogTitle>
+              <DialogTitle>
+                {editingCourseIndex !== null && editingCourseIndex >= courses.length 
+                  ? (editingCourse?.type === 'visit' ? '新增参访活动' : '新增课程')
+                  : '编辑课程'}
+              </DialogTitle>
               <DialogDescription>
-                修改课程信息
+                {editingCourseIndex !== null && editingCourseIndex >= courses.length
+                  ? '填写课程或参访信息'
+                  : '修改课程信息'}
               </DialogDescription>
             </DialogHeader>
             {editingCourse && (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label>课程名称</Label>
+                  <Label>{editingCourse.type === 'visit' ? '参访活动名称' : '课程名称'}</Label>
                   <Input
                     value={editingCourse.name}
                     onChange={(e) => setEditingCourse({ ...editingCourse, name: e.target.value })}
+                    placeholder={editingCourse.type === 'visit' ? '如：某某企业参观考察' : '输入课程名称'}
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
