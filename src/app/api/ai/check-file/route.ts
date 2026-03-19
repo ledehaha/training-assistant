@@ -103,11 +103,29 @@ async function readFileContent(fileKey: string, customHeaders: Record<string, st
 
 /**
  * 生成AI系统提示词
+ * 根据文件类型调整提取策略
  */
-function generateSystemPrompt(): string {
+function generateSystemPrompt(fileType: FileType): string {
   const tableDescriptions = ['teachers', 'venues', 'courseTemplates', 'visitSites', 'projectCourses']
     .map(key => generateAIFieldDescription(key))
     .join('\n\n');
+
+  // 根据文件类型决定是否提取项目基本信息
+  const shouldExtractProjectInfo = ['contract', 'cost', 'declaration'].includes(fileType);
+  
+  // 文件类型说明
+  const fileTypeHints: Record<FileType, string> = {
+    contract: '这是合同文件，可能包含项目基本信息、讲师信息、场地信息等。',
+    cost: '这是成本测算表，可能包含项目基本信息、课程信息、讲师费用等。',
+    declaration: '这是项目申报书，可能包含完整的项目基本信息、课程安排、讲师信息等。',
+    studentList: '这是学员名单，主要包含学员信息，不要从中提取项目基本信息。',
+    satisfaction: '这是满意度调查文件，主要包含满意度相关数据，不要从中提取项目基本信息或讲师信息。',
+    other: '这是其它附件，请根据文件内容智能判断提取什么数据。注意：不要从专家介绍文件中提取项目基本信息。',
+  };
+
+  const projectInfoSection = shouldExtractProjectInfo 
+    ? `\n\n${generateAIFieldDescription('projectInfo')}\n\n注意：项目基本信息只能从合同、成本测算表、项目申报书等文件中提取。`
+    : '\n\n注意：此文件类型不应提取项目基本信息（如参训人数、培训天数等），只提取讲师、场地、课程等相关数据。';
 
   return `你是一个专业的培训项目数据分析师。你的任务是：
 1. 分析提供的文件内容
@@ -115,22 +133,25 @@ function generateSystemPrompt(): string {
 3. 与数据库中已有的数据进行比对
 4. 返回需要新增或更新的数据
 
+## 当前文件类型
+${fileTypeHints[fileType]}
+
 ## 重要原则
 
 ### 数据处理原则
-- 只提取文件中明确存在的数据，不要臆造
+- **只提取文件中明确存在的数据，不要臆造**
+- **不要从无关文件中提取数据**（例如：不要从专家介绍中提取参训人数）
 - 对于同一实体，整合文件中所有相关信息
 - 每条数据必须标注source字段说明来源
 
 ### 数据来源标注
-- source字段填写"${FILE_TYPE_NAMES.contract}"等文件名称
+- source字段填写"${FILE_TYPE_NAMES[fileType]}"等文件名称
 - confidence字段表示数据置信度：high/medium/low
 
 ## 数据库字段定义（严格按照此定义输出）
 
 ${tableDescriptions}
-
-${generateAIFieldDescription('projectInfo')}
+${projectInfoSection}
 
 ## 输出格式要求
 
@@ -165,7 +186,8 @@ ${generateAIFieldDescription('projectInfo')}
 
 1. **字段映射必须正确**：严格按照定义的字段含义填写
 2. **不要臆造字段**：只输出定义的字段
-3. **只有真正有价值的新增或更新才返回**`;
+3. **只有真正有价值的新增或更新才返回**
+4. **如果文件中没有任何有用数据，返回空对象 {}**`;
 }
 
 /**
@@ -269,7 +291,7 @@ export async function POST(request: NextRequest) {
         // Step 3: AI分析
         sendEvent({ type: 'progress', step: 'ai', stepName: '正在进行AI智能分析...', progress: 90, total: 3 });
 
-        const systemPrompt = generateSystemPrompt();
+        const systemPrompt = generateSystemPrompt(fileType as FileType);
         const userPrompt = `## 项目基本信息
 - 项目名称：${project.name}
 - 参训人数：${project.participantCount ?? '未填写'}
