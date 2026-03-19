@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import MainLayout from '@/components/layout/main-layout';
+import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -150,6 +151,7 @@ interface ToastMessage {
 
 export default function DesignPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('requirement');
   const [loading, setLoading] = useState(false);
   const [generateLoading, setGenerateLoading] = useState(false);
@@ -458,7 +460,14 @@ export default function DesignPage() {
   // 加载草稿项目列表（只在初始化和用户手动操作时调用）
   const loadDraftProjects = async () => {
     try {
-      const res = await fetch('/api/projects?status=draft');
+      // 获取session token
+      const sessionToken = typeof window !== 'undefined' ? localStorage.getItem('session_token') : null;
+      const headers: Record<string, string> = {};
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`;
+      }
+      
+      const res = await fetch('/api/projects?status=draft', { headers });
       const data = await res.json();
       if (data.data) {
         setDraftProjects(data.data.map((p: Record<string, unknown>) => ({

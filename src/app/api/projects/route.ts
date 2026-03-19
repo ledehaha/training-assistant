@@ -1,6 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, projects, courses, eq, desc, sql, saveDatabaseImmediate, ensureDatabaseReady, getSqlite } from '@/storage/database';
+import { cookies } from 'next/headers';
+import { db, projects, courses, eq, desc, sql, and, saveDatabaseImmediate, ensureDatabaseReady, getSqlite } from '@/storage/database';
 import { generateId, getTimestamp } from '@/storage/database';
+
+// 获取当前用户ID
+async function getCurrentUserId(request: NextRequest): Promise<string | null> {
+  try {
+    const cookieStore = await cookies();
+    const sessionCookie = cookieStore.get('session');
+    const authHeader = request.headers.get('authorization');
+    
+    // 从 Cookie 获取
+    if (sessionCookie?.value) {
+      try {
+        const session = JSON.parse(sessionCookie.value);
+        if (session?.userId) return session.userId;
+      } catch {
+        // 忽略解析错误
+      }
+    }
+    
+    // 从 Authorization header 获取
+    if (authHeader?.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.substring(7);
+        const decoded = Buffer.from(token, 'base64').toString('utf-8');
+        const session = JSON.parse(decoded);
+        if (session?.userId) return session.userId;
+      } catch {
+        // 忽略解析错误
+      }
+    }
+    
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 // 一次性数据清理标志
 let dataCleaned = false;
@@ -45,6 +81,9 @@ export async function GET(request: NextRequest) {
     const statusParam = searchParams.get('status');
     const search = searchParams.get('search');
     
+    // 获取当前用户ID
+    const currentUserId = await getCurrentUserId(request);
+    
     let results;
     
     // 解析状态参数（支持逗号分隔的多状态）
@@ -52,7 +91,34 @@ export async function GET(request: NextRequest) {
       ? statusParam.split(',').map(s => s.trim()).filter(Boolean)
       : [];
     
-    if (statuses.length > 1 && search) {
+    // 草稿项目只显示当前用户创建的
+    const isDraftOnly = statuses.length === 1 && statuses[0] === 'draft';
+    
+    if (isDraftOnly && currentUserId) {
+      // 草稿状态 + 当前用户过滤
+      if (search) {
+        results = db
+          .select()
+          .from(projects)
+          .where(and(
+            eq(projects.status, 'draft'),
+            sql`${projects.createdById} = ${currentUserId}`,
+            sql`${projects.name} LIKE ${'%' + search + '%'}`
+          ))
+          .orderBy(desc(projects.createdAt))
+          .all();
+      } else {
+        results = db
+          .select()
+          .from(projects)
+          .where(and(
+            eq(projects.status, 'draft'),
+            sql`${projects.createdById} = ${currentUserId}`
+          ))
+          .orderBy(desc(projects.createdAt))
+          .all();
+      }
+    } else if (statuses.length > 1 && search) {
       // 多状态 + 搜索
       results = db
         .select()
@@ -113,6 +179,9 @@ export async function POST(request: NextRequest) {
   try {
     await ensureDatabaseReady();
     
+    // 获取当前用户ID
+    const currentUserId = await getCurrentUserId(request);
+    
     const body = await request.json();
     const id = generateId();
     const now = getTimestamp();
@@ -133,9 +202,9 @@ export async function POST(request: NextRequest) {
         location: body.location,
         specialRequirements: body.specialRequirements,
         status: body.status || 'draft',
-        // 临时使用默认值，认证系统完成后从session获取
+        // 使用当前用户信息
         departmentId: body.departmentId || 'dept_labor',
-        createdById: body.createdById || 'user_admin',
+        createdById: currentUserId || body.createdById || 'user_admin',
         createdAt: now,
       })
       .returning()
