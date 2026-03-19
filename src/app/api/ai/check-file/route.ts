@@ -131,7 +131,7 @@ function generateSystemPrompt(fileType: FileType): string {
 1. 分析提供的文件内容
 2. 从文件中提取讲师、场地、课程、参访基地等信息
 3. 与数据库中已有的数据进行比对
-4. 返回需要新增或更新的数据
+4. **只返回需要新增或更新的数据**
 
 ## 当前文件类型
 ${fileTypeHints[fileType]}
@@ -143,6 +143,16 @@ ${fileTypeHints[fileType]}
 - **不要从无关文件中提取数据**（例如：不要从专家介绍中提取参训人数）
 - 对于同一实体，整合文件中所有相关信息
 - 每条数据必须标注source字段说明来源
+
+### ⚠️ 过滤规则【极其重要】
+**以下情况不要返回记录，直接跳过：**
+1. 数据库中已存在相同姓名的讲师/场地/课程等，且文件中的信息与数据库**完全一致或无新增价值**
+2. 提取的数据为空或只有name字段，没有其他有效信息
+3. 无法从文件中提取到任何有用的数据
+
+**只有以下情况才返回记录：**
+1. **新增**：数据库中不存在该实体，需要新增
+2. **更新**：数据库中存在该实体，但文件中有**新的、不同的、有价值的信息**需要更新
 
 ### 职称识别规则【极其重要】
 **职称（title）字段只能填写专业技术职称，不能填写行政职务！**
@@ -410,8 +420,26 @@ ${fileContent}
         // 验证项目信息
         if (Array.isArray(rawResult.projectInfo)) {
           checkResult.projectInfo = rawResult.projectInfo.filter(
-            (item: { field?: string; extractedValue?: unknown }) => 
-              item.field && item.extractedValue !== undefined && item.extractedValue !== null
+            (item: { field?: string; extractedValue?: unknown; reason?: string }) => {
+              // 过滤无效数据
+              if (!item.field || item.extractedValue === undefined || item.extractedValue === null) {
+                return false;
+              }
+              // 过滤"无需更新"的记录
+              const reasonText = item.reason || '';
+              if (
+                reasonText.includes('无需更新') ||
+                reasonText.includes('无需变更') ||
+                reasonText.includes('信息一致') ||
+                reasonText.includes('数据一致') ||
+                reasonText.includes('无变化') ||
+                reasonText.includes('完全一致')
+              ) {
+                console.log(`过滤项目信息: ${item.field} - ${reasonText}`);
+                return false;
+              }
+              return true;
+            }
           );
         }
 
@@ -443,6 +471,21 @@ ${fileContent}
               
               if (!typedItem.data.name) {
                 console.log(`  跳过: 缺少name字段, data:`, typedItem.data);
+                continue;
+              }
+              
+              // 过滤"无需更新"的记录
+              const reasonText = typedItem.reason || '';
+              if (
+                reasonText.includes('无需更新') ||
+                reasonText.includes('无需变更') ||
+                reasonText.includes('信息一致') ||
+                reasonText.includes('数据一致') ||
+                reasonText.includes('无新增价值') ||
+                reasonText.includes('无变化') ||
+                reasonText.includes('完全一致')
+              ) {
+                console.log(`  跳过: ${reasonText}`);
                 continue;
               }
               
