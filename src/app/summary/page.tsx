@@ -2463,6 +2463,78 @@ export default function SummaryPage() {
     toast.success('已忽略该变更');
   };
 
+  // 将项目课程保存为课程模板
+  const handleSaveAsTemplate = async (item: AiCheckItem) => {
+    try {
+      // 从项目课程数据中提取模板所需字段
+      const courseData = item.data;
+      
+      // 构建课程模板数据
+      const templateData = {
+        name: String(courseData.name || ''),
+        category: courseData.category ? String(courseData.category) : '综合提升',
+        description: courseData.description ? String(courseData.description) : '',
+        duration: courseData.duration ? Number(courseData.duration) : null,
+        targetAudience: courseData.targetAudience ? String(courseData.targetAudience) : '',
+        content: courseData.content ? String(courseData.content) : '',
+        difficulty: courseData.difficulty ? String(courseData.difficulty) : '中级',
+        isActive: true,
+      };
+      
+      const res = await fetch('/api/course-templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(templateData),
+      });
+      
+      if (res.ok) {
+        toast.success('已保存为课程模板', { description: `${templateData.name} 已添加到课程模板库` });
+        
+        // 从结果列表中移除已处理的项
+        if (aiCheckResult) {
+          const newResult = { ...aiCheckResult };
+          const targetArray = newResult.checkResult.projectCourses;
+          if (Array.isArray(targetArray)) {
+            newResult.checkResult.projectCourses = targetArray.filter((i: unknown) => i !== item);
+          }
+          const { projectInfo, teachers, venues, courseTemplates, visitSites, projectCourses } = newResult.checkResult;
+          newResult.totalChanges = 
+            (projectInfo?.length || 0) +
+            teachers.length + 
+            venues.length + 
+            courseTemplates.length + 
+            visitSites.length + 
+            projectCourses.length;
+          newResult.hasChanges = newResult.totalChanges > 0;
+          setAiCheckResult(newResult);
+        }
+        if (fileAiCheckResult) {
+          const newResult = { ...fileAiCheckResult };
+          const targetArray = newResult.checkResult.projectCourses;
+          if (Array.isArray(targetArray)) {
+            newResult.checkResult.projectCourses = targetArray.filter((i: unknown) => i !== item);
+          }
+          const { projectInfo, teachers, venues, courseTemplates, visitSites, projectCourses } = newResult.checkResult;
+          newResult.totalChanges = 
+            (projectInfo?.length || 0) +
+            teachers.length + 
+            venues.length + 
+            courseTemplates.length + 
+            visitSites.length + 
+            projectCourses.length;
+          newResult.hasChanges = newResult.totalChanges > 0;
+          setFileAiCheckResult(newResult);
+        }
+      } else {
+        const errorData = await res.json();
+        throw new Error(errorData.error || '保存失败');
+      }
+    } catch (error) {
+      console.error('Save as template error:', error);
+      toast.error('保存失败', { description: error instanceof Error ? error.message : '请稍后重试' });
+    }
+  };
+
   // 切换展开/折叠
   const toggleSection = (section: string) => {
     setExpandedSections(prev => ({
@@ -2701,7 +2773,18 @@ export default function SummaryPage() {
                       ))}
                     </div>
                   </div>
-                  <div className="flex gap-1 flex-shrink-0">
+                  <div className="flex gap-1 flex-shrink-0 flex-wrap">
+                    {type === 'projectCourses' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs text-purple-600 border-purple-200 hover:bg-purple-50"
+                        onClick={() => handleSaveAsTemplate(item)}
+                      >
+                        <BookOpen className="w-3 h-3 mr-1" />
+                        保存为模板
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
