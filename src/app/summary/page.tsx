@@ -2983,22 +2983,27 @@ export default function SummaryPage() {
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-blue-600" />
               AI数据检查结果
+              {fileAiCheckResult && (
+                <Badge variant="outline" className="ml-2 text-xs">
+                  {fileAiCheckResult.fileName}
+                </Badge>
+              )}
             </DialogTitle>
             <DialogDescription>
-              {aiCheckResult?.hasChanges 
-                ? `发现 ${aiCheckResult.totalChanges} 条数据变更建议，请确认是否添加或更新`
+              {(aiCheckResult || fileAiCheckResult)?.hasChanges 
+                ? `发现 ${(aiCheckResult || fileAiCheckResult)?.totalChanges} 条数据变更建议，请确认是否添加或更新`
                 : '未发现需要更新的数据'}
             </DialogDescription>
           </DialogHeader>
           <div className="overflow-y-auto" style={{ maxHeight: 'calc(90vh - 200px)' }}>
-            {aiCheckResult?.hasChanges ? (
+            {(aiCheckResult || fileAiCheckResult)?.hasChanges ? (
               <div className="space-y-4">
-                {renderProjectInfoItems(aiCheckResult.checkResult.projectInfo)}
-                {renderCheckItems('teachers', aiCheckResult.checkResult.teachers, <UserPlus className="w-4 h-4 text-blue-600" />, '讲师信息')}
-                {renderCheckItems('venues', aiCheckResult.checkResult.venues, <MapPin className="w-4 h-4 text-green-600" />, '场地信息')}
-                {renderCheckItems('courseTemplates', aiCheckResult.checkResult.courseTemplates, <BookOpen className="w-4 h-4 text-purple-600" />, '课程模板')}
-                {renderCheckItems('visitSites', aiCheckResult.checkResult.visitSites, <Building2 className="w-4 h-4 text-orange-600" />, '参访基地')}
-                {renderCheckItems('projectCourses', aiCheckResult.checkResult.projectCourses, <CalendarDays className="w-4 h-4 text-indigo-600" />, '项目课程')}
+                {renderProjectInfoItems((aiCheckResult || fileAiCheckResult)?.checkResult?.projectInfo || [])}
+                {renderCheckItems('teachers', (aiCheckResult || fileAiCheckResult)?.checkResult?.teachers || [], <UserPlus className="w-4 h-4 text-blue-600" />, '讲师信息')}
+                {renderCheckItems('venues', (aiCheckResult || fileAiCheckResult)?.checkResult?.venues || [], <MapPin className="w-4 h-4 text-green-600" />, '场地信息')}
+                {renderCheckItems('courseTemplates', (aiCheckResult || fileAiCheckResult)?.checkResult?.courseTemplates || [], <BookOpen className="w-4 h-4 text-purple-600" />, '课程模板')}
+                {renderCheckItems('visitSites', (aiCheckResult || fileAiCheckResult)?.checkResult?.visitSites || [], <Building2 className="w-4 h-4 text-orange-600" />, '参访基地')}
+                {renderCheckItems('projectCourses', (aiCheckResult || fileAiCheckResult)?.checkResult?.projectCourses || [], <CalendarDays className="w-4 h-4 text-indigo-600" />, '项目课程')}
               </div>
             ) : (
               <div className="text-center py-12">
@@ -3012,13 +3017,16 @@ export default function SummaryPage() {
             <Button variant="outline" onClick={() => setShowAiCheckDialog(false)}>
               关闭
             </Button>
-            {aiCheckResult?.hasChanges && (
+            {(aiCheckResult || fileAiCheckResult)?.hasChanges && (
               <Button onClick={() => {
                 // 一键确认所有变更
+                const currentResult = aiCheckResult || fileAiCheckResult;
+                if (!currentResult) return;
+                
                 const allPromises: Promise<void>[] = [];
                 
                 // 处理项目基本信息
-                aiCheckResult.checkResult.projectInfo.forEach(item => {
+                currentResult.checkResult.projectInfo.forEach(item => {
                   allPromises.push(
                     new Promise<void>((resolve) => {
                       handleConfirmProjectInfo(item);
@@ -3030,7 +3038,7 @@ export default function SummaryPage() {
                 // 处理其他数据类型
                 const otherTypes = ['teachers', 'venues', 'courseTemplates', 'visitSites', 'projectCourses'] as const;
                 otherTypes.forEach(type => {
-                  aiCheckResult.checkResult[type].forEach(item => {
+                  currentResult.checkResult[type].forEach(item => {
                     allPromises.push(
                       new Promise<void>((resolve) => {
                         handleConfirmDataChange(type, item);

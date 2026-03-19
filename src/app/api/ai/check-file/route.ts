@@ -338,9 +338,14 @@ ${fileContent}
         // 解析AI响应
         let rawResult: Record<string, unknown> = {};
         try {
+          console.log('AI原始响应长度:', fullContent.length);
+          console.log('AI原始响应内容(前500字符):', fullContent.substring(0, 500));
           const jsonMatch = fullContent.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
             rawResult = JSON.parse(jsonMatch[0]);
+            console.log('解析后的JSON结果:', JSON.stringify(rawResult, null, 2).substring(0, 1000));
+          } else {
+            console.log('未找到JSON匹配');
           }
         } catch (parseError) {
           console.error('解析AI响应失败:', parseError);
@@ -370,6 +375,7 @@ ${fileContent}
         
         for (const key of tableKeys) {
           const rawItems = rawResult[key];
+          console.log(`处理表 ${key}, 原始数据:`, Array.isArray(rawItems) ? `数组长度${rawItems.length}` : '非数组');
           if (Array.isArray(rawItems)) {
             const validatedItems: CheckResultItem[] = [];
             for (const item of rawItems) {
@@ -382,11 +388,21 @@ ${fileContent}
                 confidence?: string;
               };
               
-              if (!typedItem.data || Object.keys(typedItem.data).length === 0 || !typedItem.data.name) {
+              console.log(`  检查项目:`, JSON.stringify(typedItem.data).substring(0, 200));
+              
+              if (!typedItem.data || Object.keys(typedItem.data).length === 0) {
+                console.log(`  跳过: data为空`);
+                continue;
+              }
+              
+              if (!typedItem.data.name) {
+                console.log(`  跳过: 缺少name字段, data:`, typedItem.data);
                 continue;
               }
               
               const validation = validateAIData(key, typedItem.data);
+              console.log(`  验证结果: errors=${validation.errors.length}, cleanedData=`, JSON.stringify(validation.cleanedData).substring(0, 100));
+              
               const processedData = processDurationField(key, validation.cleanedData) as Record<string, unknown>;
               
               const action: 'add' | 'update' = typedItem.action === 'update' ? 'update' : 'add';
@@ -402,6 +418,7 @@ ${fileContent}
               });
             }
             checkResult[key] = validatedItems;
+            console.log(`表 ${key} 最终验证通过: ${validatedItems.length}条`);
           }
         }
 
@@ -412,6 +429,16 @@ ${fileContent}
           checkResult.courseTemplates.length + 
           checkResult.visitSites.length + 
           checkResult.projectCourses.length;
+
+        console.log('最终结果统计:', {
+          projectInfo: checkResult.projectInfo?.length || 0,
+          teachers: checkResult.teachers.length,
+          venues: checkResult.venues.length,
+          courseTemplates: checkResult.courseTemplates.length,
+          visitSites: checkResult.visitSites.length,
+          projectCourses: checkResult.projectCourses.length,
+          totalChanges,
+        });
 
         // 发送最终结果
         sendEvent({
