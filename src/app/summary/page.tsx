@@ -226,7 +226,7 @@ export default function SummaryPage() {
   });
 
   // 单文件AI检查状态
-  const [fileAiChecking, setFileAiChecking] = useState<string | null>(null); // 当前正在检查的文件类型
+  const [fileAiChecking, setFileAiChecking] = useState<string | null>(null); // 当前正在检查的文件key
   const [fileAiCheckResult, setFileAiCheckResult] = useState<{
     fileType: string;
     fileName: string;
@@ -1165,9 +1165,9 @@ export default function SummaryPage() {
             size="sm"
             className="h-7 text-xs border-purple-200 text-purple-600 hover:bg-purple-50"
             onClick={() => handleFileAiCheck(aiCheckFileType, aiCheckFileKey, aiCheckFileName || '')}
-            disabled={fileAiChecking === aiCheckFileType}
+            disabled={fileAiChecking === aiCheckFileKey}
           >
-            {fileAiChecking === aiCheckFileType ? (
+            {fileAiChecking === aiCheckFileKey ? (
               <>
                 <Loader2 className="w-3 h-3 mr-1 animate-spin" />
                 检查中...
@@ -1451,9 +1451,9 @@ export default function SummaryPage() {
               size="sm"
               className="h-7 text-xs border-purple-200 text-purple-600 hover:bg-purple-50"
               onClick={() => handleFileAiCheck(aiCheckFileType, fileKey, fileName || '')}
-              disabled={fileAiChecking === aiCheckFileType}
+              disabled={fileAiChecking === fileKey}
             >
-              {fileAiChecking === aiCheckFileType ? (
+              {fileAiChecking === fileKey ? (
                 <>
                   <Loader2 className="w-3 h-3 mr-1 animate-spin" />
                   检查中...
@@ -2023,9 +2023,9 @@ export default function SummaryPage() {
                         size="sm" 
                         className="h-6 px-2 text-xs border-purple-200 text-purple-600 hover:bg-purple-50" 
                         onClick={() => handleFileAiCheck('other', file.key, file.name)}
-                        disabled={fileAiChecking === 'other'}
+                        disabled={fileAiChecking === file.key}
                       >
-                        {fileAiChecking === 'other' ? (
+                        {fileAiChecking === file.key ? (
                           <Loader2 className="w-3 h-3 animate-spin" />
                         ) : (
                           <Brain className="w-3 h-3" />
@@ -2206,7 +2206,7 @@ export default function SummaryPage() {
   const handleFileAiCheck = async (fileType: string, fileKey: string, fileName: string) => {
     if (!selectedProject || !fileKey) return;
     
-    setFileAiChecking(fileType);
+    setFileAiChecking(fileKey); // 使用fileKey作为唯一标识
     setFileAiCheckResult(null);
     
     try {
