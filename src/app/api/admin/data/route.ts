@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { 
   db, teachers, venues, courses, normativeDocuments, 
   projects, satisfactionSurveys, visitSites,
+  userProfiles, userTrainingRecords,
   eq, desc, sql, and,
   saveDatabaseImmediate, ensureDatabaseReady
 } from '@/storage/database';
@@ -19,6 +20,8 @@ const tableMap = {
   project_courses: courses, // 兼容旧API，指向courses表
   satisfaction_surveys: satisfactionSurveys,
   visit_sites: visitSites,
+  user_profiles: userProfiles,
+  user_training_records: userTrainingRecords,
 } as const;
 
 type TableName = keyof typeof tableMap;
