@@ -1043,6 +1043,12 @@ export default function DesignPage() {
         return;
       }
       
+      // 验证课时范围
+      if (editingCourse.duration < 1 || editingCourse.duration > 8) {
+        showToast('error', '课时必须在1-8之间');
+        return;
+      }
+      
       const newCourses = [...courses];
       if (editingCourseIndex >= courses.length) {
         // 新增课程
@@ -1053,6 +1059,10 @@ export default function DesignPage() {
         newCourses[editingCourseIndex] = editingCourse;
         showToast('success', '课程已更新');
       }
+      
+      // 按天数排序课程
+      newCourses.sort((a, b) => a.day - b.day);
+      
       setCourses(newCourses);
       setShowEditCourseDialog(false);
       setEditingCourse(null);
@@ -2465,18 +2475,30 @@ export default function DesignPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>培训天数</Label>
+                    <Label>安排在第几天</Label>
                     <Input
                       type="number"
+                      min={1}
                       value={editingCourse.day}
                       onChange={(e) => setEditingCourse({ ...editingCourse, day: parseInt(e.target.value) || 1 })}
                     />
+                    <p className="text-xs text-muted-foreground">保存后将自动按天数排序</p>
                   </div>
                   <div className="space-y-2">
                     <Label>课时</Label>
                     <Select
-                      value={String(editingCourse.duration || 4)}
-                      onValueChange={(value) => setEditingCourse({ ...editingCourse, duration: parseInt(value) })}
+                      value={editingCourse.duration === 1 || editingCourse.duration === 2 || editingCourse.duration === 4 ? String(editingCourse.duration) : 'other'}
+                      onValueChange={(value) => {
+                        if (value === 'other') {
+                          // 保持当前的自定义课时，如果没有则默认为3
+                          setEditingCourse({ 
+                            ...editingCourse, 
+                            duration: editingCourse.duration !== 1 && editingCourse.duration !== 2 && editingCourse.duration !== 4 ? editingCourse.duration : 3 
+                          });
+                        } else {
+                          setEditingCourse({ ...editingCourse, duration: parseInt(value) });
+                        }
+                      }}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="选择课时" />
@@ -2485,9 +2507,21 @@ export default function DesignPage() {
                         <SelectItem value="1">1课时（约1小时）</SelectItem>
                         <SelectItem value="2">2课时（约2小时）</SelectItem>
                         <SelectItem value="4">4课时（半天）</SelectItem>
+                        <SelectItem value="other">其他（自定义）</SelectItem>
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-muted-foreground">标准课时单位，方便安排课程表</p>
+                    {editingCourse.duration !== 1 && editingCourse.duration !== 2 && editingCourse.duration !== 4 && (
+                      <Input
+                        type="number"
+                        min={1}
+                        max={8}
+                        value={editingCourse.duration}
+                        onChange={(e) => setEditingCourse({ ...editingCourse, duration: parseInt(e.target.value) || 1 })}
+                        placeholder="输入课时数（1-8）"
+                        className="mt-2"
+                      />
+                    )}
+                    <p className="text-xs text-muted-foreground">建议使用标准课时，特殊情况可选"其他"</p>
                   </div>
                 </div>
                 {/* 根据类型显示不同字段 */}
