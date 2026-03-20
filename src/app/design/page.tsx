@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import MainLayout from '@/components/layout/main-layout';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -162,11 +162,11 @@ export default function DesignPage() {
   // Toast 消息状态
   const [toast, setToast] = useState<ToastMessage | null>(null);
   
-  // 显示 toast 消息
-  const showToast = (type: ToastMessage['type'], text: string) => {
+  // 显示 toast 消息 - 使用 useCallback 避免重复创建
+  const showToast = useCallback((type: ToastMessage['type'], text: string) => {
     setToast({ type, text });
     setTimeout(() => setToast(null), 3000);
-  };
+  }, []);
   
   const [formData, setFormData] = useState<ProjectFormData>({
     name: '',
@@ -248,10 +248,6 @@ export default function DesignPage() {
   const [apiKeyConfigured, setApiKeyConfigured] = useState<boolean | null>(null);
   const [pendingAiAction, setPendingAiAction] = useState<(() => void) | null>(null);
   
-  // ===== 优化：保存状态管理 =====
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
-  const [lastSaveTime, setLastSaveTime] = useState<Date | null>(null);
-  
   // 使用 ref 存储防抖定时器和上一次保存的数据
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastSavedDataRef = useRef<string>('');
@@ -261,39 +257,23 @@ export default function DesignPage() {
   const coursesRef = useRef(courses);
   const projectIdRef = useRef(projectId);
   
-  // 更新 ref
+  // 保存状态管理
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  const [lastSaveTime, setLastSaveTime] = useState<Date | null>(null);
+  
+  // 更新 ref（批量更新，减少 useEffect 数量）
   useEffect(() => {
     formDataRef.current = formData;
-  }, [formData]);
-  
-  useEffect(() => {
     coursesRef.current = courses;
-  }, [courses]);
-  
-  useEffect(() => {
     projectIdRef.current = projectId;
-  }, [projectId]);
+  }, [formData, courses, projectId]);
   
   // 记录原始加载的项目名称，用于判断是否需要新建项目
   const [originalProjectName, setOriginalProjectName] = useState<string>('');
   const [showSaveAsNewDialog, setShowSaveAsNewDialog] = useState(false);
   const [pendingAction, setPendingAction] = useState<'next' | 'save' | null>(null);
   
-  // 更新 ref
-  useEffect(() => {
-    formDataRef.current = formData;
-  }, [formData]);
-  
-  useEffect(() => {
-    coursesRef.current = courses;
-  }, [courses]);
-  
-  // 手动保存（用户点击保存按钮时立即保存）
-  const handleManualSave = useCallback(async () => {
-    await performSave();
-  }, []);
-
-  // 实际执行保存的函数
+  // 实际执行保存的函数（必须在 handleManualSave 之前定义）
   const performSave = useCallback(async () => {
     // 使用 ref 获取最新数据，避免闭包问题
     const currentFormData = formDataRef.current;
@@ -368,7 +348,12 @@ export default function DesignPage() {
       showToast('error', '保存失败，请重试');
       setTimeout(() => setSaveStatus('idle'), 3000);
     }
-  }, [selectedVenue, noBudgetLimit, otherTrainingPeriod]);
+  }, [selectedVenue, noBudgetLimit, otherTrainingPeriod, showToast]);
+
+  // 手动保存（用户点击保存按钮时立即保存）
+  const handleManualSave = useCallback(async () => {
+    await performSave();
+  }, [performSave]);
 
   // 优化后的自动保存：防抖 30 秒，且只在数据变化时保存
   useEffect(() => {

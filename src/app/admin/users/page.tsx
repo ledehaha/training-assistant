@@ -34,7 +34,7 @@ import {
   Loader2, Search, RefreshCw, Shield, Building2
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useAuth, usePermission } from '@/hooks/useAuth';
+import { useAuth, usePermission } from '@/contexts/AuthContext';
 
 interface User {
   id: string;
@@ -61,8 +61,8 @@ interface User {
 }
 
 export default function UserManagementPage() {
-  const { user, authenticated, loading: authLoading } = useAuth();
-  const { canApproveUser, isAdmin } = usePermission(user, authenticated);
+  const { user, loading: authLoading } = useAuth();
+  const { canApproveUser, isAdmin, authenticated } = usePermission();
   
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
