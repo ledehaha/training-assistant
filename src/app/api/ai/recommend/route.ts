@@ -316,18 +316,22 @@ ${templateContext}${visitSitesContext}${userProfileContext}
    - 参访通常安排2-4课时，计入总课时
    - 参访内容应与培训主题相关
 3. 所有课程必须紧扣培训主题，不要生成无关课程
-4. 总课时必须严格等于${totalHours}课时，不能多也不能少
-5. 【重要】根据"平均每天课时"合理安排每天的课时量：
+4. 【课时控制 - 最重要】
+   - 总课时必须严格等于${totalHours}课时，一点都不能多也不能少
+   - 生成完成后请逐一累加每门课程的duration，确保总和等于${totalHours}
+   - 如果总课时不等于${totalHours}，需要增减课程直到正好相等
+5. 【单门课程课时数 - 必须遵守】
+   - 课时数只能是：1、2、4 这三个数字
+   - 4课时 = 标准半天课程（上午或下午）
+   - 2课时 = 短课程（约2小时）
+   - 1课时 = 极短课程（约1小时）
+   - 【禁止】生成3、5、6、7、8等其他课时数
+   - 【禁止】生成大于4的课时数
+6. 【重要】根据"平均每天课时"合理安排每天的课时量：
    - 如果平均每天≤4课时：每天安排半天课程即可
    - 如果平均每天在5-8课时：安排上午+下午的课程
    - 如果平均每天>8课时：可以考虑安排晚上课程
    - 不要机械地每天安排相同课时，可以有适当变化
-6. 每门课程时长必须是4课时或2课时：
-   - 4课时 = 半天（上午或下午的标准单位）
-   - 2课时 = 短课程（如晚上课程）
-   - 参访活动可以是2-4课时
-   - 禁止生成6、8、10、12课时的单门课程
-   - 如果内容较多需要拆分为多门课程，命名使用"（上）"、"（下）"、"（中）"区分
 7. 【讲师信息填写规则 - 非常重要】：
    - 使用模板课程时：isFromTemplate=true，templateId填写模板ID，teacherName填写模板中推荐的讲师姓名
    - 不使用模板（AI自行设计课程）：isFromTemplate=false，teacherTitle填写建议讲师职称（如"副教授"、"高级工程师"等）
@@ -340,7 +344,7 @@ ${templateContext}${visitSitesContext}${userProfileContext}
     {
       "day": 1, 
       "name": "课程名或参访活动名", 
-      "duration": 4, 
+      "duration": 4,  // 只能是1、2、4
       "description": "内容概述", 
       "category": "类别", 
       "type": "course或visit",
@@ -353,39 +357,19 @@ ${templateContext}${visitSitesContext}${userProfileContext}
       "isFromVisitLibrary": true或false
     }
   ],
-  "summary": "方案说明",
-  "templateUsage": {"used": 3, "total": 5},
-  "visitUsage": {"used": 1, "total": 2}
+  "totalDurationCheck": 32,  // 请填写所有课程的课时总和，必须等于${totalHours}
+  "summary": "方案说明"
 }
 
-【字段填写示例】：
-示例1 - 使用模板课程（有推荐讲师）：
-{
-  "name": "管理学基础",
-  "isFromTemplate": true,
-  "templateId": "tmpl_001",
-  "teacherName": "张教授",
-  "teacherTitle": null
-}
+【课时计算示例】：
+假设总课时=32，可以这样安排：
+- 8门课程，每门4课时 = 32课时 ✓
+- 6门课程，每门4课时 + 4门课程，每门2课时 = 32课时 ✓
+- 7门课程，每门4课时 + 2门课程，每门2课时 = 32课时 ✓
 
-示例2 - AI自行设计课程（无模板）：
-{
-  "name": "团队建设与沟通",
-  "isFromTemplate": false,
-  "templateId": null,
-  "teacherName": null,
-  "teacherTitle": "副教授"
-}
-
-示例3 - 参访活动：
-{
-  "name": "参观XX企业",
-  "type": "visit",
-  "isFromTemplate": false,
-  "isFromVisitLibrary": true,
-  "visitSiteId": "site_001",
-  "visitSiteName": "XX企业"
-}
+【错误示例】：
+- 生成一门6课时的课程 ✗（课时数只能是1、2、4）
+- 总课时是30或34 ✗（必须正好等于${totalHours}）
 
 只返回JSON。`;
         break;
@@ -409,9 +393,17 @@ ${projectData.modifySuggestion}
 
 要求：
 1. 根据意见调整课程，保持与培训主题相关
-2. 总课时必须严格等于${projectData.trainingHours || 32}课时
-3. 根据"平均每天课时"合理安排每天的课时量，不要机械地每天排满
-4. 课程时长必须是4课时或2课时，禁止生成6、8、10、12课时的单门课程
+2. 【课时控制 - 最重要】
+   - 总课时必须严格等于${projectData.trainingHours || 32}课时，一点都不能多也不能少
+   - 生成完成后请逐一累加每门课程的duration，确保总和等于${projectData.trainingHours || 32}
+3. 【单门课程课时数 - 必须遵守】
+   - 课时数只能是：1、2、4 这三个数字
+   - 4课时 = 标准半天课程（上午或下午）
+   - 2课时 = 短课程（约2小时）
+   - 1课时 = 极短课程（约1小时）
+   - 【禁止】生成3、5、6、7、8等其他课时数
+   - 【禁止】生成大于4的课时数
+4. 根据"平均每天课时"合理安排每天的课时量，不要机械地每天排满
 5. 如果内容较多需要拆分为多门课程，命名使用"（上）"、"（下）"、"（中）"区分
 
 返回JSON格式：
@@ -419,10 +411,11 @@ ${projectData.modifySuggestion}
   "courses": [
     {"day": 1, "name": "课程名", "duration": 4, "description": "概述", "category": "类别", "teacherTitle": "职称"}
   ],
+  "totalDurationCheck": ${projectData.trainingHours || 32},
   "summary": "调整说明"
 }
 
-只返回JSON。`;
+注意：只返回JSON数据，不要包含任何解释或思考过程。`;
         break;
 
       case 'teachers': {

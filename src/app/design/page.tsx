@@ -2474,11 +2474,20 @@ export default function DesignPage() {
                   </div>
                   <div className="space-y-2">
                     <Label>课时</Label>
-                    <Input
-                      type="number"
-                      value={editingCourse.duration}
-                      onChange={(e) => setEditingCourse({ ...editingCourse, duration: parseInt(e.target.value) || 4 })}
-                    />
+                    <Select
+                      value={String(editingCourse.duration || 4)}
+                      onValueChange={(value) => setEditingCourse({ ...editingCourse, duration: parseInt(value) })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="选择课时" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">1课时（约1小时）</SelectItem>
+                        <SelectItem value="2">2课时（约2小时）</SelectItem>
+                        <SelectItem value="4">4课时（半天）</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">标准课时单位，方便安排课程表</p>
                   </div>
                 </div>
                 {/* 根据类型显示不同字段 */}
