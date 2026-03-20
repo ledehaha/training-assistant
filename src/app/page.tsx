@@ -2,6 +2,9 @@ import MainLayout from '@/components/layout/main-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { FolderKanban, Users, GraduationCap, CheckCircle, Clock, TrendingUp } from 'lucide-react';
 
+// 动态渲染，避免静态生成时的错误
+export const dynamic = 'force-dynamic';
+
 // 模拟统计数据
 const stats = [
   { name: '进行中项目', value: '12', icon: FolderKanban, color: 'bg-blue-500', change: '+2' },
