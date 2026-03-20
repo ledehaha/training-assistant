@@ -231,6 +231,7 @@ export default function DesignPage() {
   const [aiAdjusting, setAiAdjusting] = useState(false);
   const [showCourseLibrary, setShowCourseLibrary] = useState(false);
   const [courseLibraryList, setCourseLibraryList] = useState<Course[]>([]);
+  const [visitSiteLibraryList, setVisitSiteLibraryList] = useState<VisitSite[]>([]);
   const [loadingCourseLibrary, setLoadingCourseLibrary] = useState(false);
   
   // 智能需求分析
@@ -1154,20 +1155,36 @@ export default function DesignPage() {
     }
   };
 
-  // 加载课程库
+  // 加载课程库或参访基地库
   const loadCourseLibrary = async () => {
     setLoadingCourseLibrary(true);
     try {
-      const response = await fetch('/api/courses/templates');
-      if (!response.ok) {
-        throw new Error('加载课程库失败');
+      // 根据课程类型加载不同的数据
+      if (editingCourse?.type === 'visit') {
+        // 加载参访基地列表
+        const response = await fetch('/api/admin/data?table=visit_sites');
+        if (!response.ok) {
+          throw new Error('加载参访基地库失败');
+        }
+        const data = await response.json();
+        const activeSites = (data.data || []).filter((s: VisitSite) => s.isActive);
+        setVisitSiteLibraryList(activeSites);
+        setCourseLibraryList([]); // 清空课程模板列表
+        setShowCourseLibrary(true);
+      } else {
+        // 加载课程模板列表
+        const response = await fetch('/api/courses/templates');
+        if (!response.ok) {
+          throw new Error('加载课程库失败');
+        }
+        const data = await response.json();
+        setCourseLibraryList(data.templates || []);
+        setVisitSiteLibraryList([]); // 清空参访基地列表
+        setShowCourseLibrary(true);
       }
-      const data = await response.json();
-      setCourseLibraryList(data.templates || []);
-      setShowCourseLibrary(true);
     } catch (error) {
-      console.error('加载课程库失败:', error);
-      showToast('error', '加载课程库失败');
+      console.error('加载库失败:', error);
+      showToast('error', editingCourse?.type === 'visit' ? '加载参访基地库失败' : '加载课程库失败');
     } finally {
       setLoadingCourseLibrary(false);
     }
@@ -1189,6 +1206,28 @@ export default function DesignPage() {
       });
       setShowCourseLibrary(false);
       showToast('success', `已选择课程：${template.name}`);
+    }
+  };
+
+  // 从参访基地库选择
+  const handleSelectFromVisitLibrary = (site: VisitSite) => {
+    if (editingCourse) {
+      setEditingCourse({
+        ...editingCourse,
+        name: `参访：${site.name}`,
+        duration: site.visitDuration || 3,
+        description: site.visitContent || site.description || '',
+        category: '参访',
+        visitSiteId: site.id,
+        visitSiteName: site.name,
+        visitSiteAddress: site.address,
+        visitDuration: site.visitDuration,
+        visitFee: site.visitFee,
+        location: site.address,
+        isFromVisitLibrary: true,
+      });
+      setShowCourseLibrary(false);
+      showToast('success', `已选择参访基地：${site.name}`);
     }
   };
 
@@ -2596,7 +2635,9 @@ export default function DesignPage() {
                       <Input
                         value={aiAdjustText}
                         onChange={(e) => setAiAdjustText(e.target.value)}
-                        placeholder="输入调整需求，如：增加实践环节、调整难度..."
+                        placeholder={editingCourse.type === 'visit' 
+                          ? "输入调整需求，如：调整参访内容、修改时长..." 
+                          : "输入调整需求，如：增加实践环节、调整难度..."}
                         className="flex-1"
                       />
                       <Button
@@ -2612,7 +2653,7 @@ export default function DesignPage() {
                         <span className="ml-1 hidden sm:inline">AI调整</span>
                       </Button>
                     </div>
-                    {/* 从课程库选择 */}
+                    {/* 从课程库/参访基地库选择 */}
                     <Button
                       variant="outline"
                       size="sm"
@@ -2622,10 +2663,14 @@ export default function DesignPage() {
                     >
                       {loadingCourseLibrary ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : editingCourse.type === 'visit' ? (
+                        <MapPin className="w-4 h-4" />
                       ) : (
                         <BookOpen className="w-4 h-4" />
                       )}
-                      <span className="ml-2">从课程库选择</span>
+                      <span className="ml-2">
+                        {editingCourse.type === 'visit' ? '从参访基地库选择' : '从课程库选择'}
+                      </span>
                     </Button>
                   </div>
                 </div>
@@ -2848,66 +2893,137 @@ export default function DesignPage() {
           </DialogContent>
         </Dialog>
 
-        {/* 课程库选择对话框 */}
+        {/* 课程库/参访基地选择对话框 */}
         <Dialog open={showCourseLibrary} onOpenChange={setShowCourseLibrary}>
           <DialogContent className="max-w-3xl max-h-[70vh] overflow-hidden flex flex-col">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <BookOpen className="h-5 w-5" />
-                从课程库选择
+                {editingCourse?.type === 'visit' ? (
+                  <>
+                    <MapPin className="h-5 w-5" />
+                    从参访基地库选择
+                  </>
+                ) : (
+                  <>
+                    <BookOpen className="h-5 w-5" />
+                    从课程库选择
+                  </>
+                )}
               </DialogTitle>
               <DialogDescription>
-                选择合适的课程模板，快速填充课程信息
+                {editingCourse?.type === 'visit'
+                  ? '选择合适的参访基地，快速填充参访信息'
+                  : '选择合适的课程模板，快速填充课程信息'}
               </DialogDescription>
             </DialogHeader>
             <div className="flex-1 overflow-auto">
-              {courseLibraryList.length > 0 ? (
-                <div className="space-y-2">
-                  {courseLibraryList.map((template) => (
-                    <div
-                      key={template.id}
-                      className="p-3 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
-                      onClick={() => handleSelectFromLibrary(template)}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <div className="font-medium">{template.name}</div>
-                          {template.description && (
-                            <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                              {template.description}
-                            </p>
-                          )}
-                          <div className="flex gap-2 mt-2 flex-wrap">
-                            {template.category && (
-                              <Badge variant="secondary" className="text-xs">
-                                {template.category}
-                              </Badge>
+              {/* 参访基地列表 */}
+              {editingCourse?.type === 'visit' ? (
+                visitSiteLibraryList.length > 0 ? (
+                  <div className="space-y-2">
+                    {visitSiteLibraryList.map((site) => (
+                      <div
+                        key={site.id}
+                        className="p-3 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                        onClick={() => handleSelectFromVisitLibrary(site)}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="font-medium">{site.name}</div>
+                            {site.description && (
+                              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                                {site.description}
+                              </p>
                             )}
-                            {template.duration && (
-                              <Badge variant="outline" className="text-xs">
-                                {template.duration}课时
-                              </Badge>
-                            )}
-                            {template.teacherTitle && (
-                              <Badge variant="outline" className="text-xs">
-                                {template.teacherTitle}
-                              </Badge>
-                            )}
+                            <div className="flex gap-2 mt-2 flex-wrap">
+                              {site.type && (
+                                <Badge variant="secondary" className="text-xs">
+                                  {site.type === 'enterprise' ? '企业' : 
+                                   site.type === 'government' ? '政府部门' : 
+                                   site.type === 'institution' ? '事业单位' : '其他'}
+                                </Badge>
+                              )}
+                              {site.industry && (
+                                <Badge variant="outline" className="text-xs">
+                                  {site.industry}
+                                </Badge>
+                              )}
+                              {site.visitDuration && (
+                                <Badge variant="outline" className="text-xs">
+                                  建议{site.visitDuration}小时
+                                </Badge>
+                              )}
+                              {site.visitFee !== undefined && site.visitFee > 0 && (
+                                <Badge variant="outline" className="text-xs text-orange-600">
+                                  ¥{site.visitFee}/人
+                                </Badge>
+                              )}
+                            </div>
                           </div>
+                          <Button size="sm" variant="ghost">
+                            <Check className="w-4 h-4" />
+                          </Button>
                         </div>
-                        <Button size="sm" variant="ghost">
-                          <Check className="w-4 h-4" />
-                        </Button>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                    <MapPin className="w-12 h-12 mb-2 opacity-50" />
+                    <p>参访基地库暂无数据</p>
+                    <p className="text-xs mt-1">请先在数据管理中添加参访基地</p>
+                  </div>
+                )
               ) : (
-                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                  <BookOpen className="w-12 h-12 mb-2 opacity-50" />
-                  <p>课程库暂无模板</p>
-                  <p className="text-xs mt-1">请先在数据管理中添加课程模板</p>
-                </div>
+                /* 课程模板列表 */
+                courseLibraryList.length > 0 ? (
+                  <div className="space-y-2">
+                    {courseLibraryList.map((template) => (
+                      <div
+                        key={template.id}
+                        className="p-3 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                        onClick={() => handleSelectFromLibrary(template)}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="font-medium">{template.name}</div>
+                            {template.description && (
+                              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                                {template.description}
+                              </p>
+                            )}
+                            <div className="flex gap-2 mt-2 flex-wrap">
+                              {template.category && (
+                                <Badge variant="secondary" className="text-xs">
+                                  {template.category}
+                                </Badge>
+                              )}
+                              {template.duration && (
+                                <Badge variant="outline" className="text-xs">
+                                  {template.duration}课时
+                                </Badge>
+                              )}
+                              {template.teacherTitle && (
+                                <Badge variant="outline" className="text-xs">
+                                  {template.teacherTitle}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                          <Button size="sm" variant="ghost">
+                            <Check className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                    <BookOpen className="w-12 h-12 mb-2 opacity-50" />
+                    <p>课程库暂无模板</p>
+                    <p className="text-xs mt-1">请先在数据管理中添加课程模板</p>
+                  </div>
+                )
               )}
             </div>
             <div className="flex justify-end pt-4 border-t">
