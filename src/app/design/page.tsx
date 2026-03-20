@@ -264,6 +264,7 @@ export default function DesignPage() {
   const formDataRef = useRef(formData);
   const coursesRef = useRef(courses);
   const projectIdRef = useRef(projectId);
+  const selectedVenueRef = useRef(selectedVenue);
   
   // 保存状态管理
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
@@ -274,7 +275,8 @@ export default function DesignPage() {
     formDataRef.current = formData;
     coursesRef.current = courses;
     projectIdRef.current = projectId;
-  }, [formData, courses, projectId]);
+    selectedVenueRef.current = selectedVenue;
+  }, [formData, courses, projectId, selectedVenue]);
   
   // 记录原始加载的项目名称，用于判断是否需要新建项目
   const [originalProjectName, setOriginalProjectName] = useState<string>('');
@@ -287,6 +289,7 @@ export default function DesignPage() {
     const currentFormData = formDataRef.current;
     const currentCourses = coursesRef.current;
     const currentProjectId = projectIdRef.current;
+    const currentSelectedVenue = selectedVenueRef.current;
     
     // 检查是否有内容需要保存
     if (!currentFormData.name?.trim() && !currentProjectId) return;
@@ -295,7 +298,7 @@ export default function DesignPage() {
     const currentData = JSON.stringify({
       formData: currentFormData,
       courses: currentCourses,
-      selectedVenueId: selectedVenue?.id,
+      selectedVenueId: currentSelectedVenue?.id,
     });
     
     if (currentData === lastSavedDataRef.current) {
@@ -312,7 +315,7 @@ export default function DesignPage() {
         trainingPeriod: currentFormData.trainingPeriod === '其他' ? otherTrainingPeriod : currentFormData.trainingPeriod,
         status: 'draft',
         courses: currentCourses,
-        selectedVenueId: selectedVenue?.id,
+        selectedVenueId: currentSelectedVenue?.id,
       };
 
       // 获取session token
@@ -356,7 +359,7 @@ export default function DesignPage() {
       showToast('error', '保存失败，请重试');
       setTimeout(() => setSaveStatus('idle'), 3000);
     }
-  }, [selectedVenue, noBudgetLimit, otherTrainingPeriod, showToast]);
+  }, [noBudgetLimit, otherTrainingPeriod, showToast]);
 
   // 手动保存（用户点击保存按钮时立即保存）
   const handleManualSave = useCallback(async () => {
