@@ -91,19 +91,19 @@ export async function GET(request: NextRequest) {
       ? statusParam.split(',').map(s => s.trim()).filter(Boolean)
       : [];
     
-    // 草稿项目：如果用户已登录，只显示该用户创建的；如果未登录，显示所有草稿（兼容旧数据）
+    // 草稿项目：严格按用户隔离，只显示当前用户创建的
     const isDraftOnly = statuses.length === 1 && statuses[0] === 'draft';
     
     if (isDraftOnly) {
       if (currentUserId) {
-        // 已登录：显示该用户的草稿 + 默认用户创建的旧草稿（兼容历史数据）
+        // 已登录：只显示该用户创建的草稿
         if (search) {
           results = db
             .select()
             .from(projects)
             .where(and(
               eq(projects.status, 'draft'),
-              sql`(${projects.createdById} = ${currentUserId} OR ${projects.createdById} = 'user_admin')`,
+              eq(projects.createdById, currentUserId),
               sql`${projects.name} LIKE ${'%' + search + '%'}`
             ))
             .orderBy(desc(projects.createdAt))
@@ -114,31 +114,14 @@ export async function GET(request: NextRequest) {
             .from(projects)
             .where(and(
               eq(projects.status, 'draft'),
-              sql`(${projects.createdById} = ${currentUserId} OR ${projects.createdById} = 'user_admin')`
+              eq(projects.createdById, currentUserId)
             ))
             .orderBy(desc(projects.createdAt))
             .all();
         }
       } else {
-        // 未登录或无法获取用户ID：显示所有草稿（包括用默认user_admin创建的旧草稿）
-        if (search) {
-          results = db
-            .select()
-            .from(projects)
-            .where(and(
-              eq(projects.status, 'draft'),
-              sql`${projects.name} LIKE ${'%' + search + '%'}`
-            ))
-            .orderBy(desc(projects.createdAt))
-            .all();
-        } else {
-          results = db
-            .select()
-            .from(projects)
-            .where(eq(projects.status, 'draft'))
-            .orderBy(desc(projects.createdAt))
-            .all();
-        }
+        // 未登录：返回空列表
+        results = [];
       }
     } else if (statuses.length > 1 && search) {
       // 多状态 + 搜索
