@@ -447,6 +447,29 @@ const createTablesSQL = `
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
   );
   CREATE INDEX IF NOT EXISTS project_documents_project_id_idx ON project_documents(project_id);
+  
+  -- 项目共享表
+  CREATE TABLE IF NOT EXISTS project_shares (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    shared_by TEXT NOT NULL,
+    shared_with TEXT NOT NULL,
+    status TEXT DEFAULT 'pending',
+    request_message TEXT,
+    response_message TEXT,
+    requested_at TEXT DEFAULT (datetime('now')),
+    responded_at TEXT,
+    expires_at TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    FOREIGN KEY (shared_by) REFERENCES users(id),
+    FOREIGN KEY (shared_with) REFERENCES users(id)
+  );
+  CREATE INDEX IF NOT EXISTS project_shares_project_id_idx ON project_shares(project_id);
+  CREATE INDEX IF NOT EXISTS project_shares_shared_by_idx ON project_shares(shared_by);
+  CREATE INDEX IF NOT EXISTS project_shares_shared_with_idx ON project_shares(shared_with);
+  CREATE INDEX IF NOT EXISTS project_shares_status_idx ON project_shares(status);
+  
   CREATE TABLE IF NOT EXISTS user_profiles (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,

@@ -475,6 +475,30 @@ export const projects = sqliteTable(
   ]
 );
 
+// 项目共享表 - 用于归档项目的详情共享
+export const projectShares = sqliteTable(
+  'project_shares',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+    sharedBy: text('shared_by').notNull().references(() => users.id), // 共享者/审批人ID（项目创建者）
+    sharedWith: text('shared_with').notNull().references(() => users.id), // 被共享者ID
+    status: text('status').default('pending'), // pending(待审批) / approved(已批准) / rejected(已拒绝)
+    requestMessage: text('request_message'), // 申请留言
+    responseMessage: text('response_message'), // 审批留言
+    requestedAt: text('requested_at').default(sql`datetime('now')`), // 申请时间
+    respondedAt: text('responded_at'), // 审批时间
+    expiresAt: text('expires_at'), // 过期时间（可选）
+    createdAt: text('created_at').default(sql`datetime('now')`).notNull(),
+  },
+  (table) => [
+    index('project_shares_project_id_idx').on(table.projectId),
+    index('project_shares_shared_by_idx').on(table.sharedBy),
+    index('project_shares_shared_with_idx').on(table.sharedWith),
+    index('project_shares_status_idx').on(table.status),
+  ]
+);
+
 // 项目课程关联表（已废弃，请使用 courses 表）
 // @deprecated 使用 courses 表，设置 isTemplate = false 并关联 projectId
 export const projectCourses = sqliteTable(

@@ -364,6 +364,57 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: '缺少记录ID' }, { status: 400 });
     }
 
+    // 获取当前用户信息
+    const authHeader = request.headers.get('authorization');
+    const cookieStore = await cookies();
+    const sessionCookie = cookieStore.get('session');
+    
+    let currentUser: { userId: string; departmentId?: string; roleCode?: string } | null = null;
+    
+    // 从 Authorization header 解析
+    if (authHeader?.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.substring(7);
+        const decoded = Buffer.from(token, 'base64').toString('utf-8');
+        currentUser = JSON.parse(decoded);
+      } catch (e) {
+        console.error('Failed to parse auth token:', e);
+      }
+    }
+    
+    // 或从 Cookie 解析
+    if (!currentUser && sessionCookie?.value) {
+      try {
+        currentUser = JSON.parse(sessionCookie.value);
+      } catch (e) {
+        console.error('Failed to parse session cookie:', e);
+      }
+    }
+
+    // 规范性文件删除权限检查
+    if (table === 'normative_documents') {
+      // 管理员可以删除所有
+      const isAdmin = currentUser?.roleCode === 'admin';
+      
+      if (!isAdmin && currentUser) {
+        // 非管理员：检查是否是创建者
+        const doc = db
+          .select()
+          .from(normativeDocuments)
+          .where(sql`id = ${id}`)
+          .limit(1)
+          .all();
+        
+        if (doc.length === 0) {
+          return NextResponse.json({ error: '文档不存在' }, { status: 404 });
+        }
+        
+        if (doc[0].createdBy !== currentUser.userId) {
+          return NextResponse.json({ error: '只有创建者或管理员可以删除此文档' }, { status: 403 });
+        }
+      }
+    }
+
     // 根据表执行删除
     const tableSchema = tableMap[table];
     db.delete(tableSchema).where(sql`id = ${id}`).run();

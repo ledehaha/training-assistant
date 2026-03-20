@@ -1,63 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { db, projects, courses, eq, desc, sql, and, saveDatabaseImmediate, ensureDatabaseReady, getSqlite } from '@/storage/database';
+import { db, projects, courses, departments, eq, desc, sql, and, or, saveDatabaseImmediate, ensureDatabaseReady, getSqlite } from '@/storage/database';
 import { generateId, getTimestamp } from '@/storage/database';
 import type { SQLWrapper } from 'drizzle-orm';
-
-// 用户信息类型
-interface UserInfo {
-  userId: string;
-  roleCode?: string;
-  departmentId?: string;
-}
-
-// 获取当前用户信息
-async function getCurrentUser(request: NextRequest): Promise<UserInfo | null> {
-  try {
-    const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get('session');
-    const authHeader = request.headers.get('authorization');
-    
-    let session: { userId?: string; roleCode?: string; departmentId?: string } | null = null;
-    
-    // 从 Cookie 获取
-    if (sessionCookie?.value) {
-      try {
-        session = JSON.parse(sessionCookie.value);
-      } catch {
-        // 忽略解析错误
-      }
-    }
-    
-    // 从 Authorization header 获取
-    if (!session && authHeader?.startsWith('Bearer ')) {
-      try {
-        const token = authHeader.substring(7);
-        const decoded = Buffer.from(token, 'base64').toString('utf-8');
-        session = JSON.parse(decoded);
-      } catch {
-        // 忽略解析错误
-      }
-    }
-    
-    if (session?.userId) {
-      return {
-        userId: session.userId,
-        roleCode: session.roleCode,
-        departmentId: session.departmentId,
-      };
-    }
-    
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-// 检查用户是否是管理员
-function isAdmin(user: UserInfo | null): boolean {
-  return user?.roleCode === 'admin';
-}
+import { 
+  getCurrentUser, 
+  isAdmin, 
+  isCollegeAdmin, 
+  isDeptHead,
+  isManagementUser,
+  canDeleteProject,
+  type UserInfo 
+} from '@/lib/access-control';
 
 // 一次性数据清理标志
 let dataCleaned = false;
@@ -85,17 +38,28 @@ function cleanupInvalidData() {
     dataCleaned = true;
   } catch (err) {
     console.warn('Failed to clean countersign data:', err);
-    // 即使失败也标记为已尝试，避免重复报错
     dataCleaned = true;
   }
 }
 
-// GET /api/projects - 获取项目列表
+// 获取部门类型
+async function getDepartmentType(deptId: string | null): Promise<string | null> {
+  if (!deptId) return null;
+  try {
+    const dept = await db.select()
+      .from(departments)
+      .where(eq(departments.id, deptId))
+      .limit(1);
+    return dept[0]?.type || null;
+  } catch {
+    return null;
+  }
+}
+
+// GET /api/projects - 获取项目列表（实现新的访问规则）
 export async function GET(request: NextRequest) {
   try {
     await ensureDatabaseReady();
-    
-    // 清理错误数据
     cleanupInvalidData();
     
     const searchParams = request.nextUrl.searchParams;
@@ -104,149 +68,233 @@ export async function GET(request: NextRequest) {
     
     // 获取当前用户信息
     const currentUser = await getCurrentUser(request);
-    const currentUserId = currentUser?.userId || null;
-    const userIsAdmin = isAdmin(currentUser);
     
-    let results: typeof projects.$inferSelect[];
-    
-    // 解析状态参数（支持逗号分隔的多状态）
+    // 解析状态参数
     const statuses = statusParam && statusParam !== 'all' 
       ? statusParam.split(',').map(s => s.trim()).filter(Boolean)
       : [];
     
-    // 草稿项目：严格按用户隔离，只显示当前用户创建的（管理员可以看到所有）
-    const isDraftOnly = statuses.length === 1 && statuses[0] === 'draft';
+    // 管理员：可以看到所有项目
+    if (isAdmin(currentUser)) {
+      return queryProjects(statuses, search, null, null, true);
+    }
     
-    // 构建基础查询条件
-    const buildWhereConditions = (additionalConditions: unknown[] = []) => {
-      const conditions = [];
-      
-      // 非管理员只能看到自己创建的项目
-      if (!userIsAdmin && currentUserId) {
-        conditions.push(eq(projects.createdById, currentUserId));
+    // 未登录用户：只能看归档项目
+    if (!currentUser?.userId) {
+      if (statuses.length === 1 && statuses[0] === 'archived') {
+        return queryProjects(['archived'], search, null, null, false);
       }
-      
-      // 添加其他条件
-      additionalConditions.forEach(cond => {
-        if (cond) conditions.push(cond);
-      });
-      
-      return conditions.length > 0 ? and(...conditions) : undefined;
-    };
-    
-    // 未登录且不是查询草稿：返回空（草稿未登录也需要返回空）
-    if (!currentUserId && !userIsAdmin) {
       return NextResponse.json({ data: [] });
     }
     
-    if (isDraftOnly) {
-      // 草稿项目：严格按用户隔离
-      if (currentUserId) {
-        const conditions = [eq(projects.status, 'draft')];
-        if (!userIsAdmin) {
-          conditions.push(eq(projects.createdById, currentUserId));
-        }
-        if (search) {
-          conditions.push(sql`${projects.name} LIKE ${'%' + search + '%'}`);
-        }
-        results = db
-          .select()
-          .from(projects)
-          .where(and(...conditions))
-          .orderBy(desc(projects.createdAt))
-          .all();
-      } else {
-        results = [];
-      }
-    } else if (statuses.length > 1 && search) {
-      // 多状态 + 搜索
-      const statusCondition = sql`${projects.status} IN (${sql.raw(statuses.map(s => `'${s}'`).join(', '))})`;
-      const searchCondition = sql`${projects.name} LIKE ${'%' + search + '%'}`;
-      const conditions: (SQLWrapper | undefined)[] = [statusCondition, searchCondition];
-      if (!userIsAdmin && currentUserId) {
-        conditions.push(eq(projects.createdById, currentUserId));
-      }
-      results = db
-        .select()
-        .from(projects)
-        .where(and(...conditions))
-        .orderBy(desc(projects.createdAt))
-        .all();
-    } else if (statuses.length > 1) {
-      // 多状态
-      const statusCondition = sql`${projects.status} IN (${sql.raw(statuses.map(s => `'${s}'`).join(', '))})`;
-      const conditions: (SQLWrapper | undefined)[] = [statusCondition];
-      if (!userIsAdmin && currentUserId) {
-        conditions.push(eq(projects.createdById, currentUserId));
-      }
-      results = db
-        .select()
-        .from(projects)
-        .where(and(...conditions))
-        .orderBy(desc(projects.createdAt))
-        .all();
-    } else if (statuses.length === 1 && search) {
-      // 单状态 + 搜索
-      const conditions: (SQLWrapper | undefined)[] = [
-        eq(projects.status, statuses[0]),
-        sql`${projects.name} LIKE ${'%' + search + '%'}`
-      ];
-      if (!userIsAdmin && currentUserId) {
-        conditions.push(eq(projects.createdById, currentUserId));
-      }
-      results = db
-        .select()
-        .from(projects)
-        .where(and(...conditions))
-        .orderBy(desc(projects.createdAt))
-        .all();
-    } else if (statuses.length === 1) {
-      // 单状态
-      const conditions: (SQLWrapper | undefined)[] = [eq(projects.status, statuses[0])];
-      if (!userIsAdmin && currentUserId) {
-        conditions.push(eq(projects.createdById, currentUserId));
-      }
-      results = db
-        .select()
-        .from(projects)
-        .where(and(...conditions))
-        .orderBy(desc(projects.createdAt))
-        .all();
-    } else if (search) {
-      // 仅搜索
-      const conditions: (SQLWrapper | undefined)[] = [sql`${projects.name} LIKE ${'%' + search + '%'}`];
-      if (!userIsAdmin && currentUserId) {
-        conditions.push(eq(projects.createdById, currentUserId));
-      }
-      results = db
-        .select()
-        .from(projects)
-        .where(and(...conditions))
-        .orderBy(desc(projects.createdAt))
-        .all();
-    } else {
-      // 全部
-      if (!userIsAdmin && currentUserId) {
-        results = db
-          .select()
-          .from(projects)
-          .where(eq(projects.createdById, currentUserId))
-          .orderBy(desc(projects.createdAt))
-          .all();
-      } else {
-        results = db
-          .select()
-          .from(projects)
-          .orderBy(desc(projects.createdAt))
-          .all();
-      }
+    const userId = currentUser.userId;
+    const userDeptId = currentUser.departmentId || null;
+    const userDeptType = await getDepartmentType(userDeptId);
+    
+    // 判断是否只查询归档项目
+    const isArchivedOnly = statuses.length === 1 && statuses[0] === 'archived';
+    
+    // 归档项目：所有人可见
+    if (isArchivedOnly) {
+      return queryProjects(['archived'], search, null, null, false);
     }
-
-    return NextResponse.json({ data: results });
+    
+    // 学院负责人：可看本学院项目 + 自己创建的所有项目 + 所有归档项目
+    if (isCollegeAdmin(currentUser)) {
+      // 如果没有指定状态，返回所有符合条件的项目
+      if (statuses.length === 0) {
+        // 本学院项目 或 自己创建的项目 或 归档项目
+        const results = db
+          .select()
+          .from(projects)
+          .where(or(
+            eq(projects.departmentId, userDeptId!),
+            eq(projects.createdById, userId),
+            eq(projects.status, 'archived')
+          ))
+          .orderBy(desc(projects.createdAt))
+          .all();
+        
+        // 搜索过滤
+        let filtered = results;
+        if (search) {
+          filtered = results.filter(p => p.name?.includes(search));
+        }
+        return NextResponse.json({ data: filtered });
+      }
+      
+      // 指定状态查询
+      return queryProjectsWithCollegeAdmin(statuses, search, userId, userDeptId!);
+    }
+    
+    // 部门负责人：可看所有非草稿/设计中的项目
+    if (isDeptHead(currentUser)) {
+      const allowedStatuses = statuses.filter(s => 
+        ['pending_approval', 'approved', 'executing', 'completed', 'archived'].includes(s)
+      );
+      if (allowedStatuses.length === 0 && statuses.length > 0) {
+        return NextResponse.json({ data: [] });
+      }
+      return queryProjects(allowedStatuses.length > 0 ? allowedStatuses : ['pending_approval', 'approved', 'executing', 'completed', 'archived'], search, null, null, false);
+    }
+    
+    // 管理部门普通员工：可看待审批和归档项目
+    if (userDeptType === 'management') {
+      const allowedStatuses = statuses.filter(s => 
+        ['pending_approval', 'archived'].includes(s)
+      );
+      if (allowedStatuses.length === 0 && statuses.length > 0) {
+        return NextResponse.json({ data: [] });
+      }
+      return queryProjects(allowedStatuses.length > 0 ? allowedStatuses : ['pending_approval', 'archived'], search, null, null, false);
+    }
+    
+    // 普通学院员工：只能看自己的项目 + 所有归档项目
+    if (statuses.length === 0) {
+      // 返回自己的项目 + 归档项目
+      const results = db
+        .select()
+        .from(projects)
+        .where(or(
+          eq(projects.createdById, userId),
+          eq(projects.status, 'archived')
+        ))
+        .orderBy(desc(projects.createdAt))
+        .all();
+      
+      let filtered = results;
+      if (search) {
+        filtered = results.filter(p => p.name?.includes(search));
+      }
+      return NextResponse.json({ data: filtered });
+    }
+    
+    // 指定状态查询：自己的项目 + 如果是归档则全部
+    return queryProjectsForCollegeStaff(statuses, search, userId);
+    
   } catch (error) {
     console.error('Get projects error:', error);
     return NextResponse.json({ error: 'Failed to get projects' }, { status: 500 });
   }
+}
+
+// 查询项目（管理员）
+function queryProjects(
+  statuses: string[],
+  search: string | null,
+  _userId: string | null,
+  _deptId: string | null,
+  _isAdmin: boolean
+) {
+  const conditions: (SQLWrapper | undefined)[] = [];
+  
+  if (statuses.length > 0) {
+    conditions.push(sql`${projects.status} IN (${sql.raw(statuses.map(s => `'${s}'`).join(', '))})`);
+  }
+  
+  if (search) {
+    conditions.push(sql`${projects.name} LIKE ${'%' + search + '%'}`);
+  }
+  
+  if (conditions.length > 0) {
+    const results = db
+      .select()
+      .from(projects)
+      .where(and(...conditions))
+      .orderBy(desc(projects.createdAt))
+      .all();
+    return NextResponse.json({ data: results });
+  } else {
+    const results = db
+      .select()
+      .from(projects)
+      .orderBy(desc(projects.createdAt))
+      .all();
+    return NextResponse.json({ data: results });
+  }
+}
+
+// 查询项目（学院负责人）
+function queryProjectsWithCollegeAdmin(
+  statuses: string[],
+  search: string | null,
+  userId: string,
+  deptId: string
+) {
+  // 本学院项目 或 自己创建的项目
+  const statusCondition = sql`${projects.status} IN (${sql.raw(statuses.map(s => `'${s}'`).join(', '))})`;
+  
+  const results = db
+    .select()
+    .from(projects)
+    .where(and(
+      statusCondition,
+      or(
+        eq(projects.departmentId, deptId),
+        eq(projects.createdById, userId)
+      )
+    ))
+    .orderBy(desc(projects.createdAt))
+    .all();
+  
+  let filtered = results;
+  if (search) {
+    filtered = results.filter(p => p.name?.includes(search));
+  }
+  return NextResponse.json({ data: filtered });
+}
+
+// 查询项目（普通学院员工）
+function queryProjectsForCollegeStaff(
+  statuses: string[],
+  search: string | null,
+  userId: string
+) {
+  // 如果包含归档，需要特殊处理
+  const hasArchived = statuses.includes('archived');
+  const nonArchivedStatuses = statuses.filter(s => s !== 'archived');
+  
+  let results: typeof projects.$inferSelect[] = [];
+  
+  // 查询归档项目（全部可见）
+  if (hasArchived) {
+    const archived = db
+      .select()
+      .from(projects)
+      .where(eq(projects.status, 'archived'))
+      .orderBy(desc(projects.createdAt))
+      .all();
+    results = [...results, ...archived];
+  }
+  
+  // 查询其他状态的项目（仅自己的）
+  if (nonArchivedStatuses.length > 0) {
+    const statusCondition = sql`${projects.status} IN (${sql.raw(nonArchivedStatuses.map(s => `'${s}'`).join(', '))})`;
+    const own = db
+      .select()
+      .from(projects)
+      .where(and(
+        statusCondition,
+        eq(projects.createdById, userId)
+      ))
+      .orderBy(desc(projects.createdAt))
+      .all();
+    results = [...results, ...own];
+  }
+  
+  // 搜索过滤
+  if (search) {
+    results = results.filter(p => p.name?.includes(search));
+  }
+  
+  // 按时间排序
+  results.sort((a, b) => {
+    const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return timeB - timeA;
+  });
+  
+  return NextResponse.json({ data: results });
 }
 
 // POST /api/projects - 创建新项目
@@ -254,7 +302,6 @@ export async function POST(request: NextRequest) {
   try {
     await ensureDatabaseReady();
     
-    // 获取当前用户信息
     const currentUser = await getCurrentUser(request);
     
     // 必须登录才能创建项目
@@ -262,7 +309,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '请先登录后再创建项目' }, { status: 401 });
     }
     
-    const currentUserId = currentUser.userId;
     const body = await request.json();
     const id = generateId();
     const now = getTimestamp();
@@ -283,9 +329,8 @@ export async function POST(request: NextRequest) {
         location: body.location,
         specialRequirements: body.specialRequirements,
         status: body.status || 'draft',
-        // 使用当前用户信息
-        departmentId: body.departmentId || 'dept_labor',
-        createdById: currentUserId,
+        departmentId: body.departmentId || currentUser.departmentId || 'dept_labor',
+        createdById: currentUser.userId,
         createdAt: now,
       })
       .returning()
@@ -315,7 +360,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 保存数据库到文件
     saveDatabaseImmediate();
 
     return NextResponse.json({ data: result });
