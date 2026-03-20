@@ -598,6 +598,41 @@ ${projectData.feedback}
 注意：只返回JSON数据，不要包含任何解释或思考过程。`;
         break;
 
+      case 'adjust-single-course': {
+        // AI调整单个课程
+        prompt = `你是一个培训课程设计专家。请根据用户需求调整课程信息。
+
+当前课程信息：
+${JSON.stringify(projectData.currentCourse, null, 2)}
+
+用户调整需求：
+${projectData.adjustRequirement}
+
+培训背景：
+- 培训类型：${projectData.trainingTarget || '未指定'}
+- 目标人群：${projectData.targetAudience || '未指定'}
+
+要求：
+1. 根据用户需求调整课程名称、描述、课时等字段
+2. 保持课程的合理性和专业性
+3. 课时只能是：1、2、4 这三个标准值（4课时=半天，2课时=约2小时，1课时=约1小时）
+4. 如果需要特殊课时，可以是1-8之间的整数
+
+请返回调整后的课程信息，格式如下：
+{
+  "course": {
+    "name": "调整后的课程名称",
+    "description": "调整后的课程描述",
+    "duration": 4,
+    "category": "课程类别",
+    "teacherTitle": "建议讲师职称"
+  }
+}
+
+注意：只返回JSON数据，不要包含任何解释或思考过程。`;
+        break;
+      }
+
       default:
         return NextResponse.json({ error: 'Invalid recommendation type' }, { status: 400 });
     }

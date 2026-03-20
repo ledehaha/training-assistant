@@ -226,6 +226,13 @@ export default function DesignPage() {
   const [editingCourseIndex, setEditingCourseIndex] = useState<number | null>(null);
   const [showEditCourseDialog, setShowEditCourseDialog] = useState(false);
   
+  // 课程编辑 - AI调整和课程库选择
+  const [aiAdjustText, setAiAdjustText] = useState('');
+  const [aiAdjusting, setAiAdjusting] = useState(false);
+  const [showCourseLibrary, setShowCourseLibrary] = useState(false);
+  const [courseLibraryList, setCourseLibraryList] = useState<Course[]>([]);
+  const [loadingCourseLibrary, setLoadingCourseLibrary] = useState(false);
+  
   // 智能需求分析
   const [smartRequirementText, setSmartRequirementText] = useState('');
   const [smartRequirementFile, setSmartRequirementFile] = useState<File | null>(null);
@@ -1067,6 +1074,121 @@ export default function DesignPage() {
       setShowEditCourseDialog(false);
       setEditingCourse(null);
       setEditingCourseIndex(null);
+      setAiAdjustText(''); // 清空AI调整输入
+    }
+  };
+
+  // AI调整单个课程
+  const handleAiAdjustCourse = async () => {
+    if (!aiAdjustText.trim()) {
+      showToast('error', '请输入调整需求');
+      return;
+    }
+    
+    if (!editingCourse) {
+      showToast('error', '请先填写基本信息');
+      return;
+    }
+    
+    // 检查 API Key
+    const isConfigured = await checkApiKeyConfigured();
+    if (!isConfigured) {
+      setPendingAiAction(() => handleAiAdjustCourse);
+      setApiKeyCheckOpen(true);
+      return;
+    }
+    
+    setAiAdjusting(true);
+    try {
+      const response = await fetch('/api/ai/recommend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'adjust-single-course',
+          projectData: {
+            currentCourse: editingCourse,
+            adjustRequirement: aiAdjustText,
+            trainingTarget: formData.trainingTarget,
+            targetAudience: formData.targetAudience,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('AI调整失败');
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('无法读取响应');
+      }
+
+      const decoder = new TextDecoder();
+      let result = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        result += decoder.decode(value, { stream: true });
+      }
+
+      // 尝试提取JSON
+      const jsonMatch = result.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const data = JSON.parse(jsonMatch[0]);
+        if (data.course) {
+          // 保留原课程的day和其他必要字段
+          setEditingCourse({
+            ...editingCourse,
+            ...data.course,
+            day: editingCourse.day, // 保持原天数
+          });
+          showToast('success', '课程已根据需求调整');
+        }
+      }
+    } catch (error) {
+      console.error('AI调整失败:', error);
+      showToast('error', 'AI调整失败，请重试');
+    } finally {
+      setAiAdjusting(false);
+    }
+  };
+
+  // 加载课程库
+  const loadCourseLibrary = async () => {
+    setLoadingCourseLibrary(true);
+    try {
+      const response = await fetch('/api/courses/templates');
+      if (!response.ok) {
+        throw new Error('加载课程库失败');
+      }
+      const data = await response.json();
+      setCourseLibraryList(data.templates || []);
+      setShowCourseLibrary(true);
+    } catch (error) {
+      console.error('加载课程库失败:', error);
+      showToast('error', '加载课程库失败');
+    } finally {
+      setLoadingCourseLibrary(false);
+    }
+  };
+
+  // 从课程库选择
+  const handleSelectFromLibrary = (template: Course) => {
+    if (editingCourse) {
+      setEditingCourse({
+        ...editingCourse,
+        name: template.name,
+        duration: template.duration || 4,
+        description: template.description || '',
+        category: template.category || '',
+        teacherTitle: template.teacherTitle || '',
+        teacherName: template.teacherName || '',
+        isFromTemplate: true,
+        templateId: template.id,
+      });
+      setShowCourseLibrary(false);
+      showToast('success', `已选择课程：${template.name}`);
     }
   };
 
@@ -2465,6 +2587,49 @@ export default function DesignPage() {
             </DialogHeader>
             {editingCourse && (
               <div className="space-y-4">
+                {/* 快捷功能区：AI调整和课程库选择 */}
+                <div className="p-3 bg-muted/50 rounded-lg space-y-3">
+                  <div className="text-sm font-medium text-muted-foreground">快捷功能</div>
+                  <div className="flex flex-col gap-2">
+                    {/* AI调整课程 */}
+                    <div className="flex gap-2">
+                      <Input
+                        value={aiAdjustText}
+                        onChange={(e) => setAiAdjustText(e.target.value)}
+                        placeholder="输入调整需求，如：增加实践环节、调整难度..."
+                        className="flex-1"
+                      />
+                      <Button
+                        size="sm"
+                        onClick={handleAiAdjustCourse}
+                        disabled={aiAdjusting || !aiAdjustText.trim()}
+                      >
+                        {aiAdjusting ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Wand2 className="w-4 h-4" />
+                        )}
+                        <span className="ml-1 hidden sm:inline">AI调整</span>
+                      </Button>
+                    </div>
+                    {/* 从课程库选择 */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={loadCourseLibrary}
+                      disabled={loadingCourseLibrary}
+                      className="w-full"
+                    >
+                      {loadingCourseLibrary ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <BookOpen className="w-4 h-4" />
+                      )}
+                      <span className="ml-2">从课程库选择</span>
+                    </Button>
+                  </div>
+                </div>
+                
                 <div className="space-y-2">
                   <Label>{editingCourse.type === 'visit' ? '参访活动名称' : '课程名称'}</Label>
                   <Input
@@ -2678,6 +2843,76 @@ export default function DesignPage() {
                 disabled={!selectedImportProject}
               >
                 导入方案
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* 课程库选择对话框 */}
+        <Dialog open={showCourseLibrary} onOpenChange={setShowCourseLibrary}>
+          <DialogContent className="max-w-3xl max-h-[70vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <BookOpen className="h-5 w-5" />
+                从课程库选择
+              </DialogTitle>
+              <DialogDescription>
+                选择合适的课程模板，快速填充课程信息
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex-1 overflow-auto">
+              {courseLibraryList.length > 0 ? (
+                <div className="space-y-2">
+                  {courseLibraryList.map((template) => (
+                    <div
+                      key={template.id}
+                      className="p-3 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                      onClick={() => handleSelectFromLibrary(template)}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="font-medium">{template.name}</div>
+                          {template.description && (
+                            <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                              {template.description}
+                            </p>
+                          )}
+                          <div className="flex gap-2 mt-2 flex-wrap">
+                            {template.category && (
+                              <Badge variant="secondary" className="text-xs">
+                                {template.category}
+                              </Badge>
+                            )}
+                            {template.duration && (
+                              <Badge variant="outline" className="text-xs">
+                                {template.duration}课时
+                              </Badge>
+                            )}
+                            {template.teacherTitle && (
+                              <Badge variant="outline" className="text-xs">
+                                {template.teacherTitle}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        <Button size="sm" variant="ghost">
+                          <Check className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                  <BookOpen className="w-12 h-12 mb-2 opacity-50" />
+                  <p>课程库暂无模板</p>
+                  <p className="text-xs mt-1">请先在数据管理中添加课程模板</p>
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end pt-4 border-t">
+              <Button variant="outline" onClick={() => setShowCourseLibrary(false)}>
+                取消
               </Button>
             </div>
           </DialogContent>
