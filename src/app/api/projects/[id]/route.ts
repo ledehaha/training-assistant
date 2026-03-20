@@ -1,6 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, projects, courses, projectDocuments, eq, asc, desc, and, saveDatabaseImmediate, ensureDatabaseReady } from '@/storage/database';
 import { generateId, getTimestamp } from '@/storage/database';
+import { cookies } from 'next/headers';
+
+// 获取当前用户信息
+async function getCurrentUser(request: NextRequest) {
+  try {
+    const cookieStore = await cookies();
+    const sessionCookie = cookieStore.get('session');
+    const authHeader = request.headers.get('authorization');
+    
+    let session: { userId?: string; roleCode?: string } | null = null;
+    
+    if (sessionCookie?.value) {
+      try {
+        session = JSON.parse(sessionCookie.value);
+      } catch {
+        // 忽略解析错误
+      }
+    }
+    
+    if (!session && authHeader?.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.substring(7);
+        const decoded = Buffer.from(token, 'base64').toString('utf-8');
+        session = JSON.parse(decoded);
+      } catch {
+        // 忽略解析错误
+      }
+    }
+    
+    return session;
+  } catch {
+    return null;
+  }
+}
+
+// 检查用户是否是管理员
+function isAdmin(user: { roleCode?: string } | null): boolean {
+  return user?.roleCode === 'admin';
+}
 
 // 检查文件是否是有效的上传文件（以 "projects/" 开头）
 function isValidFile(fileKey: unknown): boolean {
@@ -60,6 +99,10 @@ export async function GET(
     await ensureDatabaseReady();
     
     const { id } = await params;
+    
+    // 获取当前用户信息
+    const currentUser = await getCurrentUser(request);
+    const userIsAdmin = isAdmin(currentUser);
 
     // 获取项目信息
     const project = db
@@ -70,6 +113,11 @@ export async function GET(
 
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+    
+    // 权限检查：非管理员只能访问自己创建的项目
+    if (!userIsAdmin && project.createdById !== currentUser?.userId) {
+      return NextResponse.json({ error: '无权访问此项目' }, { status: 403 });
     }
 
     // 获取项目课程
@@ -110,6 +158,27 @@ export async function PUT(
     await ensureDatabaseReady();
     
     const { id } = await params;
+    
+    // 获取当前用户信息
+    const currentUser = await getCurrentUser(request);
+    const userIsAdmin = isAdmin(currentUser);
+    
+    // 检查项目是否存在及权限
+    const existingProject = db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, id))
+      .get();
+    
+    if (!existingProject) {
+      return NextResponse.json({ error: '项目不存在' }, { status: 404 });
+    }
+    
+    // 权限检查：非管理员只能修改自己创建的项目
+    if (!userIsAdmin && existingProject.createdById !== currentUser?.userId) {
+      return NextResponse.json({ error: '无权修改此项目' }, { status: 403 });
+    }
+    
     const body = await request.json();
     const now = getTimestamp();
 
@@ -247,6 +316,26 @@ export async function DELETE(
     await ensureDatabaseReady();
     
     const { id } = await params;
+    
+    // 获取当前用户信息
+    const currentUser = await getCurrentUser(request);
+    const userIsAdmin = isAdmin(currentUser);
+    
+    // 检查项目是否存在及权限
+    const existingProject = db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, id))
+      .get();
+    
+    if (!existingProject) {
+      return NextResponse.json({ error: '项目不存在' }, { status: 404 });
+    }
+    
+    // 权限检查：非管理员只能删除自己创建的项目
+    if (!userIsAdmin && existingProject.createdById !== currentUser?.userId) {
+      return NextResponse.json({ error: '无权删除此项目' }, { status: 403 });
+    }
 
     // 由于设置了 ON DELETE CASCADE，删除项目会自动删除关联数据
     db.delete(projects).where(eq(projects.id, id)).run();

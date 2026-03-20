@@ -2,40 +2,61 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { db, projects, courses, eq, desc, sql, and, saveDatabaseImmediate, ensureDatabaseReady, getSqlite } from '@/storage/database';
 import { generateId, getTimestamp } from '@/storage/database';
+import type { SQLWrapper } from 'drizzle-orm';
 
-// 获取当前用户ID
-async function getCurrentUserId(request: NextRequest): Promise<string | null> {
+// 用户信息类型
+interface UserInfo {
+  userId: string;
+  roleCode?: string;
+  departmentId?: string;
+}
+
+// 获取当前用户信息
+async function getCurrentUser(request: NextRequest): Promise<UserInfo | null> {
   try {
     const cookieStore = await cookies();
     const sessionCookie = cookieStore.get('session');
     const authHeader = request.headers.get('authorization');
     
+    let session: { userId?: string; roleCode?: string; departmentId?: string } | null = null;
+    
     // 从 Cookie 获取
     if (sessionCookie?.value) {
       try {
-        const session = JSON.parse(sessionCookie.value);
-        if (session?.userId) return session.userId;
+        session = JSON.parse(sessionCookie.value);
       } catch {
         // 忽略解析错误
       }
     }
     
     // 从 Authorization header 获取
-    if (authHeader?.startsWith('Bearer ')) {
+    if (!session && authHeader?.startsWith('Bearer ')) {
       try {
         const token = authHeader.substring(7);
         const decoded = Buffer.from(token, 'base64').toString('utf-8');
-        const session = JSON.parse(decoded);
-        if (session?.userId) return session.userId;
+        session = JSON.parse(decoded);
       } catch {
         // 忽略解析错误
       }
+    }
+    
+    if (session?.userId) {
+      return {
+        userId: session.userId,
+        roleCode: session.roleCode,
+        departmentId: session.departmentId,
+      };
     }
     
     return null;
   } catch {
     return null;
   }
+}
+
+// 检查用户是否是管理员
+function isAdmin(user: UserInfo | null): boolean {
+  return user?.roleCode === 'admin';
 }
 
 // 一次性数据清理标志
@@ -81,8 +102,10 @@ export async function GET(request: NextRequest) {
     const statusParam = searchParams.get('status');
     const search = searchParams.get('search');
     
-    // 获取当前用户ID
-    const currentUserId = await getCurrentUserId(request);
+    // 获取当前用户信息
+    const currentUser = await getCurrentUser(request);
+    const currentUserId = currentUser?.userId || null;
+    const userIsAdmin = isAdmin(currentUser);
     
     let results: typeof projects.$inferSelect[];
     
@@ -91,85 +114,132 @@ export async function GET(request: NextRequest) {
       ? statusParam.split(',').map(s => s.trim()).filter(Boolean)
       : [];
     
-    // 草稿项目：严格按用户隔离，只显示当前用户创建的
+    // 草稿项目：严格按用户隔离，只显示当前用户创建的（管理员可以看到所有）
     const isDraftOnly = statuses.length === 1 && statuses[0] === 'draft';
     
+    // 构建基础查询条件
+    const buildWhereConditions = (additionalConditions: unknown[] = []) => {
+      const conditions = [];
+      
+      // 非管理员只能看到自己创建的项目
+      if (!userIsAdmin && currentUserId) {
+        conditions.push(eq(projects.createdById, currentUserId));
+      }
+      
+      // 添加其他条件
+      additionalConditions.forEach(cond => {
+        if (cond) conditions.push(cond);
+      });
+      
+      return conditions.length > 0 ? and(...conditions) : undefined;
+    };
+    
+    // 未登录且不是查询草稿：返回空（草稿未登录也需要返回空）
+    if (!currentUserId && !userIsAdmin) {
+      return NextResponse.json({ data: [] });
+    }
+    
     if (isDraftOnly) {
+      // 草稿项目：严格按用户隔离
       if (currentUserId) {
-        // 已登录：只显示该用户创建的草稿
-        if (search) {
-          results = db
-            .select()
-            .from(projects)
-            .where(and(
-              eq(projects.status, 'draft'),
-              eq(projects.createdById, currentUserId),
-              sql`${projects.name} LIKE ${'%' + search + '%'}`
-            ))
-            .orderBy(desc(projects.createdAt))
-            .all();
-        } else {
-          results = db
-            .select()
-            .from(projects)
-            .where(and(
-              eq(projects.status, 'draft'),
-              eq(projects.createdById, currentUserId)
-            ))
-            .orderBy(desc(projects.createdAt))
-            .all();
+        const conditions = [eq(projects.status, 'draft')];
+        if (!userIsAdmin) {
+          conditions.push(eq(projects.createdById, currentUserId));
         }
+        if (search) {
+          conditions.push(sql`${projects.name} LIKE ${'%' + search + '%'}`);
+        }
+        results = db
+          .select()
+          .from(projects)
+          .where(and(...conditions))
+          .orderBy(desc(projects.createdAt))
+          .all();
       } else {
-        // 未登录：返回空列表
         results = [];
       }
     } else if (statuses.length > 1 && search) {
       // 多状态 + 搜索
+      const statusCondition = sql`${projects.status} IN (${sql.raw(statuses.map(s => `'${s}'`).join(', '))})`;
+      const searchCondition = sql`${projects.name} LIKE ${'%' + search + '%'}`;
+      const conditions: (SQLWrapper | undefined)[] = [statusCondition, searchCondition];
+      if (!userIsAdmin && currentUserId) {
+        conditions.push(eq(projects.createdById, currentUserId));
+      }
       results = db
         .select()
         .from(projects)
-        .where(sql`${projects.status} IN (${sql.raw(statuses.map(s => `'${s}'`).join(', '))}) AND ${projects.name} LIKE ${'%' + search + '%'}`)
+        .where(and(...conditions))
         .orderBy(desc(projects.createdAt))
         .all();
     } else if (statuses.length > 1) {
       // 多状态
+      const statusCondition = sql`${projects.status} IN (${sql.raw(statuses.map(s => `'${s}'`).join(', '))})`;
+      const conditions: (SQLWrapper | undefined)[] = [statusCondition];
+      if (!userIsAdmin && currentUserId) {
+        conditions.push(eq(projects.createdById, currentUserId));
+      }
       results = db
         .select()
         .from(projects)
-        .where(sql`${projects.status} IN (${sql.raw(statuses.map(s => `'${s}'`).join(', '))})`)
+        .where(and(...conditions))
         .orderBy(desc(projects.createdAt))
         .all();
     } else if (statuses.length === 1 && search) {
       // 单状态 + 搜索
+      const conditions: (SQLWrapper | undefined)[] = [
+        eq(projects.status, statuses[0]),
+        sql`${projects.name} LIKE ${'%' + search + '%'}`
+      ];
+      if (!userIsAdmin && currentUserId) {
+        conditions.push(eq(projects.createdById, currentUserId));
+      }
       results = db
         .select()
         .from(projects)
-        .where(sql`${projects.status} = ${statuses[0]} AND ${projects.name} LIKE ${'%' + search + '%'}`)
+        .where(and(...conditions))
         .orderBy(desc(projects.createdAt))
         .all();
     } else if (statuses.length === 1) {
       // 单状态
+      const conditions: (SQLWrapper | undefined)[] = [eq(projects.status, statuses[0])];
+      if (!userIsAdmin && currentUserId) {
+        conditions.push(eq(projects.createdById, currentUserId));
+      }
       results = db
         .select()
         .from(projects)
-        .where(eq(projects.status, statuses[0]))
+        .where(and(...conditions))
         .orderBy(desc(projects.createdAt))
         .all();
     } else if (search) {
       // 仅搜索
+      const conditions: (SQLWrapper | undefined)[] = [sql`${projects.name} LIKE ${'%' + search + '%'}`];
+      if (!userIsAdmin && currentUserId) {
+        conditions.push(eq(projects.createdById, currentUserId));
+      }
       results = db
         .select()
         .from(projects)
-        .where(sql`${projects.name} LIKE ${'%' + search + '%'}`)
+        .where(and(...conditions))
         .orderBy(desc(projects.createdAt))
         .all();
     } else {
       // 全部
-      results = db
-        .select()
-        .from(projects)
-        .orderBy(desc(projects.createdAt))
-        .all();
+      if (!userIsAdmin && currentUserId) {
+        results = db
+          .select()
+          .from(projects)
+          .where(eq(projects.createdById, currentUserId))
+          .orderBy(desc(projects.createdAt))
+          .all();
+      } else {
+        results = db
+          .select()
+          .from(projects)
+          .orderBy(desc(projects.createdAt))
+          .all();
+      }
     }
 
     return NextResponse.json({ data: results });
@@ -184,14 +254,15 @@ export async function POST(request: NextRequest) {
   try {
     await ensureDatabaseReady();
     
-    // 获取当前用户ID
-    const currentUserId = await getCurrentUserId(request);
+    // 获取当前用户信息
+    const currentUser = await getCurrentUser(request);
     
     // 必须登录才能创建项目
-    if (!currentUserId) {
+    if (!currentUser?.userId) {
       return NextResponse.json({ error: '请先登录后再创建项目' }, { status: 401 });
     }
     
+    const currentUserId = currentUser.userId;
     const body = await request.json();
     const id = generateId();
     const now = getTimestamp();
