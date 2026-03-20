@@ -327,16 +327,23 @@ export default function DesignPage() {
         selectedVenueId: selectedVenue?.id,
       };
 
+      // 获取session token
+      const sessionToken = typeof window !== 'undefined' ? localStorage.getItem('session_token') : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`;
+      }
+      
       if (currentProjectId) {
         await fetch(`/api/projects/${currentProjectId}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify(dataToSave),
         });
       } else {
         const res = await fetch('/api/projects', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify(dataToSave),
         });
         const data = await res.json();
@@ -490,7 +497,14 @@ export default function DesignPage() {
   const loadCompletedProjects = async () => {
     setImportLoading(true);
     try {
-      const res = await fetch('/api/projects/completed');
+      // 获取session token
+      const sessionToken = typeof window !== 'undefined' ? localStorage.getItem('session_token') : null;
+      const headers: Record<string, string> = {};
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`;
+      }
+      
+      const res = await fetch('/api/projects/completed', { headers });
       const data = await res.json();
       if (data.data) {
         setCompletedProjects(data.data);
@@ -599,7 +613,14 @@ export default function DesignPage() {
       setCheckResult(null);
       setCoursesToSplit([]);
       
-      const res = await fetch(`/api/projects/${id}`);
+      // 获取session token
+      const sessionToken = typeof window !== 'undefined' ? localStorage.getItem('session_token') : null;
+      const headers: Record<string, string> = {};
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`;
+      }
+      
+      const res = await fetch(`/api/projects/${id}`, { headers });
       const data = await res.json();
       
       if (data.data) {
@@ -664,8 +685,16 @@ export default function DesignPage() {
     if (!confirm('确定要删除这个草稿吗？')) return;
     
     try {
+      // 获取session token
+      const sessionToken = typeof window !== 'undefined' ? localStorage.getItem('session_token') : null;
+      const headers: Record<string, string> = {};
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`;
+      }
+      
       await fetch(`/api/projects/${id}`, {
         method: 'DELETE',
+        headers,
       });
       loadDraftProjects();
       
@@ -687,9 +716,17 @@ export default function DesignPage() {
         budgetMax: noBudgetLimit ? null : formData.budgetMax,
         trainingPeriod: formData.trainingPeriod === '其他' ? otherTrainingPeriod : formData.trainingPeriod,
       };
+      
+      // 获取session token
+      const sessionToken = typeof window !== 'undefined' ? localStorage.getItem('session_token') : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`;
+      }
+      
       const res = await fetch('/api/projects', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(dataToSave),
       });
       const data = await res.json();

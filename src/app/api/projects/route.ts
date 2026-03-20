@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
     // 获取当前用户ID
     const currentUserId = await getCurrentUserId(request);
     
-    let results;
+    let results: typeof projects.$inferSelect[];
     
     // 解析状态参数（支持逗号分隔的多状态）
     const statuses = statusParam && statusParam !== 'all' 
@@ -187,6 +187,11 @@ export async function POST(request: NextRequest) {
     // 获取当前用户ID
     const currentUserId = await getCurrentUserId(request);
     
+    // 必须登录才能创建项目
+    if (!currentUserId) {
+      return NextResponse.json({ error: '请先登录后再创建项目' }, { status: 401 });
+    }
+    
     const body = await request.json();
     const id = generateId();
     const now = getTimestamp();
@@ -209,7 +214,7 @@ export async function POST(request: NextRequest) {
         status: body.status || 'draft',
         // 使用当前用户信息
         departmentId: body.departmentId || 'dept_labor',
-        createdById: currentUserId || body.createdById || 'user_admin',
+        createdById: currentUserId,
         createdAt: now,
       })
       .returning()

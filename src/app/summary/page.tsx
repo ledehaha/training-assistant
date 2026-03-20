@@ -266,7 +266,14 @@ export default function SummaryPage() {
   const loadProjects = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/projects');
+      // 获取session token
+      const sessionToken = typeof window !== 'undefined' ? localStorage.getItem('session_token') : null;
+      const headers: Record<string, string> = {};
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`;
+      }
+      
+      const res = await fetch('/api/projects', { headers });
       if (res.ok) {
         const data = await res.json();
         setAllProjects(data.data || []);
@@ -958,10 +965,17 @@ export default function SummaryPage() {
 
     setSaving(true);
     try {
+      // 获取session token
+      const sessionToken = typeof window !== 'undefined' ? localStorage.getItem('session_token') : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`;
+      }
+      
       // 更新项目状态为已归档
       const res = await fetch(`/api/projects/${selectedProject.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ 
           status: 'archived',
           summaryReport: JSON.stringify({ report: summaryReport, extractedData }),
@@ -1034,9 +1048,16 @@ export default function SummaryPage() {
 
     setCreatingProject(true);
     try {
+      // 获取session token
+      const sessionToken = typeof window !== 'undefined' ? localStorage.getItem('session_token') : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`;
+      }
+      
       const res = await fetch('/api/projects', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           name: newProjectName.trim(),
           status: 'completed', // 直接设为已完成状态，因为这是补录的项目
@@ -1856,9 +1877,16 @@ export default function SummaryPage() {
   // 取消归档（将项目状态改回 completed）
   const handleUnarchive = async (project: Project) => {
     try {
+      // 获取session token
+      const sessionToken = typeof window !== 'undefined' ? localStorage.getItem('session_token') : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`;
+      }
+      
       const res = await fetch(`/api/projects/${project.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ status: 'completed' }),
       });
 
@@ -2625,9 +2653,16 @@ export default function SummaryPage() {
         ? Number(item.extractedValue) 
         : item.extractedValue;
       
+      // 获取session token
+      const sessionToken = typeof window !== 'undefined' ? localStorage.getItem('session_token') : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`;
+      }
+      
       const res = await fetch(`/api/projects/${selectedProject.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(updateData),
       });
       

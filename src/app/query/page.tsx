@@ -68,7 +68,14 @@ export default function QueryPage() {
 
   const loadProjects = async () => {
     try {
-      const res = await fetch('/api/projects');
+      // 获取session token
+      const sessionToken = typeof window !== 'undefined' ? localStorage.getItem('session_token') : null;
+      const headers: Record<string, string> = {};
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`;
+      }
+      
+      const res = await fetch('/api/projects', { headers });
       const data = await res.json();
       if (data.data) {
         setProjects(data.data);

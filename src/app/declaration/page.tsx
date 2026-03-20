@@ -37,7 +37,14 @@ export default function DeclarationPage() {
 
   const loadProjects = async () => {
     try {
-      const res = await fetch('/api/projects?status=designing');
+      // 获取session token
+      const sessionToken = typeof window !== 'undefined' ? localStorage.getItem('session_token') : null;
+      const headers: Record<string, string> = {};
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`;
+      }
+      
+      const res = await fetch('/api/projects?status=designing', { headers });
       const data = await res.json();
       if (data.data) {
         setProjects(data.data);
@@ -51,9 +58,16 @@ export default function DeclarationPage() {
 
   const handleSubmitForExecution = async (projectId: string) => {
     try {
+      // 获取session token
+      const sessionToken = typeof window !== 'undefined' ? localStorage.getItem('session_token') : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`;
+      }
+      
       await fetch(`/api/projects/${projectId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ status: 'executing' }),
       });
       loadProjects();
