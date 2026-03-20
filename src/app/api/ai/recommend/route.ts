@@ -209,13 +209,22 @@ ${templatesWithTeachers.map((t: Record<string, unknown>, idx: number) => {
   const template = t as Record<string, unknown>;
   const teacher = template.matchedTeacher as Record<string, unknown> | null;
   return `${idx + 1}. ${template.name}
+   - 模板ID：${template.id}（使用此模板时必须在templateId字段填写此ID）
    - 类别：${template.category || '未分类'}
    - 课时：${template.duration || 4}课时
    - 目标人群：${template.targetAudience || '不限'}
-   - 可用讲师：${teacher ? `${teacher.name}（${teacher.title}）` : '需AI推荐'}`;
+   - 推荐讲师：${teacher ? `${teacher.name}（${teacher.title}），讲师ID：${teacher.id}` : '无匹配讲师，需AI推荐职称'}`;
 }).join('\n')}
 
-【重要】请优先从上述模板中选择课程组合方案，如果模板课程总课时不足，再自行设计补充课程。`;
+【重要规则】：
+1. 优先从上述模板中选择课程组合方案
+2. 使用模板时，必须填写以下字段：
+   - templateId: 填写模板ID
+   - isFromTemplate: true
+   - teacherName: 如果模板有推荐讲师，填写讲师姓名
+   - teacherId: 如果模板有推荐讲师，填写讲师ID
+3. 如果模板课程总课时不足，再自行设计补充课程
+4. 自行设计的课程（非模板），isFromTemplate=false，填写teacherTitle（建议讲师职称）`;
         }
         
         // 获取参访基地数据并匹配
@@ -319,9 +328,11 @@ ${templateContext}${visitSitesContext}${userProfileContext}
    - 参访活动可以是2-4课时
    - 禁止生成6、8、10、12课时的单门课程
    - 如果内容较多需要拆分为多门课程，命名使用"（上）"、"（下）"、"（中）"区分
-7. 每门课程标注建议讲师职称
-8. 如果使用了模板中的讲师，在 teacherName 字段中标注讲师姓名
-9. 考虑目标人群的特征偏好进行个性化设计
+7. 【讲师信息填写规则 - 非常重要】：
+   - 使用模板课程时：isFromTemplate=true，templateId填写模板ID，teacherName填写模板中推荐的讲师姓名
+   - 不使用模板（AI自行设计课程）：isFromTemplate=false，teacherTitle填写建议讲师职称（如"副教授"、"高级工程师"等）
+   - 参访活动：不需要讲师信息
+8. 考虑目标人群的特征偏好进行个性化设计
 
 返回JSON格式：
 {
@@ -333,13 +344,13 @@ ${templateContext}${visitSitesContext}${userProfileContext}
       "description": "内容概述", 
       "category": "类别", 
       "type": "course或visit",
-      "teacherTitle": "讲师职称（仅当type=course且isFromTemplate=false时填写）", 
-      "teacherName": "讲师姓名（使用模板讲师时必填）",
-      "templateId": "模板ID（如使用模板）",
-      "isFromTemplate": true/false,
-      "visitSiteId": "参访基地ID（如使用库中基地）",
+      "isFromTemplate": true或false,
+      "templateId": "模板ID（使用模板时必填）",
+      "teacherName": "讲师姓名（使用模板且有推荐讲师时必填）",
+      "teacherTitle": "建议讲师职称（不使用模板时必填，如'副教授'、'高级工程师'）",
+      "visitSiteId": "参访基地ID（使用库中基地时必填）",
       "visitSiteName": "参访基地名称",
-      "isFromVisitLibrary": true/false
+      "isFromVisitLibrary": true或false
     }
   ],
   "summary": "方案说明",
@@ -347,14 +358,34 @@ ${templateContext}${visitSitesContext}${userProfileContext}
   "visitUsage": {"used": 1, "total": 2}
 }
 
-【重要字段说明】：
-- type: "course"表示课程，"visit"表示参访活动
-- isFromTemplate: 布尔值，true表示使用了课程模板
-- isFromVisitLibrary: 布尔值，true表示使用了参访基地库中的基地
-- teacherName: 如果使用了模板且模板有匹配的讲师，填写讲师姓名
-- teacherTitle: 仅当没有使用模板时填写建议讲师职称
-- visitSiteId: 如果使用了参访基地库中的基地，填写基地ID
-- visitSiteName: 参访基地名称（使用库中基地时必填）
+【字段填写示例】：
+示例1 - 使用模板课程（有推荐讲师）：
+{
+  "name": "管理学基础",
+  "isFromTemplate": true,
+  "templateId": "tmpl_001",
+  "teacherName": "张教授",
+  "teacherTitle": null
+}
+
+示例2 - AI自行设计课程（无模板）：
+{
+  "name": "团队建设与沟通",
+  "isFromTemplate": false,
+  "templateId": null,
+  "teacherName": null,
+  "teacherTitle": "副教授"
+}
+
+示例3 - 参访活动：
+{
+  "name": "参观XX企业",
+  "type": "visit",
+  "isFromTemplate": false,
+  "isFromVisitLibrary": true,
+  "visitSiteId": "site_001",
+  "visitSiteName": "XX企业"
+}
 
 只返回JSON。`;
         break;
