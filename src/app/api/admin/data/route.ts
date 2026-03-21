@@ -4,6 +4,7 @@ import {
   db, teachers, venues, courses, normativeDocuments, 
   projects, satisfactionSurveys, visitSites,
   userProfiles, userTrainingRecords,
+  users, departments,
   eq, desc, sql, and,
   saveDatabaseImmediate, ensureDatabaseReady
 } from '@/storage/database';
@@ -112,10 +113,30 @@ export async function GET(request: NextRequest) {
     if (tableSchema === courses) {
       let results;
       if (table === 'course_templates') {
-        // 查询课程模板
+        // 查询课程模板，关联用户和部门
         results = db
-          .select()
+          .select({
+            id: courses.id,
+            name: courses.name,
+            category: courses.category,
+            description: courses.description,
+            content: courses.content,
+            duration: courses.duration,
+            targetAudience: courses.targetAudience,
+            difficulty: courses.difficulty,
+            usageCount: courses.usageCount,
+            avgRating: courses.avgRating,
+            isActive: courses.isActive,
+            createdAt: courses.createdAt,
+            updatedAt: courses.updatedAt,
+            createdBy: courses.createdBy,
+            createdByDepartment: courses.createdByDepartment,
+            creatorName: users.name,
+            departmentName: departments.name,
+          })
           .from(courses)
+          .leftJoin(users, eq(courses.createdBy, users.id))
+          .leftJoin(departments, eq(courses.createdByDepartment, departments.id))
           .where(eq(courses.isTemplate, true))
           .orderBy(desc(sql`created_at`))
           .limit(1000)
@@ -149,6 +170,135 @@ export async function GET(request: NextRequest) {
           .limit(1000)
           .all();
       }
+      return NextResponse.json({ data: results });
+    }
+
+    // 讲师表：关联用户和部门
+    if (table === 'teachers') {
+      const results = db
+        .select({
+          id: teachers.id,
+          name: teachers.name,
+          title: teachers.title,
+          expertise: teachers.expertise,
+          bio: teachers.bio,
+          hourlyRate: teachers.hourlyRate,
+          rating: teachers.rating,
+          teachingCount: teachers.teachingCount,
+          isActive: teachers.isActive,
+          isVerified: teachers.isVerified,
+          createdAt: teachers.createdAt,
+          updatedAt: teachers.updatedAt,
+          createdBy: teachers.createdBy,
+          createdByDepartment: teachers.createdByDepartment,
+          creatorName: users.name,
+          departmentName: departments.name,
+        })
+        .from(teachers)
+        .leftJoin(users, eq(teachers.createdBy, users.id))
+        .leftJoin(departments, eq(teachers.createdByDepartment, departments.id))
+        .orderBy(desc(sql`created_at`))
+        .limit(1000)
+        .all();
+      return NextResponse.json({ data: results });
+    }
+
+    // 场地表：关联用户和部门
+    if (table === 'venues') {
+      const results = db
+        .select({
+          id: venues.id,
+          name: venues.name,
+          location: venues.location,
+          capacity: venues.capacity,
+          dailyRate: venues.dailyRate,
+          facilities: venues.facilities,
+          rating: venues.rating,
+          usageCount: venues.usageCount,
+          isActive: venues.isActive,
+          createdAt: venues.createdAt,
+          updatedAt: venues.updatedAt,
+          createdBy: venues.createdBy,
+          createdByDepartment: venues.createdByDepartment,
+          creatorName: users.name,
+          departmentName: departments.name,
+        })
+        .from(venues)
+        .leftJoin(users, eq(venues.createdBy, users.id))
+        .leftJoin(departments, eq(venues.createdByDepartment, departments.id))
+        .orderBy(desc(sql`created_at`))
+        .limit(1000)
+        .all();
+      return NextResponse.json({ data: results });
+    }
+
+    // 参访基地表：关联用户和部门
+    if (table === 'visit_sites') {
+      const results = db
+        .select({
+          id: visitSites.id,
+          name: visitSites.name,
+          type: visitSites.type,
+          industry: visitSites.industry,
+          address: visitSites.address,
+          contactPerson: visitSites.contactPerson,
+          contactPhone: visitSites.contactPhone,
+          contactEmail: visitSites.contactEmail,
+          description: visitSites.description,
+          visitContent: visitSites.visitContent,
+          visitDuration: visitSites.visitDuration,
+          maxVisitors: visitSites.maxVisitors,
+          visitFee: visitSites.visitFee,
+          facilities: visitSites.facilities,
+          requirements: visitSites.requirements,
+          rating: visitSites.rating,
+          visitCount: visitSites.visitCount,
+          isActive: visitSites.isActive,
+          isVerified: visitSites.isVerified,
+          createdAt: visitSites.createdAt,
+          updatedAt: visitSites.updatedAt,
+          createdBy: visitSites.createdBy,
+          createdByDepartment: visitSites.createdByDepartment,
+          creatorName: users.name,
+          departmentName: departments.name,
+        })
+        .from(visitSites)
+        .leftJoin(users, eq(visitSites.createdBy, users.id))
+        .leftJoin(departments, eq(visitSites.createdByDepartment, departments.id))
+        .orderBy(desc(sql`created_at`))
+        .limit(1000)
+        .all();
+      return NextResponse.json({ data: results });
+    }
+
+    // 规范性文件表：关联用户和部门
+    if (table === 'normative_documents') {
+      const results = db
+        .select({
+          id: normativeDocuments.id,
+          name: normativeDocuments.name,
+          summary: normativeDocuments.summary,
+          issuer: normativeDocuments.issuer,
+          issueDate: normativeDocuments.issueDate,
+          effectiveDate: normativeDocuments.effectiveDate,
+          expiryDate: normativeDocuments.expiryDate,
+          filePath: normativeDocuments.filePath,
+          fileName: normativeDocuments.fileName,
+          fileSize: normativeDocuments.fileSize,
+          isEffective: normativeDocuments.isEffective,
+          createdAt: normativeDocuments.createdAt,
+          updatedAt: normativeDocuments.updatedAt,
+          createdBy: normativeDocuments.createdBy,
+          createdByDepartment: normativeDocuments.createdByDepartment,
+          creatorName: users.name,
+          departmentName: departments.name,
+        })
+        .from(normativeDocuments)
+        .leftJoin(users, eq(normativeDocuments.createdBy, users.id))
+        .leftJoin(departments, eq(normativeDocuments.createdByDepartment, departments.id))
+        .orderBy(desc(sql`created_at`))
+        .limit(1000)
+        .all();
       return NextResponse.json({ data: results });
     }
 
