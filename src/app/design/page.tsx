@@ -1344,6 +1344,27 @@ export default function DesignPage() {
       canAutoFix = true; // 可以自动拆分
     }
     
+    // 7. 检查每天课时是否均匀分配
+    if (totalDays > 0 && totalCourseHours > 0) {
+      const avgHoursPerDay = totalCourseHours / totalDays;
+      // 允许的浮动范围：平均值的±50%，或者至少±2课时
+      const tolerance = Math.max(avgHoursPerDay * 0.5, 2);
+      
+      Object.entries(hoursByDay).forEach(([day, hours]) => {
+        const dayNum = parseInt(day);
+        if (dayNum <= totalDays) {
+          const diff = Math.abs(hours - avgHoursPerDay);
+          if (diff > tolerance) {
+            if (hours > avgHoursPerDay) {
+              issues.push(`第${day}天课时为${hours}，高于平均值${avgHoursPerDay.toFixed(1)}较多，建议均衡安排`);
+            } else {
+              issues.push(`第${day}天课时为${hours}，低于平均值${avgHoursPerDay.toFixed(1)}较多，建议均衡安排`);
+            }
+          }
+        }
+      });
+    }
+    
     setCheckResult({
       valid: issues.length === 0,
       issues,
