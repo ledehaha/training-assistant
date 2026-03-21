@@ -113,7 +113,7 @@ export async function GET(request: NextRequest) {
     if (tableSchema === courses) {
       let results;
       if (table === 'course_templates') {
-        // 查询课程模板，关联用户和部门
+        // 查询课程模板，关联用户、部门和讲师
         results = db
           .select({
             id: courses.id,
@@ -124,6 +124,7 @@ export async function GET(request: NextRequest) {
             duration: courses.duration,
             targetAudience: courses.targetAudience,
             difficulty: courses.difficulty,
+            teacherId: courses.teacherId,
             usageCount: courses.usageCount,
             avgRating: courses.avgRating,
             isActive: courses.isActive,
@@ -133,10 +134,12 @@ export async function GET(request: NextRequest) {
             createdByDepartment: courses.createdByDepartment,
             creatorName: users.name,
             departmentName: departments.name,
+            teacherName: teachers.name,
           })
           .from(courses)
           .leftJoin(users, eq(courses.createdBy, users.id))
           .leftJoin(departments, eq(courses.createdByDepartment, departments.id))
+          .leftJoin(teachers, eq(courses.teacherId, teachers.id))
           .where(eq(courses.isTemplate, true))
           .orderBy(desc(courses.createdAt))
           .limit(1000)

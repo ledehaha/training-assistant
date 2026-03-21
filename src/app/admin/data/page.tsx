@@ -196,6 +196,7 @@ const TABLES_CONFIG = [
       { key: 'duration', label: '课时', type: 'number', editable: true },
       { key: 'targetAudience', label: '目标人群', type: 'text', editable: true },
       { key: 'difficulty', label: '难度', type: 'select', options: ['初级', '中级', '高级'], editable: true },
+      { key: 'teacherName', label: '讲师', type: 'text', editable: false },
       { key: 'description', label: '描述', type: 'textarea', editable: true },
       { key: 'usageCount', label: '使用次数', type: 'number', editable: true },
       { key: 'avgRating', label: '平均评分', type: 'number', editable: true },

@@ -562,9 +562,10 @@ export const coursesSchema: TableSchemaConfig = {
     {
       name: 'teacherId',
       displayName: '讲师',
-      description: '授课讲师的ID（项目课程专用，关联teachers表）',
+      description: '授课讲师的ID，关联讲师信息库。填写讲师姓名即可，系统会自动匹配讲师库中的讲师',
       type: 'string',
-      aiExtract: false,
+      aiExtract: true,
+      aiHint: '填写讲师姓名，系统会自动匹配讲师信息库',
     },
     {
       name: 'visitSiteId',
@@ -779,9 +780,9 @@ export function generateAIFieldDescription(schemaKey: string): string {
     displayName = '课程模板';
     descriptionIntro = `可复用的课程库，AI提取的所有课程统一输出到此表。
 ⚠️ **用途**：从课程库、课程目录或日程安排中提取课程信息时使用此表。`;
-    // 课程模板不包含项目专用的字段
+    // 课程模板不包含项目专用的字段，但保留teacherId（讲师关联）
     fieldsToInclude = fieldsToInclude.filter(f => 
-      !['type', 'day', 'startTime', 'endTime', 'teacherId', 'visitSiteId', 'order', 'projectId'].includes(f.name)
+      !['type', 'day', 'startTime', 'endTime', 'visitSiteId', 'order', 'projectId'].includes(f.name)
     );
   }
   

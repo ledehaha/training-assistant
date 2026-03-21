@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, courses, users, departments, eq, desc, sql, and, saveDatabaseImmediate, ensureDatabaseReady } from '@/storage/database';
+import { db, courses, users, departments, teachers, eq, desc, sql, and, saveDatabaseImmediate, ensureDatabaseReady } from '@/storage/database';
 import type { SQLWrapper } from 'drizzle-orm';
 import { generateId, getTimestamp } from '@/storage/database';
 import { 
@@ -8,6 +8,26 @@ import {
   isCollegeAdmin,
   type UserInfo 
 } from '@/lib/access-control';
+
+// 根据讲师姓名查找讲师ID
+async function findTeacherIdByName(teacherName: string): Promise<string | null> {
+  if (!teacherName || typeof teacherName !== 'string') return null;
+  
+  // 如果已经是UUID格式，直接返回
+  if (teacherName.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+    return teacherName;
+  }
+  
+  // 在讲师库中查找匹配的讲师
+  const found = db
+    .select({ id: teachers.id })
+    .from(teachers)
+    .where(eq(teachers.name, teacherName.trim()))
+    .limit(1)
+    .all();
+  
+  return found.length > 0 ? found[0].id : null;
+}
 
 // 获取用户角色信息
 async function getUserRoleInfo(request: NextRequest): Promise<{
@@ -149,6 +169,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const id = generateId();
     const now = getTimestamp();
+    
+    // 处理讲师ID：如果传入的是讲师姓名，自动匹配讲师库
+    let teacherId = body.teacherId || null;
+    if (teacherId && typeof teacherId === 'string') {
+      const foundId = await findTeacherIdByName(teacherId);
+      teacherId = foundId;
+    }
 
     const result = db
       .insert(courses)
@@ -163,6 +190,7 @@ export async function POST(request: NextRequest) {
         targetAudience: body.targetAudience,
         content: body.content,
         difficulty: body.difficulty,
+        teacherId,
         type: 'course', // 默认类型
         isActive: true,
         createdAt: now,
@@ -255,12 +283,19 @@ export async function PUT(request: NextRequest) {
         }
       }, { status: 403 });
     }
+    
+    // 处理讲师ID：如果传入的是讲师姓名，自动匹配讲师库
+    let processedUpdateData = { ...updateData };
+    if (updateData.teacherId && typeof updateData.teacherId === 'string') {
+      const foundId = await findTeacherIdByName(updateData.teacherId);
+      processedUpdateData.teacherId = foundId;
+    }
 
     // 更新课程模板
     const result = db
       .update(courses)
       .set({
-        ...updateData,
+        ...processedUpdateData,
         updatedAt: getTimestamp(),
       })
       .where(eq(courses.id, id))
