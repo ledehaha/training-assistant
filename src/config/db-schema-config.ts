@@ -424,8 +424,7 @@ export const visitSitesSchema: TableSchemaConfig = {
  * - projectId NOT NULL → 项目课程（某项目的具体课程安排）
  * 
  * AI提取说明：
- * - **projectCourses（项目课程）**：从课程安排/日程安排文件中提取，包含具体的时间安排（第几天、开始时间、结束时间）
- * - **courseTemplates（课程模板）**：从课程库/课程目录中提取，不包含具体时间安排
+ * - **courseTemplates（课程模板）**：AI提取的所有课程统一输出到此分类，包括课程库课程和日程安排中的课程
  */
 export const coursesSchema: TableSchemaConfig = {
   tableName: 'courses',
@@ -435,7 +434,7 @@ export const coursesSchema: TableSchemaConfig = {
 - **课程模板**：可复用于多个项目的课程库，不包含具体时间安排
 - **项目课程**：某项目的具体课程安排，包含"第几天"、"开始时间"、"结束时间"等具体安排
 
-⚠️ 重要：从日程安排/课程安排文件中提取时，应输出到projectCourses，必须填写day（第几天）、startTime（开始时间）、endTime（结束时间）等字段。`,
+⚠️ 重要：AI提取的所有课程统一输出到courseTemplates，无需区分是课程模板还是项目课程。`,
   fields: [
     // ========== 基础信息（所有课程通用）==========
     {
@@ -733,7 +732,6 @@ export const dbSchemaConfig: Record<string, TableSchemaConfig> = {
   courses: coursesSchema,
   // 兼容旧代码（逐步废弃）
   courseTemplates: coursesSchema,
-  projectCourses: coursesSchema,
   projectInfo: projectInfoSchema,
 };
 
@@ -776,20 +774,11 @@ export function generateAIFieldDescription(schemaKey: string): string {
   let descriptionIntro = schema.description;
   let fieldsToInclude = schema.fields.filter(f => f.aiExtract !== false);
   
-  // 针对projectCourses和courseTemplates的特殊处理
-  if (schemaKey === 'projectCourses') {
-    displayName = '项目课程';
-    descriptionIntro = `某项目的具体课程安排，包含时间信息（第几天、开始/结束时间）。
-⚠️ **用途**：从日程安排/课程安排文件中提取课程安排时使用此表。
-⚠️ **必须填写**：name（课程名称）、day（第几天）、startTime（开始时间）、endTime（结束时间）`;
-    // 项目课程只需要包含项目专用的字段
-    fieldsToInclude = fieldsToInclude.filter(f => 
-      ['name', 'category', 'description', 'content', 'duration', 'type', 'day', 'startTime', 'endTime'].includes(f.name)
-    );
-  } else if (schemaKey === 'courseTemplates') {
+  // 针对courseTemplates的特殊处理
+  if (schemaKey === 'courseTemplates') {
     displayName = '课程模板';
-    descriptionIntro = `可复用的课程库，不包含具体时间安排。
-⚠️ **用途**：从课程库/课程目录中提取课程信息时使用此表（不包含日程安排）。`;
+    descriptionIntro = `可复用的课程库，AI提取的所有课程统一输出到此表。
+⚠️ **用途**：从课程库、课程目录或日程安排中提取课程信息时使用此表。`;
     // 课程模板不包含项目专用的字段
     fieldsToInclude = fieldsToInclude.filter(f => 
       !['type', 'day', 'startTime', 'endTime', 'teacherId', 'visitSiteId', 'order', 'projectId'].includes(f.name)

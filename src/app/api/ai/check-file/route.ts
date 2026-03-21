@@ -60,7 +60,6 @@ interface CheckResult {
   venues: CheckResultItem[];
   courseTemplates: CheckResultItem[];
   visitSites: CheckResultItem[];
-  projectCourses: CheckResultItem[];
 }
 
 // 文件类型定义
@@ -106,7 +105,7 @@ async function readFileContent(fileKey: string, customHeaders: Record<string, st
  * 根据文件类型调整提取策略
  */
 function generateSystemPrompt(fileType: FileType): string {
-  const tableDescriptions = ['teachers', 'venues', 'courseTemplates', 'visitSites', 'projectCourses']
+  const tableDescriptions = ['teachers', 'venues', 'courseTemplates', 'visitSites']
     .map(key => generateAIFieldDescription(key))
     .join('\n\n');
 
@@ -121,7 +120,7 @@ function generateSystemPrompt(fileType: FileType): string {
     studentList: '这是学员名单，主要包含学员信息，不要从中提取项目基本信息。',
     satisfaction: '这是满意度调查文件，主要包含满意度相关数据，不要从中提取项目基本信息或讲师信息。',
     other: `这是其它附件，请根据**文件内容**智能判断并提取所有相关数据：
-- 如果内容包含**课程安排/日程安排**（如"第X天"、"XX:XX"、"上午/下午"等时间信息）：提取课程信息(projectCourses)
+- 如果内容包含**课程安排/日程安排**（如"第X天"、"XX:XX"、"上午/下午"等时间信息）：提取课程信息(courseTemplates)
 - 如果内容包含**师资/讲师/专家介绍**（如姓名+职称+单位）：提取讲师信息(teachers)
 - 如果内容包含**参访/参观安排**（如参访单位、地址）：提取参访基地信息(visitSites)
 - 如果内容包含**场地/会议室信息**：提取场地信息(venues)
@@ -217,8 +216,7 @@ ${projectInfoSection}
   }],
   "venues": [...],
   "courseTemplates": [...],
-  "visitSites": [...],
-  "projectCourses": [...]
+  "visitSites": [...]
 }
 \`\`\`
 
@@ -245,7 +243,6 @@ function formatDbDataForAI(
     venues: { name: 'name', fields: comparisonFields },
     courseTemplates: { name: 'name', fields: comparisonFields },
     visitSites: { name: 'name', fields: comparisonFields },
-    projectCourses: { name: 'name', fields: comparisonFields },
   };
 
   const config = fieldConfig[schemaKey as keyof typeof fieldConfig];
@@ -320,12 +317,11 @@ export async function POST(request: NextRequest) {
         // Step 2: 获取数据库数据
         sendEvent({ type: 'progress', step: 'database', stepName: '正在获取数据库数据...', progress: 66, total: 3 });
         
-        const [allTeachers, allVenues, allCourseTemplates, allVisitSites, projectCoursesList] = await Promise.all([
+        const [allTeachers, allVenues, allCourseTemplates, allVisitSites] = await Promise.all([
           db.select().from(teachers),
           db.select().from(venues),
           db.select().from(courses).where(eq(courses.isTemplate, true)),
           db.select().from(visitSites),
-          db.select().from(courses).where(and(eq(courses.projectId, projectId), eq(courses.isTemplate, false))),
         ]);
 
         // Step 3: AI分析
@@ -355,15 +351,12 @@ ${formatDbDataForAI('courseTemplates', allCourseTemplates)}
 ### 参访基地（共${allVisitSites.length}条）
 ${formatDbDataForAI('visitSites', allVisitSites)}
 
-### 本项目已有课程（共${projectCoursesList.length}条）
-${formatDbDataForAI('projectCourses', projectCoursesList)}
-
 ## 待分析文件：${fileName || FILE_TYPE_NAMES[fileType as FileType]}
 ${fileType === 'other' ? `
 ⚠️ 这是"其它附件"类型的文件，请根据**文件内容**智能提取所有相关数据：
 - 文件中可能同时包含课程安排、讲师介绍、参访安排等多种信息
 - 请仔细阅读文件内容，提取所有有价值的数据
-- 如果有日程安排（第几天、时间段），提取到projectCourses
+- 如果有日程安排（第几天、时间段），提取到courseTemplates作为新的课程模板
 - 如果有师资介绍（姓名、职称、单位），提取到teachers
 - 如果有参访单位，提取到visitSites
 ` : ''}
@@ -428,7 +421,6 @@ ${fileContent}
           venues: [],
           courseTemplates: [],
           visitSites: [],
-          projectCourses: [],
         };
 
         // 验证项目信息
@@ -458,8 +450,8 @@ ${fileContent}
         }
 
         // 验证各表数据
-        type TableKey = 'teachers' | 'venues' | 'courseTemplates' | 'visitSites' | 'projectCourses';
-        const tableKeys: TableKey[] = ['teachers', 'venues', 'courseTemplates', 'visitSites', 'projectCourses'];
+        type TableKey = 'teachers' | 'venues' | 'courseTemplates' | 'visitSites';
+        const tableKeys: TableKey[] = ['teachers', 'venues', 'courseTemplates', 'visitSites'];
         
         for (const key of tableKeys) {
           const rawItems = rawResult[key];
@@ -530,8 +522,7 @@ ${fileContent}
           checkResult.teachers.length + 
           checkResult.venues.length + 
           checkResult.courseTemplates.length + 
-          checkResult.visitSites.length + 
-          checkResult.projectCourses.length;
+          checkResult.visitSites.length;
 
         console.log('最终结果统计:', {
           projectInfo: checkResult.projectInfo?.length || 0,
@@ -539,7 +530,6 @@ ${fileContent}
           venues: checkResult.venues.length,
           courseTemplates: checkResult.courseTemplates.length,
           visitSites: checkResult.visitSites.length,
-          projectCourses: checkResult.projectCourses.length,
           totalChanges,
         });
 

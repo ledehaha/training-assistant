@@ -214,7 +214,6 @@ export default function SummaryPage() {
       venues: AiCheckItem[];
       courseTemplates: AiCheckItem[];
       visitSites: AiCheckItem[];
-      projectCourses: AiCheckItem[];
     };
   } | null>(null);
   const [showAiCheckDialog, setShowAiCheckDialog] = useState(false);
@@ -224,7 +223,6 @@ export default function SummaryPage() {
     venues: true,
     courseTemplates: true,
     visitSites: true,
-    projectCourses: true,
   });
   
   // 权限错误对话框状态
@@ -258,7 +256,6 @@ export default function SummaryPage() {
       venues: AiCheckItem[];
       courseTemplates: AiCheckItem[];
       visitSites: AiCheckItem[];
-      projectCourses: AiCheckItem[];
     };
   } | null>(null);
 
@@ -2422,8 +2419,7 @@ export default function SummaryPage() {
       const endpoint = type === 'teachers' ? '/api/teachers' :
                        type === 'venues' ? '/api/venues' :
                        type === 'courseTemplates' ? '/api/course-templates' :
-                       type === 'visitSites' ? '/api/visit-sites' :
-                       type === 'projectCourses' ? `/api/projects/${selectedProject?.id}/courses` : '';
+                       type === 'visitSites' ? '/api/visit-sites' : '';
       
       if (!endpoint) {
         toast.error('不支持的数据类型');
@@ -2459,14 +2455,13 @@ export default function SummaryPage() {
             (newResult.checkResult[type as keyof typeof newResult.checkResult] as unknown[]) = 
               targetArray.filter((i: unknown) => i !== item);
           }
-          const { projectInfo, teachers, venues, courseTemplates, visitSites, projectCourses } = newResult.checkResult;
+          const { projectInfo, teachers, venues, courseTemplates, visitSites } = newResult.checkResult;
           newResult.totalChanges = 
             (projectInfo?.length || 0) +
             teachers.length + 
             venues.length + 
             courseTemplates.length + 
-            visitSites.length + 
-            projectCourses.length;
+            visitSites.length;
           newResult.hasChanges = newResult.totalChanges > 0;
           setAiCheckResult(newResult);
         }
@@ -2477,14 +2472,13 @@ export default function SummaryPage() {
             (newResult.checkResult[type as keyof typeof newResult.checkResult] as unknown[]) = 
               targetArray.filter((i: unknown) => i !== item);
           }
-          const { projectInfo, teachers, venues, courseTemplates, visitSites, projectCourses } = newResult.checkResult;
+          const { projectInfo, teachers, venues, courseTemplates, visitSites } = newResult.checkResult;
           newResult.totalChanges = 
             (projectInfo?.length || 0) +
             teachers.length + 
             venues.length + 
             courseTemplates.length + 
-            visitSites.length + 
-            projectCourses.length;
+            visitSites.length;
           newResult.hasChanges = newResult.totalChanges > 0;
           setFileAiCheckResult(newResult);
         }
@@ -2560,14 +2554,13 @@ export default function SummaryPage() {
         (newResult.checkResult[type as keyof typeof newResult.checkResult] as unknown[]) = 
           targetArray.filter((i: unknown) => i !== item);
       }
-      const { projectInfo, teachers, venues, courseTemplates, visitSites, projectCourses } = newResult.checkResult;
+      const { projectInfo, teachers, venues, courseTemplates, visitSites } = newResult.checkResult;
       newResult.totalChanges = 
         (projectInfo?.length || 0) +
         teachers.length + 
         venues.length + 
         courseTemplates.length + 
-        visitSites.length + 
-        projectCourses.length;
+        visitSites.length;
       newResult.hasChanges = newResult.totalChanges > 0;
       setAiCheckResult(newResult);
     }
@@ -2578,97 +2571,17 @@ export default function SummaryPage() {
         (newResult.checkResult[type as keyof typeof newResult.checkResult] as unknown[]) = 
           targetArray.filter((i: unknown) => i !== item);
       }
-      const { projectInfo, teachers, venues, courseTemplates, visitSites, projectCourses } = newResult.checkResult;
+      const { projectInfo, teachers, venues, courseTemplates, visitSites } = newResult.checkResult;
       newResult.totalChanges = 
         (projectInfo?.length || 0) +
         teachers.length + 
         venues.length + 
         courseTemplates.length + 
-        visitSites.length + 
-        projectCourses.length;
+        visitSites.length;
       newResult.hasChanges = newResult.totalChanges > 0;
       setFileAiCheckResult(newResult);
     }
     toast.success('已忽略该变更');
-  };
-
-  // 将项目课程保存为课程模板
-  const handleSaveAsTemplate = async (item: AiCheckItem) => {
-    try {
-      // 从项目课程数据中提取模板所需字段
-      const courseData = item.data;
-      
-      // 构建课程模板数据
-      const templateData = {
-        name: String(courseData.name || ''),
-        category: courseData.category ? String(courseData.category) : '综合提升',
-        description: courseData.description ? String(courseData.description) : '',
-        duration: courseData.duration ? Number(courseData.duration) : null,
-        targetAudience: courseData.targetAudience ? String(courseData.targetAudience) : '',
-        content: courseData.content ? String(courseData.content) : '',
-        difficulty: courseData.difficulty ? String(courseData.difficulty) : '中级',
-        isActive: true,
-      };
-      
-      // 获取 session token
-      const sessionToken = typeof window !== 'undefined' ? localStorage.getItem('session_token') : null;
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (sessionToken) {
-        headers['Authorization'] = `Bearer ${sessionToken}`;
-      }
-      
-      const res = await fetch('/api/course-templates', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(templateData),
-      });
-      
-      if (res.ok) {
-        toast.success('已保存为课程模板', { description: `${templateData.name} 已添加到课程模板库` });
-        
-        // 从结果列表中移除已处理的项
-        if (aiCheckResult) {
-          const newResult = { ...aiCheckResult };
-          const targetArray = newResult.checkResult.projectCourses;
-          if (Array.isArray(targetArray)) {
-            newResult.checkResult.projectCourses = targetArray.filter((i: unknown) => i !== item);
-          }
-          const { projectInfo, teachers, venues, courseTemplates, visitSites, projectCourses } = newResult.checkResult;
-          newResult.totalChanges = 
-            (projectInfo?.length || 0) +
-            teachers.length + 
-            venues.length + 
-            courseTemplates.length + 
-            visitSites.length + 
-            projectCourses.length;
-          newResult.hasChanges = newResult.totalChanges > 0;
-          setAiCheckResult(newResult);
-        }
-        if (fileAiCheckResult) {
-          const newResult = { ...fileAiCheckResult };
-          const targetArray = newResult.checkResult.projectCourses;
-          if (Array.isArray(targetArray)) {
-            newResult.checkResult.projectCourses = targetArray.filter((i: unknown) => i !== item);
-          }
-          const { projectInfo, teachers, venues, courseTemplates, visitSites, projectCourses } = newResult.checkResult;
-          newResult.totalChanges = 
-            (projectInfo?.length || 0) +
-            teachers.length + 
-            venues.length + 
-            courseTemplates.length + 
-            visitSites.length + 
-            projectCourses.length;
-          newResult.hasChanges = newResult.totalChanges > 0;
-          setFileAiCheckResult(newResult);
-        }
-      } else {
-        const errorData = await res.json();
-        throw new Error(errorData.error || '保存失败');
-      }
-    } catch (error) {
-      console.error('Save as template error:', error);
-      toast.error('保存失败', { description: error instanceof Error ? error.message : '请稍后重试' });
-    }
   };
 
   // 切换展开/折叠
@@ -2783,28 +2696,26 @@ export default function SummaryPage() {
         if (aiCheckResult) {
           const newResult = { ...aiCheckResult };
           newResult.checkResult.projectInfo = newResult.checkResult.projectInfo.filter(i => i !== item);
-          const { projectInfo, teachers, venues, courseTemplates, visitSites, projectCourses } = newResult.checkResult;
+          const { projectInfo, teachers, venues, courseTemplates, visitSites } = newResult.checkResult;
           newResult.totalChanges = 
             (projectInfo?.length || 0) +
             teachers.length + 
             venues.length + 
             courseTemplates.length + 
-            visitSites.length + 
-            projectCourses.length;
+            visitSites.length;
           newResult.hasChanges = newResult.totalChanges > 0;
           setAiCheckResult(newResult);
         }
         if (fileAiCheckResult) {
           const newResult = { ...fileAiCheckResult };
           newResult.checkResult.projectInfo = newResult.checkResult.projectInfo.filter(i => i !== item);
-          const { projectInfo, teachers, venues, courseTemplates, visitSites, projectCourses } = newResult.checkResult;
+          const { projectInfo, teachers, venues, courseTemplates, visitSites } = newResult.checkResult;
           newResult.totalChanges = 
             (projectInfo?.length || 0) +
             teachers.length + 
             venues.length + 
             courseTemplates.length + 
-            visitSites.length + 
-            projectCourses.length;
+            visitSites.length;
           newResult.hasChanges = newResult.totalChanges > 0;
           setFileAiCheckResult(newResult);
         }
@@ -2823,28 +2734,26 @@ export default function SummaryPage() {
     if (aiCheckResult) {
       const newResult = { ...aiCheckResult };
       newResult.checkResult.projectInfo = newResult.checkResult.projectInfo.filter(i => i !== item);
-      const { projectInfo, teachers, venues, courseTemplates, visitSites, projectCourses } = newResult.checkResult;
+      const { projectInfo, teachers, venues, courseTemplates, visitSites } = newResult.checkResult;
       newResult.totalChanges = 
         (projectInfo?.length || 0) +
         teachers.length + 
         venues.length + 
         courseTemplates.length + 
-        visitSites.length + 
-        projectCourses.length;
+        visitSites.length;
       newResult.hasChanges = newResult.totalChanges > 0;
       setAiCheckResult(newResult);
     }
     if (fileAiCheckResult) {
       const newResult = { ...fileAiCheckResult };
       newResult.checkResult.projectInfo = newResult.checkResult.projectInfo.filter(i => i !== item);
-      const { projectInfo, teachers, venues, courseTemplates, visitSites, projectCourses } = newResult.checkResult;
+      const { projectInfo, teachers, venues, courseTemplates, visitSites } = newResult.checkResult;
       newResult.totalChanges = 
         (projectInfo?.length || 0) +
         teachers.length + 
         venues.length + 
         courseTemplates.length + 
-        visitSites.length + 
-        projectCourses.length;
+        visitSites.length;
       newResult.hasChanges = newResult.totalChanges > 0;
       setFileAiCheckResult(newResult);
     }
@@ -2917,17 +2826,6 @@ export default function SummaryPage() {
                     </div>
                   </div>
                   <div className="flex gap-1 flex-shrink-0 flex-wrap">
-                    {type === 'projectCourses' && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 text-xs text-purple-600 border-purple-200 hover:bg-purple-50"
-                        onClick={() => handleSaveAsTemplate(item)}
-                      >
-                        <BookOpen className="w-3 h-3 mr-1" />
-                        保存为模板
-                      </Button>
-                    )}
                     <Button
                       variant="outline"
                       size="sm"
@@ -3291,7 +3189,6 @@ export default function SummaryPage() {
                 {renderCheckItems('venues', (aiCheckResult || fileAiCheckResult)?.checkResult?.venues || [], <MapPin className="w-4 h-4 text-green-600" />, '场地信息')}
                 {renderCheckItems('courseTemplates', (aiCheckResult || fileAiCheckResult)?.checkResult?.courseTemplates || [], <BookOpen className="w-4 h-4 text-purple-600" />, '课程模板')}
                 {renderCheckItems('visitSites', (aiCheckResult || fileAiCheckResult)?.checkResult?.visitSites || [], <Building2 className="w-4 h-4 text-orange-600" />, '参访基地')}
-                {renderCheckItems('projectCourses', (aiCheckResult || fileAiCheckResult)?.checkResult?.projectCourses || [], <CalendarDays className="w-4 h-4 text-indigo-600" />, '项目课程')}
               </div>
             ) : (
               <div className="text-center py-12">
@@ -3324,7 +3221,7 @@ export default function SummaryPage() {
                 });
                 
                 // 处理其他数据类型
-                const otherTypes = ['teachers', 'venues', 'courseTemplates', 'visitSites', 'projectCourses'] as const;
+                const otherTypes = ['teachers', 'venues', 'courseTemplates', 'visitSites'] as const;
                 otherTypes.forEach(type => {
                   currentResult.checkResult[type].forEach(item => {
                     allPromises.push(
