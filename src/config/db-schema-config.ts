@@ -369,7 +369,7 @@ export const visitSitesSchema: TableSchemaConfig = {
       type: 'number',
       aiExtract: true,
       aiHint: '提取数字，单位为小时',
-      validation: { min: 0.5 },
+      validation: { min: 1 },
     },
     {
       name: 'maxVisitors',
@@ -484,9 +484,9 @@ export const coursesSchema: TableSchemaConfig = {
       aiHint: `课时自动折算规则（非常重要）：
 - 1课时 = 40-60分钟
 - 如果文件中写的是分钟数，必须折算成课时
-- 例如：120分钟 → 2课时，90分钟 → 1.5课时，45分钟 → 1课时
+- 例如：120分钟 → 2课时，90分钟 → 2课时，45分钟 → 1课时
 - 例如：2小时 → 2课时，半天(3-4小时) → 3-4课时
-- 提取课时数，保留一位小数`,
+- **课时数必须是整数，四舍五入取整**`,
       validation: { min: 0.5 },
     },
     {
@@ -1077,15 +1077,15 @@ export function convertToDuration(value: string | number | undefined | null, uni
   // 进行折算
   switch (detectedUnit) {
     case 'minute':
-      // 分钟转课时：50分钟 ≈ 1课时（取中间值）
-      return Math.round((numValue! / 50) * 10) / 10;
+      // 分钟转课时：50分钟 ≈ 1课时（取中间值），四舍五入取整
+      return Math.round(numValue! / 50);
     case 'hour':
-      // 小时转课时：1小时 = 1课时
-      return Math.round(numValue! * 10) / 10;
+      // 小时转课时：1小时 = 1课时，四舍五入取整
+      return Math.round(numValue!);
     case 'duration':
     default:
-      // 已经是课时，直接返回
-      return Math.round(numValue! * 10) / 10;
+      // 已经是课时，四舍五入取整
+      return Math.round(numValue!);
   }
 }
 
