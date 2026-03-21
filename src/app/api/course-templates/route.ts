@@ -216,7 +216,44 @@ export async function PUT(request: NextRequest) {
     
     // 检查是否有权限修改
     if (!canAccessDataByCreator(user, role, template)) {
-      return NextResponse.json({ error: '无权限修改此课程模板' }, { status: 403 });
+      // 获取创建者信息
+      let createdByName = '未知用户';
+      let createdByDepartmentName = '未知部门';
+      
+      if (template.createdBy) {
+        const creator = db
+          .select({ name: users.name })
+          .from(users)
+          .where(eq(users.id, template.createdBy))
+          .limit(1)
+          .all();
+        if (creator.length > 0) {
+          createdByName = creator[0].name || '未知用户';
+        }
+      }
+      
+      if (template.createdByDepartment) {
+        const dept = db
+          .select({ name: departments.name })
+          .from(departments)
+          .where(eq(departments.id, template.createdByDepartment))
+          .limit(1)
+          .all();
+        if (dept.length > 0) {
+          createdByDepartmentName = dept[0].name || '未知部门';
+        }
+      }
+      
+      return NextResponse.json({ 
+        error: '无权限修改此课程模板', 
+        code: 'FORBIDDEN',
+        creator: {
+          id: template.createdBy,
+          name: createdByName,
+          departmentId: template.createdByDepartment,
+          departmentName: createdByDepartmentName
+        }
+      }, { status: 403 });
     }
 
     // 更新课程模板

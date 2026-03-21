@@ -221,7 +221,44 @@ export async function PUT(request: NextRequest) {
     
     // 检查是否有权限修改
     if (!canAccessDataByCreator(user, role, site)) {
-      return NextResponse.json({ error: '无权限修改此参访基地' }, { status: 403 });
+      // 获取创建者信息
+      let createdByName = '未知用户';
+      let createdByDepartmentName = '未知部门';
+      
+      if (site.createdBy) {
+        const creator = db
+          .select({ name: users.name })
+          .from(users)
+          .where(eq(users.id, site.createdBy))
+          .limit(1)
+          .all();
+        if (creator.length > 0) {
+          createdByName = creator[0].name || '未知用户';
+        }
+      }
+      
+      if (site.createdByDepartment) {
+        const dept = db
+          .select({ name: departments.name })
+          .from(departments)
+          .where(eq(departments.id, site.createdByDepartment))
+          .limit(1)
+          .all();
+        if (dept.length > 0) {
+          createdByDepartmentName = dept[0].name || '未知部门';
+        }
+      }
+      
+      return NextResponse.json({ 
+        error: '无权限修改此参访基地', 
+        code: 'FORBIDDEN',
+        creator: {
+          id: site.createdBy,
+          name: createdByName,
+          departmentId: site.createdByDepartment,
+          departmentName: createdByDepartmentName
+        }
+      }, { status: 403 });
     }
 
     // 更新参访基地

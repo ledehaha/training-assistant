@@ -52,6 +52,7 @@ import {
   RefreshCw,
   Sparkles,
   UserPlus,
+  User,
   MapPin,
   BookOpen,
   Building2,
@@ -59,6 +60,7 @@ import {
   ChevronDown,
   ChevronUp,
   X,
+  Send,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -223,6 +225,24 @@ export default function SummaryPage() {
     courseTemplates: true,
     visitSites: true,
     projectCourses: true,
+  });
+  
+  // 权限错误对话框状态
+  const [permissionErrorDialog, setPermissionErrorDialog] = useState<{
+    isOpen: boolean;
+    error: string;
+    creator: {
+      id?: string;
+      name: string;
+      departmentId?: string;
+      departmentName: string;
+    } | null;
+    pendingItem: { type: string; item: AiCheckItem } | null;
+  }>({
+    isOpen: false,
+    error: '',
+    creator: null,
+    pendingItem: null,
   });
 
   // 单文件AI检查状态
@@ -2470,12 +2490,65 @@ export default function SummaryPage() {
         }
       } else {
         const errorData = await res.json();
+        
+        // 处理权限错误
+        if (res.status === 403 && errorData.code === 'FORBIDDEN' && errorData.creator) {
+          setPermissionErrorDialog({
+            isOpen: true,
+            error: errorData.error,
+            creator: errorData.creator,
+            pendingItem: { type, item },
+          });
+          return;
+        }
+        
         throw new Error(errorData.error || '操作失败');
       }
     } catch (error) {
       console.error('Confirm data change error:', error);
       toast.error('操作失败', { description: error instanceof Error ? error.message : '请稍后重试' });
     }
+  };
+
+  // 发送修改申请
+  const handleSendModifyRequest = async () => {
+    const { pendingItem, creator } = permissionErrorDialog;
+    if (!pendingItem || !creator) return;
+    
+    try {
+      // TODO: 实现发送修改申请的逻辑
+      // 这里可以调用API发送通知给创建者
+      toast.success('修改申请已发送', { 
+        description: `已向 ${creator.name}（${creator.departmentName}）发送修改申请` 
+      });
+      
+      // 从结果列表中移除该项
+      handleIgnoreDataChange(pendingItem.type, pendingItem.item);
+    } catch (error) {
+      console.error('Send modify request error:', error);
+      toast.error('发送申请失败', { description: '请稍后重试' });
+    } finally {
+      setPermissionErrorDialog({
+        isOpen: false,
+        error: '',
+        creator: null,
+        pendingItem: null,
+      });
+    }
+  };
+
+  // 忽略权限错误，跳过该项
+  const handleIgnorePermissionError = () => {
+    const { pendingItem } = permissionErrorDialog;
+    if (pendingItem) {
+      handleIgnoreDataChange(pendingItem.type, pendingItem.item);
+    }
+    setPermissionErrorDialog({
+      isOpen: false,
+      error: '',
+      creator: null,
+      pendingItem: null,
+    });
   };
 
   // 忽略变更
@@ -3271,6 +3344,61 @@ export default function SummaryPage() {
                 一键确认所有变更
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* 权限错误对话框 */}
+      <Dialog open={permissionErrorDialog.isOpen} onOpenChange={(open) => {
+        if (!open) {
+          setPermissionErrorDialog(prev => ({ ...prev, isOpen: false }));
+        }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600">
+              <AlertCircle className="w-5 h-5" />
+              无权限修改
+            </DialogTitle>
+            <DialogDescription>
+              该记录由其他用户创建，您没有权限直接修改
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <p className="text-sm text-amber-800 mb-2">{permissionErrorDialog.error}</p>
+              
+              {permissionErrorDialog.creator && (
+                <div className="mt-3 space-y-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-muted-foreground">创建者：</span>
+                    <span className="font-medium">{permissionErrorDialog.creator.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-muted-foreground">所属部门：</span>
+                    <span className="font-medium">{permissionErrorDialog.creator.departmentName}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <p className="text-sm text-muted-foreground">
+              您可以选择发送修改申请给创建者，或者忽略此项修改。
+            </p>
+          </div>
+          
+          <DialogFooter className="flex gap-2 sm:gap-0">
+            <Button variant="outline" onClick={handleIgnorePermissionError}>
+              <X className="w-4 h-4 mr-2" />
+              忽略，跳过此项
+            </Button>
+            <Button onClick={handleSendModifyRequest}>
+              <Send className="w-4 h-4 mr-2" />
+              发送修改申请
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

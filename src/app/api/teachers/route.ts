@@ -207,7 +207,44 @@ export async function PUT(request: NextRequest) {
     
     // 检查是否有权限修改
     if (!canAccessDataByCreator(user, role, teacher)) {
-      return NextResponse.json({ error: '无权限修改此讲师信息' }, { status: 403 });
+      // 获取创建者信息
+      let createdByName = '未知用户';
+      let createdByDepartmentName = '未知部门';
+      
+      if (teacher.createdBy) {
+        const creator = db
+          .select({ name: users.name })
+          .from(users)
+          .where(eq(users.id, teacher.createdBy))
+          .limit(1)
+          .all();
+        if (creator.length > 0) {
+          createdByName = creator[0].name || '未知用户';
+        }
+      }
+      
+      if (teacher.createdByDepartment) {
+        const dept = db
+          .select({ name: departments.name })
+          .from(departments)
+          .where(eq(departments.id, teacher.createdByDepartment))
+          .limit(1)
+          .all();
+        if (dept.length > 0) {
+          createdByDepartmentName = dept[0].name || '未知部门';
+        }
+      }
+      
+      return NextResponse.json({ 
+        error: '无权限修改此讲师信息', 
+        code: 'FORBIDDEN',
+        creator: {
+          id: teacher.createdBy,
+          name: createdByName,
+          departmentId: teacher.createdByDepartment,
+          departmentName: createdByDepartmentName
+        }
+      }, { status: 403 });
     }
 
     // 更新讲师
