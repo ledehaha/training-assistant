@@ -1107,33 +1107,36 @@ export default function DesignPage() {
         throw new Error('AI调整失败');
       }
 
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('无法读取响应');
-      }
-
-      const decoder = new TextDecoder();
-      let result = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        result += decoder.decode(value, { stream: true });
-      }
-
-      // 尝试提取JSON
-      const jsonMatch = result.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const data = JSON.parse(jsonMatch[0]);
-        if (data.course) {
-          // 保留原课程的day和其他必要字段
-          setEditingCourse({
-            ...editingCourse,
-            ...data.course,
-            day: editingCourse.day, // 保持原天数
-          });
-          showToast('success', '课程已根据需求调整');
+      const responseData = await response.json();
+      
+      if (responseData.data?.course) {
+        // 保留原课程的day和其他必要字段
+        setEditingCourse({
+          ...editingCourse,
+          ...responseData.data.course,
+          day: editingCourse.day, // 保持原天数
+        });
+        showToast('success', '课程已根据需求调整');
+      } else if (responseData.data?.raw) {
+        // 尝试从 raw 内容中提取 JSON
+        try {
+          const jsonMatch = responseData.data.raw.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            if (parsed.course) {
+              setEditingCourse({
+                ...editingCourse,
+                ...parsed.course,
+                day: editingCourse.day,
+              });
+              showToast('success', '课程已根据需求调整');
+            }
+          }
+        } catch {
+          showToast('error', 'AI返回格式异常，请重试');
         }
+      } else {
+        showToast('error', 'AI返回格式异常，请重试');
       }
     } catch (error) {
       console.error('AI调整失败:', error);
