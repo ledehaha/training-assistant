@@ -388,7 +388,7 @@ export default function DesignPage() {
         clearTimeout(saveTimerRef.current);
       }
     };
-  }, [formData, courses, selectedVenue, performSave]);
+  }, [formData, courses, performSave]);
 
   // 保存状态指示器组件
   const SaveIndicator = () => {
@@ -600,15 +600,6 @@ export default function DesignPage() {
   // 加载草稿项目
   const handleLoadProject = async (id: string) => {
     try {
-      // 先清除之前的数据状态，避免残留（同时更新 ref）
-      setCourses([]);
-      coursesRef.current = []; // 立即更新 ref
-      setSelectedVenue(null);
-      setQuotation(null); // 清空费用预算
-      setModifySuggestion('');
-      setCheckResult(null);
-      setCoursesToSplit([]);
-      
       // 获取session token
       const sessionToken = typeof window !== 'undefined' ? localStorage.getItem('session_token') : null;
       const headers: Record<string, string> = {};
@@ -622,14 +613,7 @@ export default function DesignPage() {
       if (data.data) {
         const project = data.data;
         
-        // 更新项目 ID
-        setProjectId(project.id);
-        projectIdRef.current = project.id;
-        
-        // 记录原始项目名称
-        setOriginalProjectName(project.name || '');
-        
-        // 构建新的表单数据
+        // 先准备好所有数据，然后一次性更新状态
         const newFormData = {
           name: project.name || '',
           trainingTarget: project.trainingTarget || project.training_target || '',
@@ -644,22 +628,10 @@ export default function DesignPage() {
           specialRequirements: project.specialRequirements || project.special_requirements || '',
         };
         
-        setFormData(newFormData);
-        formDataRef.current = newFormData; // 立即更新 ref
-        
-        // 更新课程数据
         const newCourses = project.courses && Array.isArray(project.courses) ? project.courses : [];
-        setCourses(newCourses);
-        coursesRef.current = newCourses; // 立即更新 ref
         
-        // 更新场地选择
         const venueId = project.venueId || project.selected_venue_id || project.venue_id;
-        if (venueId) {
-          const venue = venues.find(v => v.id === venueId);
-          setSelectedVenue(venue || null);
-        } else {
-          setSelectedVenue(null);
-        }
+        const venue = venueId ? venues.find(v => v.id === venueId) : null;
         
         // 更新已保存数据引用（用于后续比较是否需要保存）
         lastSavedDataRef.current = JSON.stringify({
@@ -668,8 +640,21 @@ export default function DesignPage() {
           selectedVenueId: venueId,
         });
         
+        // 批量更新所有状态（React 18 会自动批量处理）
+        setProjectId(project.id);
+        projectIdRef.current = project.id;
+        setOriginalProjectName(project.name || '');
+        setFormData(newFormData);
+        formDataRef.current = newFormData;
+        setCourses(newCourses);
+        coursesRef.current = newCourses;
+        setSelectedVenue(venue || null);
+        selectedVenueRef.current = venue || null;
+        setQuotation(null);
+        setModifySuggestion('');
+        setCheckResult(null);
+        setCoursesToSplit([]);
         setShowDraftList(false);
-        // 保持当前 tab 不变，用户在哪个页面打开就在哪个页面显示
       }
     } catch (error) {
       console.error('Load project error:', error);
