@@ -138,7 +138,7 @@ export async function GET(request: NextRequest) {
           .leftJoin(users, eq(courses.createdBy, users.id))
           .leftJoin(departments, eq(courses.createdByDepartment, departments.id))
           .where(eq(courses.isTemplate, true))
-          .orderBy(desc(sql`created_at`))
+          .orderBy(desc(courses.createdAt))
           .limit(1000)
           .all();
       } else if (table === 'project_courses') {
@@ -149,7 +149,7 @@ export async function GET(request: NextRequest) {
             .select()
             .from(courses)
             .where(and(eq(courses.isTemplate, false), eq(courses.projectId, projectId)))
-            .orderBy(desc(sql`created_at`))
+            .orderBy(desc(courses.createdAt))
             .limit(1000)
             .all();
         } else {
@@ -157,7 +157,7 @@ export async function GET(request: NextRequest) {
             .select()
             .from(courses)
             .where(eq(courses.isTemplate, false))
-            .orderBy(desc(sql`created_at`))
+            .orderBy(desc(courses.createdAt))
             .limit(1000)
             .all();
         }
@@ -166,7 +166,7 @@ export async function GET(request: NextRequest) {
         results = db
           .select()
           .from(courses)
-          .orderBy(desc(sql`created_at`))
+          .orderBy(desc(courses.createdAt))
           .limit(1000)
           .all();
       }
@@ -197,7 +197,7 @@ export async function GET(request: NextRequest) {
         .from(teachers)
         .leftJoin(users, eq(teachers.createdBy, users.id))
         .leftJoin(departments, eq(teachers.createdByDepartment, departments.id))
-        .orderBy(desc(sql`created_at`))
+        .orderBy(desc(teachers.createdAt))
         .limit(1000)
         .all();
       return NextResponse.json({ data: results });
@@ -226,7 +226,7 @@ export async function GET(request: NextRequest) {
         .from(venues)
         .leftJoin(users, eq(venues.createdBy, users.id))
         .leftJoin(departments, eq(venues.createdByDepartment, departments.id))
-        .orderBy(desc(sql`created_at`))
+        .orderBy(desc(venues.createdAt))
         .limit(1000)
         .all();
       return NextResponse.json({ data: results });
@@ -265,7 +265,7 @@ export async function GET(request: NextRequest) {
         .from(visitSites)
         .leftJoin(users, eq(visitSites.createdBy, users.id))
         .leftJoin(departments, eq(visitSites.createdByDepartment, departments.id))
-        .orderBy(desc(sql`created_at`))
+        .orderBy(desc(visitSites.createdAt))
         .limit(1000)
         .all();
       return NextResponse.json({ data: results });
@@ -296,7 +296,7 @@ export async function GET(request: NextRequest) {
         .from(normativeDocuments)
         .leftJoin(users, eq(normativeDocuments.createdBy, users.id))
         .leftJoin(departments, eq(normativeDocuments.createdByDepartment, departments.id))
-        .orderBy(desc(sql`created_at`))
+        .orderBy(desc(normativeDocuments.createdAt))
         .limit(1000)
         .all();
       return NextResponse.json({ data: results });
