@@ -8,6 +8,8 @@ import {
   teachers,
   venues,
   visitSites,
+  users,
+  departments,
 } from '@/storage/database/schema';
 import { eq, and } from 'drizzle-orm';
 import {
@@ -16,6 +18,20 @@ import {
   processDurationField,
   getComparisonFields,
 } from '@/config/db-schema-config';
+
+// 根据讲师姓名查找讲师ID
+function findTeacherIdByName(teacherName: string, teacherList: { id: string; name: string }[]): string | null {
+  if (!teacherName || typeof teacherName !== 'string') return null;
+  
+  // 如果已经是UUID格式，直接返回
+  if (teacherName.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+    return teacherName;
+  }
+  
+  // 在讲师库中查找匹配的讲师
+  const found = teacherList.find(t => t.name === teacherName.trim());
+  return found?.id || null;
+}
 
 // 初始化对象存储
 const storage = new S3Storage({
@@ -252,6 +268,17 @@ function formatDbDataForAI(
   const displayData = data.slice(0, 30);
   
   return displayData.map((item, index) => {
+    // 对于课程模板，特殊处理讲师字段：显示讲师名称而非ID
+    if (schemaKey === 'courseTemplates') {
+      const fields = comparisonFields.filter(f => f !== 'teacherId');
+      const fieldValues = fields
+        .map(f => `${f}:${item[f] ?? '未填写'}`)
+        .join(' ');
+      // 添加讲师名称
+      const teacherDisplay = item.teacherName ? `讲师:${item.teacherName}` : '讲师:未指定';
+      return `${index + 1}. ID:${item.id} ${fieldValues} ${teacherDisplay}`;
+    }
+    
     const fieldValues = config.fields
       .map(f => `${f}:${item[f] ?? '未填写'}`)
       .join(' ');
@@ -317,12 +344,41 @@ export async function POST(request: NextRequest) {
         // Step 2: 获取数据库数据
         sendEvent({ type: 'progress', step: 'database', stepName: '正在获取数据库数据...', progress: 66, total: 3 });
         
-        const [allTeachers, allVenues, allCourseTemplates, allVisitSites] = await Promise.all([
+        // 查询讲师列表（用于匹配）
+        const teacherList = db.select({ id: teachers.id, name: teachers.name }).from(teachers).all();
+        
+        // 查询课程模板，关联讲师表获取讲师名称
+        const courseTemplatesWithTeacher = db
+          .select({
+            id: courses.id,
+            name: courses.name,
+            category: courses.category,
+            description: courses.description,
+            content: courses.content,
+            duration: courses.duration,
+            targetAudience: courses.targetAudience,
+            difficulty: courses.difficulty,
+            teacherId: courses.teacherId,
+            teacherName: teachers.name,
+            usageCount: courses.usageCount,
+            avgRating: courses.avgRating,
+            isActive: courses.isActive,
+            createdAt: courses.createdAt,
+            createdBy: courses.createdBy,
+            createdByDepartment: courses.createdByDepartment,
+          })
+          .from(courses)
+          .leftJoin(teachers, eq(courses.teacherId, teachers.id))
+          .where(eq(courses.isTemplate, true))
+          .all();
+        
+        const [allTeachers, allVenues, allVisitSites] = await Promise.all([
           db.select().from(teachers),
           db.select().from(venues),
-          db.select().from(courses).where(eq(courses.isTemplate, true)),
           db.select().from(visitSites),
         ]);
+        
+        const allCourseTemplates = courseTemplatesWithTeacher;
 
         // Step 3: AI分析
         sendEvent({ type: 'progress', step: 'ai', stepName: '正在进行AI智能分析...', progress: 90, total: 3 });
@@ -498,7 +554,20 @@ ${fileContent}
               const validation = validateAIData(key, typedItem.data);
               console.log(`  验证结果: errors=${validation.errors.length}, cleanedData=`, JSON.stringify(validation.cleanedData).substring(0, 100));
               
-              const processedData = processDurationField(key, validation.cleanedData) as Record<string, unknown>;
+              let processedData = processDurationField(key, validation.cleanedData) as Record<string, unknown>;
+              
+              // 对于课程模板，处理讲师字段：将讲师姓名转换为讲师ID
+              if (key === 'courseTemplates' && processedData.teacherId && typeof processedData.teacherId === 'string') {
+                const teacherIdValue = findTeacherIdByName(processedData.teacherId, teacherList);
+                if (teacherIdValue) {
+                  processedData.teacherId = teacherIdValue;
+                  console.log(`  讲师匹配成功: ${typedItem.data.teacherId} -> ${teacherIdValue}`);
+                } else {
+                  // 如果找不到匹配的讲师，保留原始值（可能是讲师姓名）
+                  // 后续在前端确认时会再次尝试匹配
+                  console.log(`  讲师未匹配: ${processedData.teacherId}`);
+                }
+              }
               
               const action: 'add' | 'update' = typedItem.action === 'update' ? 'update' : 'add';
               
