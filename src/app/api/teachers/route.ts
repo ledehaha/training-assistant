@@ -49,9 +49,16 @@ function canAccessDataByCreator(
     return false;
   }
   
-  // 学院负责人可以访问本学院的数据
+  // 学院负责人可以修改本学院的数据
   if (checkUserRole(role, ['college_head', 'college_admin'])) {
-    return data.createdByDepartment === user.departmentId;
+    // 可以修改本学院创建的数据
+    if (data.createdByDepartment === user.departmentId) {
+      return true;
+    }
+    // 也可以修改没有部门归属的公共数据
+    if (!data.createdByDepartment) {
+      return true;
+    }
   }
   
   // 普通用户只能访问自己创建的数据
