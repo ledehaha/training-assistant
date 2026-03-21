@@ -390,8 +390,8 @@ export default function DesignPage() {
     };
   }, [formData, courses, performSave]);
 
-  // 保存状态指示器组件
-  const SaveIndicator = () => {
+  // 保存状态指示器（使用 useMemo 避免重新创建）
+  const saveIndicator = useMemo(() => {
     if (saveStatus === 'idle' && !lastSaveTime) return null;
     
     return (
@@ -421,7 +421,7 @@ export default function DesignPage() {
         )}
       </div>
     );
-  };
+  }, [saveStatus, lastSaveTime]);
 
   // 浏览器离开提示
   useEffect(() => {
@@ -1600,8 +1600,8 @@ export default function DesignPage() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  // 当前编辑项目提示组件（可复用）
-  const CurrentProjectBanner = () => {
+  // 当前编辑项目提示（使用 useMemo 避免重新创建）
+  const currentProjectBanner = useMemo(() => {
     if (!projectId || !originalProjectName) return null;
     
     return (
@@ -1615,7 +1615,7 @@ export default function DesignPage() {
         </span>
       </div>
     );
-  };
+  }, [projectId, originalProjectName, formData.name]);
 
   return (
     <MainLayout>
@@ -1637,7 +1637,7 @@ export default function DesignPage() {
         <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
           <div className="flex items-center gap-4">
             <h1 className="text-2xl font-bold">项目设计</h1>
-            <SaveIndicator />
+            {saveIndicator}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <Button 
@@ -1691,7 +1691,7 @@ export default function DesignPage() {
 
           <TabsContent value="requirement" className="mt-6">
             {/* 当前编辑项目提示 */}
-            <CurrentProjectBanner />
+            currentProjectBanner
             <Card>
               <CardHeader>
                 <CardTitle>培训需求</CardTitle>
@@ -1953,7 +1953,7 @@ export default function DesignPage() {
 
           {/* 方案设计、场地选择、费用预算的 Tab 内容省略，保持原有逻辑 */}
           <TabsContent value="scheme" className="mt-6">
-            <CurrentProjectBanner />
+            currentProjectBanner
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
@@ -2197,7 +2197,7 @@ export default function DesignPage() {
           </TabsContent>
 
           <TabsContent value="visit" className="mt-6">
-            <CurrentProjectBanner />
+            currentProjectBanner
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -2338,7 +2338,7 @@ export default function DesignPage() {
           </TabsContent>
 
           <TabsContent value="venue" className="mt-6">
-            <CurrentProjectBanner />
+            currentProjectBanner
             <Card>
               <CardHeader>
                 <CardTitle>场地选择</CardTitle>
@@ -2377,7 +2377,7 @@ export default function DesignPage() {
           </TabsContent>
 
           <TabsContent value="quotation" className="mt-6">
-            <CurrentProjectBanner />
+            currentProjectBanner
             <Card>
               <CardHeader>
                 <CardTitle>费用预算</CardTitle>
