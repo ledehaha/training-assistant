@@ -7,6 +7,9 @@ const nextConfig: NextConfig = {
   output: 'standalone', // Docker 部署需要
   allowedDevOrigins: ['*.dev.coze.site'],
   serverExternalPackages: ['pdf2json', 'sql.js'],
+  turbopack: {
+    root: path.resolve(__dirname),
+  },
   images: {
     remotePatterns: [
       {
