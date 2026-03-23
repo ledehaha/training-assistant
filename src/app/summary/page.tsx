@@ -411,12 +411,11 @@ export default function SummaryPage() {
       return isComplete;
     });
     
-    // 计算项目完成进度（已上传必要文件数量 / 总必要文件数量）
+    // 计算项目完成进度（与 getUploadProgress 一致的计算方式）
     const calculateProgress = (project: Project): number => {
       const { requirements } = checkArchiveRequirements(project);
-      const requiredReqs = requirements.filter(r => r.required);
-      const uploadedCount = requiredReqs.filter(r => r.uploaded).length;
-      return uploadedCount / requiredReqs.length;
+      const uploaded = requirements.filter(r => r.uploaded).length;
+      return uploaded / requirements.length;
     };
     
     // 待总结项目按完成进度降序排序（完成度高的排在前面）
@@ -438,14 +437,12 @@ export default function SummaryPage() {
   const PAGE_SIZE = 8;
   
   // 分页状态
-  const [executingPage, setExecutingPage] = useState(1);
-  const [completedPage, setCompletedPage] = useState(1);
+  const [pendingPage, setPendingPage] = useState(1);
   const [archivedPage, setArchivedPage] = useState(1);
   
   // 重置分页（当筛选条件变化时）
   useEffect(() => {
-    setExecutingPage(1);
-    setCompletedPage(1);
+    setPendingPage(1);
     setArchivedPage(1);
   }, [timeFilter, searchKeyword]);
   
@@ -1750,105 +1747,62 @@ export default function SummaryPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {/* 执行中项目 */}
-              {categorizedProjects.executingProjects.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                    <PlayCircle className="w-4 h-4 text-indigo-600" />
-                    执行中待总结
-                    <Badge variant="secondary" className="text-xs">{categorizedProjects.executingProjects.length}</Badge>
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                    {/* 新建项目卡片 - 放在执行中项目列表第一位 */}
+              {/* 待总结项目列表 - 按完成进度排序 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                {/* 新建项目卡片 - 放在列表第一位 */}
+                <Card
+                  className="cursor-pointer border-2 border-dashed hover:border-indigo-400 hover:bg-indigo-50/50 transition-all"
+                  onClick={() => setShowNewProjectDialog(true)}
+                >
+                  <CardContent className="p-3 flex flex-col items-center justify-center min-h-[100px]">
+                    <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center mb-2">
+                      <Plus className="w-5 h-5 text-indigo-600" />
+                    </div>
+                    <p className="font-medium text-gray-700 text-sm">新建项目</p>
+                    <p className="text-xs text-gray-400">补录历史项目</p>
+                  </CardContent>
+                </Card>
+                {categorizedProjects.pendingProjects
+                  .slice((pendingPage - 1) * PAGE_SIZE, pendingPage * PAGE_SIZE)
+                  .map((project) => {
+                  const { isComplete } = checkArchiveRequirements(project);
+                  const isExecuting = project.status === 'executing';
+                  return (
                     <Card
-                      className="cursor-pointer border-2 border-dashed hover:border-indigo-400 hover:bg-indigo-50/50 transition-all"
-                      onClick={() => setShowNewProjectDialog(true)}
+                      key={project.id}
+                      className={`cursor-pointer hover:shadow-md transition-all ${
+                        isExecuting ? 'hover:border-indigo-500' : 
+                        isComplete ? 'hover:border-emerald-500' : 'border-orange-300 bg-orange-50'
+                      }`}
+                      onClick={() => handleSelectProject(project)}
                     >
-                      <CardContent className="p-3 flex flex-col items-center justify-center min-h-[100px]">
-                        <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center mb-2">
-                          <Plus className="w-5 h-5 text-indigo-600" />
+                      <CardContent className="p-3">
+                        <div className="flex items-start justify-between mb-1.5">
+                          <h5 className="font-medium text-gray-900 text-sm line-clamp-1">{project.name}</h5>
+                          <Badge className={
+                            isExecuting ? 'bg-indigo-100 text-indigo-700 text-xs' : 
+                            isComplete ? 'bg-emerald-100 text-emerald-700 text-xs' : 'bg-orange-100 text-orange-600 text-xs'
+                          }>
+                            {isExecuting ? '执行中' : isComplete ? '可归档' : '待上传'}
+                          </Badge>
                         </div>
-                        <p className="font-medium text-gray-700 text-sm">新建项目</p>
-                        <p className="text-xs text-gray-400">补录历史项目</p>
+                        <div className="text-xs text-gray-500 space-y-0.5">
+                          <p>参训：{project.participantCount || '-'}人</p>
+                          {project.trainingDays && <p>天数：{project.trainingDays}天</p>}
+                        </div>
+                        <div className="mt-2">
+                          <div className="flex items-center justify-between text-xs text-gray-400 mb-0.5">
+                            <span>材料</span>
+                            <span>{getUploadProgress(project)}%</span>
+                          </div>
+                          <Progress value={getUploadProgress(project)} className="h-1" />
+                        </div>
                       </CardContent>
                     </Card>
-                    {categorizedProjects.executingProjects
-                      .slice((executingPage - 1) * PAGE_SIZE, executingPage * PAGE_SIZE)
-                      .map((project) => (
-                      <Card
-                        key={project.id}
-                        className="cursor-pointer hover:border-indigo-500 hover:shadow-md transition-all"
-                        onClick={() => handleSelectProject(project)}
-                      >
-                        <CardContent className="p-3">
-                          <div className="flex items-start justify-between mb-1.5">
-                            <h5 className="font-medium text-gray-900 text-sm line-clamp-1">{project.name}</h5>
-                            <Badge className="bg-indigo-100 text-indigo-700 text-xs">执行中</Badge>
-                          </div>
-                          <div className="text-xs text-gray-500 space-y-0.5">
-                            <p>参训：{project.participantCount || '-'}人</p>
-                            {project.trainingDays && <p>天数：{project.trainingDays}天</p>}
-                          </div>
-                          <div className="mt-2">
-                            <div className="flex items-center justify-between text-xs text-gray-400 mb-0.5">
-                              <span>材料</span>
-                              <span>{getUploadProgress(project)}%</span>
-                            </div>
-                            <Progress value={getUploadProgress(project)} className="h-1" />
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                  {renderPagination(executingPage, categorizedProjects.executingProjects.length, setExecutingPage)}
-                </div>
-              )}
-              
-              {/* 已完成项目 */}
-              {categorizedProjects.completedProjects.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                    <FileCheck className="w-4 h-4 text-emerald-600" />
-                    已完成待归档
-                    <Badge variant="secondary" className="text-xs">{categorizedProjects.completedProjects.length}</Badge>
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                    {categorizedProjects.completedProjects
-                      .slice((completedPage - 1) * PAGE_SIZE, completedPage * PAGE_SIZE)
-                      .map((project) => {
-                      const { isComplete } = checkArchiveRequirements(project);
-                      return (
-                        <Card
-                          key={project.id}
-                          className={`cursor-pointer hover:shadow-md transition-all ${isComplete ? 'hover:border-emerald-500' : 'border-orange-300 bg-orange-50'}`}
-                          onClick={() => handleSelectProject(project)}
-                        >
-                          <CardContent className="p-3">
-                            <div className="flex items-start justify-between mb-1.5">
-                              <h5 className="font-medium text-gray-900 text-sm line-clamp-1">{project.name}</h5>
-                              <Badge className={isComplete ? 'bg-emerald-100 text-emerald-700 text-xs' : 'bg-orange-100 text-orange-600 text-xs'}>
-                                {isComplete ? '可归档' : '待上传'}
-                              </Badge>
-                            </div>
-                            <div className="text-xs text-gray-500 space-y-0.5">
-                              <p>参训：{project.participantCount || '-'}人</p>
-                              {project.trainingDays && <p>天数：{project.trainingDays}天</p>}
-                            </div>
-                            <div className="mt-2">
-                              <div className="flex items-center justify-between text-xs text-gray-400 mb-0.5">
-                                <span>材料</span>
-                                <span>{getUploadProgress(project)}%</span>
-                              </div>
-                              <Progress value={getUploadProgress(project)} className="h-1" />
-                            </div>
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
-                  </div>
-                  {renderPagination(completedPage, categorizedProjects.completedProjects.length, setCompletedPage)}
-                </div>
-              )}
+                  );
+                })}
+              </div>
+              {renderPagination(pendingPage, categorizedProjects.pendingProjects.length, setPendingPage)}
             </div>
           )}
         </CardContent>
