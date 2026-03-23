@@ -110,36 +110,72 @@ export async function POST(request: NextRequest) {
         
         // 计算模板匹配分数
         const scoredTemplates = courseTemplatesData.map((t: Record<string, unknown>) => {
-          let score = 0;
+          let score = 10; // 所有模板都有基础分，确保都能被考虑
           const templateCategory = (t.category as string) || '';
           const templateTarget = (t.targetAudience as string) || '';
           const templateName = (t.name as string) || '';
+          const templateDesc = (t.description as string) || '';
           
-          // 培训类型匹配
+          // 培训类型匹配（增强匹配逻辑）
           if (trainingTarget && templateCategory) {
-            if (templateCategory.includes(trainingTarget) || trainingTarget.includes(templateCategory)) {
+            // 完全匹配
+            if (templateCategory === trainingTarget) {
+              score += 40;
+            }
+            // 包含匹配
+            else if (templateCategory.includes(trainingTarget) || trainingTarget.includes(templateCategory)) {
               score += 30;
+            }
+            // 模糊匹配：关键词重叠
+            else {
+              const targetKeywords = trainingTarget.split(/[，,、\s]+/).filter((k: string) => k.length > 1);
+              const categoryKeywords = templateCategory.split(/[，,、\s]+/).filter((k: string) => k.length > 1);
+              const overlap = targetKeywords.filter((k: string) => categoryKeywords.some((ck: string) => k.includes(ck) || ck.includes(k)));
+              if (overlap.length > 0) {
+                score += overlap.length * 10;
+              }
             }
           }
           
-          // 目标人群匹配
+          // 目标人群匹配（增强匹配逻辑）
           if (targetAudience && templateTarget) {
-            if (templateTarget.includes(targetAudience) || targetAudience.includes(templateTarget)) {
+            // 完全匹配
+            if (templateTarget === targetAudience) {
+              score += 40;
+            }
+            // 包含匹配
+            else if (templateTarget.includes(targetAudience) || targetAudience.includes(templateTarget)) {
               score += 30;
+            }
+            // 模糊匹配
+            else {
+              const targetKeywords = targetAudience.split(/[，,、\s]+/).filter((k: string) => k.length > 1);
+              const audienceKeywords = templateTarget.split(/[，,、\s]+/).filter((k: string) => k.length > 1);
+              const overlap = targetKeywords.filter((k: string) => audienceKeywords.some((ak: string) => k.includes(ak) || ak.includes(k)));
+              if (overlap.length > 0) {
+                score += overlap.length * 10;
+              }
             }
           }
           
-          // 项目名称关键词匹配
+          // 课程名称与项目名称/培训类型匹配
           if (projectName && templateName) {
             const projectKeywords = projectName.split(/[，,、\s]+/).filter((k: string) => k.length > 1);
             projectKeywords.forEach((keyword: string) => {
-              if (templateName.includes(keyword)) {
+              if (templateName.includes(keyword) || templateDesc.includes(keyword)) {
                 score += 10;
               }
             });
           }
           
-          // 使用频率加分
+          // 课程描述与培训类型匹配
+          if (trainingTarget && templateDesc) {
+            if (templateDesc.includes(trainingTarget)) {
+              score += 15;
+            }
+          }
+          
+          // 使用频率加分（热门课程优先）
           score += Math.min((t.usageCount as number) || 0, 20);
           
           // 评分加分
@@ -148,11 +184,10 @@ export async function POST(request: NextRequest) {
           return { template: t, score };
         });
         
-        // 筛选高匹配度的模板（分数 >= 30）
+        // 筛选匹配的模板（降低阈值，确保更多模板被考虑）
         const matchedTemplates = scoredTemplates
-          .filter(st => st.score >= 30)
           .sort((a, b) => b.score - a.score)
-          .slice(0, 10)
+          .slice(0, 15) // 增加候选数量
           .map(st => st.template);
         
         // 为匹配的模板匹配合适的讲师
@@ -201,30 +236,51 @@ export async function POST(request: NextRequest) {
           ? '无预算限制'
           : `${projectData.budgetMin || 0} - ${projectData.budgetMax || 0}万元`;
         
-        // 如果有足够的匹配模板，优先使用模板组合方案
+        // 构建课程模板上下文 - 即使没有高匹配模板，也显示所有可用模板
         let templateContext = '';
-        if (templatesWithTeachers.length > 0) {
-          templateContext = `\n\n【优先使用以下匹配的课程模板】（已按匹配度排序）：
-${templatesWithTeachers.map((t: Record<string, unknown>, idx: number) => {
+        const templatesToShow = templatesWithTeachers.length > 0 ? templatesWithTeachers : matchedTemplates.slice(0, 10);
+        
+        if (templatesToShow.length > 0) {
+          // 计算模板总课时
+          const templateTotalHours = templatesToShow.reduce((sum: number, t: Record<string, unknown>) => sum + ((t.duration as number) || 4), 0);
+          
+          templateContext = `\n\n【课程模板库 - 必须优先使用】
+以下是系统中已有的课程模板，请优先从中选择课程组合方案：
+
+${templatesToShow.map((t: Record<string, unknown>, idx: number) => {
   const template = t as Record<string, unknown>;
   const teacher = template.matchedTeacher as Record<string, unknown> | null;
   return `${idx + 1}. ${template.name}
-   - 模板ID：${template.id}（使用此模板时必须在templateId字段填写此ID）
+   - 模板ID：${template.id}（使用此模板时templateId字段必填此ID）
    - 类别：${template.category || '未分类'}
    - 课时：${template.duration || 4}课时
    - 目标人群：${template.targetAudience || '不限'}
-   - 推荐讲师：${teacher ? `${teacher.name}（${teacher.title}），讲师ID：${teacher.id}` : '无匹配讲师，需AI推荐职称'}`;
+   - 推荐讲师：${teacher ? `${teacher.name}（${teacher.title}），讲师ID：${teacher.id}` : '无'}`;
 }).join('\n')}
 
-【重要规则】：
-1. 优先从上述模板中选择课程组合方案
-2. 使用模板时，必须填写以下字段：
-   - templateId: 填写模板ID
-   - isFromTemplate: true
-   - teacherName: 如果模板有推荐讲师，填写讲师姓名
-   - teacherId: 如果模板有推荐讲师，填写讲师ID
-3. 如果模板课程总课时不足，再自行设计补充课程
-4. 自行设计的课程（非模板），isFromTemplate=false，填写teacherTitle（建议讲师职称）`;
+模板总课时：约${templateTotalHours}课时
+
+【强制规则 - 必须遵守】：
+1. **必须优先使用上述模板**：先从模板中选择课程，尽可能用完所有相关模板
+2. **使用模板时必填字段**：
+   - templateId: 必须填写模板ID
+   - isFromTemplate: 必须为 true
+   - teacherName: 如有推荐讲师必须填写
+3. **模板不足时才自行设计**：只有当模板课程总课时不够${totalHours}课时，才自行设计补充课程
+4. **自行设计的课程**：isFromTemplate=false，teacherTitle填写建议讲师职称`;
+        } else if (courseTemplatesData.length > 0) {
+          // 如果没有匹配模板但有其他模板，显示所有模板
+          templateContext = `\n\n【课程模板库 - 请优先使用】
+以下是系统中已有的课程模板：
+
+${courseTemplatesData.slice(0, 15).map((t: Record<string, unknown>, idx: number) => {
+  return `${idx + 1}. ${t.name}
+   - 模板ID：${t.id}
+   - 类别：${t.category || '未分类'}
+   - 课时：${t.duration || 4}课时`;
+}).join('\n')}
+
+【重要】请优先从上述模板中选择合适的课程。`;
         }
         
         // 获取参访基地数据并匹配
@@ -309,67 +365,52 @@ ${matchedVisitSites.map((site: Record<string, unknown>, idx: number) => {
 特殊要求：${projectData.specialRequirements || '无'}
 ${templateContext}${visitSitesContext}${userProfileContext}
 
-要求：
-1. 【优先使用模板】如果上述有匹配的课程模板，请优先选择模板课程组合方案
-2. 【参访安排】根据培训主题和天数，合理安排1-2次参访活动（如果培训天数>=2天）
-   - 如果有匹配的参访基地，优先从中选择
-   - 参访通常安排2-4课时，计入总课时
-   - 参访内容应与培训主题相关
-3. 所有课程必须紧扣培训主题，不要生成无关课程
-4. 【课时控制 - 最重要】
-   - 总课时必须严格等于${totalHours}课时，一点都不能多也不能少
-   - 生成完成后请逐一累加每门课程的duration，确保总和等于${totalHours}
-   - 如果总课时不等于${totalHours}，需要增减课程直到正好相等
-5. 【单门课程课时数 - 必须遵守】
-   - 课时数只能是：1、2、4 这三个数字
-   - 4课时 = 标准半天课程（上午或下午）
-   - 2课时 = 短课程（约2小时）
-   - 1课时 = 极短课程（约1小时）
-   - 【禁止】生成3、5、6、7、8等其他课时数
-   - 【禁止】生成大于4的课时数
-6. 【重要】根据"平均每天课时"合理安排每天的课时量：
-   - 如果平均每天≤4课时：每天安排半天课程即可
-   - 如果平均每天在5-8课时：安排上午+下午的课程
-   - 如果平均每天>8课时：可以考虑安排晚上课程
-   - 不要机械地每天安排相同课时，可以有适当变化
-7. 【讲师信息填写规则 - 非常重要】：
-   - 使用模板课程时：isFromTemplate=true，templateId填写模板ID，teacherName填写模板中推荐的讲师姓名
-   - 不使用模板（AI自行设计课程）：isFromTemplate=false，teacherTitle填写建议讲师职称（如"副教授"、"高级工程师"等）
+【核心要求 - 必须严格遵守】：
+
+1. **【最重要】优先使用课程模板库中的模板**
+   - 必须先从模板库中选择课程
+   - 使用模板时：isFromTemplate=true，templateId填写模板ID
+   - 只有当模板课程总课时不足时，才自行设计补充课程
+   - 自行设计的课程：isFromTemplate=false
+
+2. **参访安排**（培训天数>=2天时）
+   - 安排1-2次参访活动，每次2-4课时
+   - 优先从匹配的参访基地中选择
+
+3. **课时控制 - 必须精确**
+   - 总课时必须严格等于${totalHours}课时
+   - 单门课程课时只能是：1、2、4（禁止其他数值）
+   - 生成后请累加确认总课时正确
+
+4. **讲师信息**
+   - 使用模板有推荐讲师：填写teacherName和teacherId
+   - 自行设计课程：填写teacherTitle（建议职称）
    - 参访活动：不需要讲师信息
-8. 考虑目标人群的特征偏好进行个性化设计
 
 返回JSON格式：
 {
   "courses": [
     {
       "day": 1, 
-      "name": "课程名或参访活动名", 
-      "duration": 4,  // 只能是1、2、4
+      "name": "课程名", 
+      "duration": 4,
       "description": "内容概述", 
       "category": "类别", 
       "type": "course或visit",
-      "isFromTemplate": true或false,
-      "templateId": "模板ID（使用模板时必填）",
-      "teacherName": "讲师姓名（使用模板且有推荐讲师时必填）",
-      "teacherTitle": "建议讲师职称（不使用模板时必填，如'副教授'、'高级工程师'）",
-      "visitSiteId": "参访基地ID（使用库中基地时必填）",
+      "isFromTemplate": true,
+      "templateId": "模板ID",
+      "teacherName": "讲师姓名",
+      "teacherId": "讲师ID",
+      "teacherTitle": "建议讲师职称（非模板时）",
+      "visitSiteId": "参访基地ID",
       "visitSiteName": "参访基地名称",
-      "isFromVisitLibrary": true或false
+      "isFromVisitLibrary": true
     }
   ],
-  "totalDurationCheck": 32,  // 请填写所有课程的课时总和，必须等于${totalHours}
+  "totalDurationCheck": ${totalHours},
+  "templateUsageCount": 5,
   "summary": "方案说明"
 }
-
-【课时计算示例】：
-假设总课时=32，可以这样安排：
-- 8门课程，每门4课时 = 32课时 ✓
-- 6门课程，每门4课时 + 4门课程，每门2课时 = 32课时 ✓
-- 7门课程，每门4课时 + 2门课程，每门2课时 = 32课时 ✓
-
-【错误示例】：
-- 生成一门6课时的课程 ✗（课时数只能是1、2、4）
-- 总课时是30或34 ✗（必须正好等于${totalHours}）
 
 只返回JSON。`;
         break;
