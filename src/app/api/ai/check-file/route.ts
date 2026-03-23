@@ -135,13 +135,37 @@ function generateSystemPrompt(fileType: FileType): string {
     declaration: '这是项目申报书，可能包含完整的项目基本信息、课程安排、讲师信息等。',
     studentList: '这是学员名单，主要包含学员信息，不要从中提取项目基本信息。',
     satisfaction: '这是满意度调查文件，主要包含满意度相关数据，不要从中提取项目基本信息或讲师信息。',
-    other: `这是其它附件，请根据**文件内容**智能判断并提取所有相关数据：
-- 如果内容包含**课程安排/日程安排**（如"第X天"、"XX:XX"、"上午/下午"等时间信息）：提取课程信息(courseTemplates)
-- 如果内容包含**师资/讲师/专家介绍**（如姓名+职称+单位）：提取讲师信息(teachers)
-- 如果内容包含**参访/参观安排**（如参访单位、地址）：提取参访基地信息(visitSites)
-- 如果内容包含**场地/会议室信息**：提取场地信息(venues)
+    other: `这是其它附件，**请务必仔细分析文件内容**，提取所有相关数据：
+
+## 重点提取内容（按优先级）
+
+### 1. 课程安排（最重要）
+识别特征：培训日程、课程表、时间安排、教学计划、培训方案等
+提取模式：
+- 按天排列的课程（如"第一天"、"Day1"、"日期"等）
+- 按时间段排列的课程（如"上午"、"下午"、"9:00-11:00"等）
+- 课程名称 + 时间 + 讲师/负责人
+- 将每门课程作为单独的课程模板提取
+
+### 2. 师资信息
+识别特征：讲师介绍、师资队伍、授课教师、专家名单等
+提取模式：
+- 姓名 + 职称/职务 + 单位/机构
+- 姓名 + 专业领域/研究方向
+- 注意：title字段只填专业技术职称（教授、副教授等），不填行政职务
+
+### 3. 参访基地
+识别特征：参观安排、考察地点、实地教学等
+提取模式：单位名称 + 地址 + 联系方式
+
+### 4. 场地信息
+识别特征：培训地点、教室安排、会议室等
+提取模式：场地名称 + 地址 + 容量
+
+## 重要提醒
 - **一个文件可能同时包含多种信息，请全部提取**
-- 不要从专家介绍中提取项目基本信息（如参训人数）`,
+- **课程安排是重点，务必仔细识别并提取**
+- 培训方案、教学计划等文件通常包含完整的课程安排，请逐一提取每门课程`,
   };
 
   const projectInfoSection = shouldExtractProjectInfo 
@@ -165,15 +189,17 @@ ${fileTypeHints[fileType]}
 - 对于同一实体，整合文件中所有相关信息
 - 每条数据必须标注source字段说明来源
 
-### ⚠️ 过滤规则【极其重要】
-**以下情况不要返回记录，直接跳过：**
-1. 数据库中已存在相同姓名的讲师/场地/课程等，且文件中的信息与数据库**完全一致或无新增价值**
-2. 提取的数据为空或只有name字段，没有其他有效信息
-3. 无法从文件中提取到任何有用的数据
+### ⚠️ 过滤规则【重要】
+**以下情况不要返回记录：**
+1. 提取的数据为空或只有name字段，没有其他有效信息
+2. 无法从文件中提取到任何有用的数据
 
-**只有以下情况才返回记录：**
-1. **新增**：数据库中不存在该实体，需要新增
-2. **更新**：数据库中存在该实体，但文件中有**新的、不同的、有价值的信息**需要更新
+**对于不同类型的数据，过滤规则不同：**
+- **课程模板**：只要是有效的课程安排，都应该返回。即使数据库中有同名课程，但时间安排、讲师、内容等不同，也应该作为新增返回
+- **讲师信息**：数据库中已存在同名讲师且信息完全一致时，才跳过
+- **场地/参访基地**：数据库中已存在同名记录且信息完全一致时，才跳过
+
+**重点提示**：培训方案中的课程安排是有价值的数据，请积极提取！
 
 ### 职称识别规则【极其重要】
 **职称（title）字段只能填写专业技术职称，不能填写行政职务！**
@@ -459,10 +485,60 @@ ${fileContent}
         try {
           console.log('AI原始响应长度:', fullContent.length);
           console.log('AI原始响应内容(前500字符):', fullContent.substring(0, 500));
+          
+          // 提取JSON内容
           const jsonMatch = fullContent.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
-            rawResult = JSON.parse(jsonMatch[0]);
-            console.log('解析后的JSON结果:', JSON.stringify(rawResult, null, 2).substring(0, 1000));
+            let jsonStr = jsonMatch[0];
+            
+            // 尝试修复常见的JSON格式问题
+            // 1. 移除末尾的逗号
+            jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1');
+            // 2. 如果JSON不完整，尝试补充闭合括号
+            const openBraces = (jsonStr.match(/\{/g) || []).length;
+            const closeBraces = (jsonStr.match(/\}/g) || []).length;
+            const openBrackets = (jsonStr.match(/\[/g) || []).length;
+            const closeBrackets = (jsonStr.match(/\]/g) || []).length;
+            
+            if (closeBraces < openBraces) {
+              jsonStr += '}'.repeat(openBraces - closeBraces);
+            }
+            if (closeBrackets < openBrackets) {
+              jsonStr += ']'.repeat(openBrackets - closeBrackets);
+            }
+            
+            try {
+              rawResult = JSON.parse(jsonStr);
+              console.log('解析后的JSON结果:', JSON.stringify(rawResult, null, 2).substring(0, 1000));
+            } catch (parseError) {
+              console.error('JSON解析失败，尝试提取部分数据:', parseError);
+              // 尝试提取各个数组
+              const extractArray = (key: string): unknown[] => {
+                const regex = new RegExp(`"${key}"\\s*:\\s*\\[([\\s\\S]*?)(?:\\]|$)`, 'i');
+                const match = jsonStr.match(regex);
+                if (match) {
+                  try {
+                    // 尝试解析数组内容
+                    let arrayStr = '[' + match[1];
+                    if (!arrayStr.endsWith(']')) arrayStr += ']';
+                    arrayStr = arrayStr.replace(/,(\s*\])/g, '$1'); // 移除末尾逗号
+                    return JSON.parse(arrayStr);
+                  } catch {
+                    return [];
+                  }
+                }
+                return [];
+              };
+              
+              rawResult = {
+                projectInfo: extractArray('projectInfo'),
+                teachers: extractArray('teachers'),
+                venues: extractArray('venues'),
+                courseTemplates: extractArray('courseTemplates'),
+                visitSites: extractArray('visitSites'),
+              };
+              console.log('部分提取结果:', JSON.stringify(rawResult, null, 2).substring(0, 500));
+            }
           } else {
             console.log('未找到JSON匹配');
           }
@@ -536,19 +612,31 @@ ${fileContent}
                 continue;
               }
               
-              // 过滤"无需更新"的记录
+              // 过滤"无需更新"的记录（但对于课程模板，放宽过滤条件）
               const reasonText = typedItem.reason || '';
-              if (
-                reasonText.includes('无需更新') ||
-                reasonText.includes('无需变更') ||
-                reasonText.includes('信息一致') ||
-                reasonText.includes('数据一致') ||
-                reasonText.includes('无新增价值') ||
-                reasonText.includes('无变化') ||
-                reasonText.includes('完全一致')
-              ) {
-                console.log(`  跳过: ${reasonText}`);
-                continue;
+              // 课程模板数据更有价值，不轻易过滤
+              if (key !== 'courseTemplates') {
+                if (
+                  reasonText.includes('无需更新') ||
+                  reasonText.includes('无需变更') ||
+                  reasonText.includes('信息一致') ||
+                  reasonText.includes('数据一致') ||
+                  reasonText.includes('无新增价值') ||
+                  reasonText.includes('无变化') ||
+                  reasonText.includes('完全一致')
+                ) {
+                  console.log(`  跳过: ${reasonText}`);
+                  continue;
+                }
+              } else {
+                // 课程模板：只有在完全一致时才过滤
+                if (
+                  reasonText.includes('完全一致') ||
+                  reasonText.includes('数据完全相同')
+                ) {
+                  console.log(`  跳过课程模板: ${reasonText}`);
+                  continue;
+                }
               }
               
               const validation = validateAIData(key, typedItem.data);
