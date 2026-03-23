@@ -375,6 +375,8 @@ export const normativeDocuments = sqliteTable(
     fileName: text('file_name'), // 原始文件名
     fileSize: integer('file_size'), // 文件大小（字节）
     isEffective: integer('is_effective', { mode: 'boolean' }).default(true),
+    // 可见性设置: private(本人可见), department(部门可见), public(公开)
+    visibility: text('visibility').default('public'),
     // 创建人信息
     createdBy: text('created_by'), // 创建人ID
     createdByDepartment: text('created_by_department'), // 创建人部门ID
@@ -384,6 +386,7 @@ export const normativeDocuments = sqliteTable(
   (table) => [
     index('normative_documents_issuer_idx').on(table.issuer),
     index('normative_documents_is_effective_idx').on(table.isEffective),
+    index('normative_documents_visibility_idx').on(table.visibility),
     index('normative_documents_created_by_department_idx').on(table.createdByDepartment),
   ]
 );

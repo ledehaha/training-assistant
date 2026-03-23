@@ -274,8 +274,24 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ data: results });
     }
 
-    // 规范性文件表：关联用户和部门
+    // 规范性文件表：关联用户和部门，支持可见性过滤
     if (table === 'normative_documents') {
+      // 获取当前用户信息用于可见性过滤
+      const cookieStore = await cookies();
+      const sessionCookie = cookieStore.get('session');
+      let currentUserId: string | null = null;
+      let currentUserDepartmentId: string | null = null;
+      
+      if (sessionCookie?.value) {
+        try {
+          const session = JSON.parse(sessionCookie.value);
+          currentUserId = session.userId;
+          currentUserDepartmentId = session.departmentId;
+        } catch {
+          // 忽略解析错误
+        }
+      }
+
       const results = db
         .select({
           id: normativeDocuments.id,
@@ -289,6 +305,7 @@ export async function GET(request: NextRequest) {
           fileName: normativeDocuments.fileName,
           fileSize: normativeDocuments.fileSize,
           isEffective: normativeDocuments.isEffective,
+          visibility: normativeDocuments.visibility,
           createdAt: normativeDocuments.createdAt,
           updatedAt: normativeDocuments.updatedAt,
           createdBy: normativeDocuments.createdBy,
@@ -299,6 +316,15 @@ export async function GET(request: NextRequest) {
         .from(normativeDocuments)
         .leftJoin(users, eq(normativeDocuments.createdBy, users.id))
         .leftJoin(departments, eq(normativeDocuments.createdByDepartment, departments.id))
+        .where(
+          // 可见性过滤：公开 || 部门可见(同部门) || 本人可见(创建者)
+          sql`(
+            ${normativeDocuments.visibility} = 'public' 
+            OR (${normativeDocuments.visibility} = 'department' AND ${normativeDocuments.createdByDepartment} = ${currentUserDepartmentId})
+            OR (${normativeDocuments.visibility} = 'private' AND ${normativeDocuments.createdBy} = ${currentUserId})
+            OR ${normativeDocuments.visibility} IS NULL
+          )`
+        )
         .orderBy(desc(normativeDocuments.createdAt))
         .limit(1000)
         .all();

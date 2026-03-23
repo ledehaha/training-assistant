@@ -569,6 +569,7 @@ const migrationSQL = `
   ALTER TABLE projects ADD COLUMN declaration_file_name_pdf TEXT;
   ALTER TABLE projects ADD COLUMN declaration_file_word TEXT;
   ALTER TABLE projects ADD COLUMN declaration_file_name_word TEXT;
+  ALTER TABLE normative_documents ADD COLUMN visibility TEXT DEFAULT 'public';
 `;
 
 // 执行迁移（检查并添加缺失的列）
@@ -597,6 +598,20 @@ function runMigrations(db: SqlJsDatabase): void {
           console.warn(`Migration warning for ${match[1]}:`, err);
         }
       }
+    }
+    
+    // 检查 normative_documents 表的 visibility 列
+    try {
+      const normativeResult = db.exec("PRAGMA table_info(normative_documents)");
+      if (normativeResult.length > 0) {
+        const normativeColumns = normativeResult[0].values.map((row) => row[1] as string);
+        if (!normativeColumns.includes('visibility')) {
+          db.run("ALTER TABLE normative_documents ADD COLUMN visibility TEXT DEFAULT 'public'");
+          console.log('Migration: Added visibility column to normative_documents table');
+        }
+      }
+    } catch (err) {
+      console.warn('Migration warning for normative_documents.visibility:', err);
     }
     
     // 清理无效数据（每次启动时执行）

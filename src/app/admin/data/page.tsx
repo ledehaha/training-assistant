@@ -217,6 +217,7 @@ const TABLES_CONFIG = [
       { key: 'issueDate', label: '颁发时间', type: 'date', editable: true },
       { key: 'fileName', label: '文件名', type: 'text', editable: false },
       { key: 'isEffective', label: '是否有效', type: 'boolean', editable: true },
+      { key: 'visibility', label: '可见性', type: 'select', options: ['private', 'department', 'public'], editable: true },
       { key: 'creatorName', label: '添加人', type: 'text', editable: false },
       { key: 'departmentName', label: '添加部门', type: 'text', editable: false },
     ]
@@ -1232,6 +1233,22 @@ export default function DataManagementPage() {
       );
     }
 
+    // 特殊处理可见性字段
+    if (col.key === 'visibility') {
+      const visibilityValue = String(value || 'public');
+      const visibilityMap: Record<string, { label: string; color: string }> = {
+        'private': { label: '本人可见', color: 'bg-gray-100 text-gray-700' },
+        'department': { label: '部门可见', color: 'bg-blue-100 text-blue-700' },
+        'public': { label: '公开', color: 'bg-green-100 text-green-700' },
+      };
+      const config = visibilityMap[visibilityValue] || visibilityMap['public'];
+      return (
+        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${config.color}`}>
+          {config.label}
+        </span>
+      );
+    }
+
     switch (col.type) {
       case 'boolean':
         return (
@@ -1748,6 +1765,49 @@ export default function DataManagementPage() {
                     />
                     <span className="text-sm">是否有效</span>
                   </label>
+                </div>
+
+                {/* 可见性设置 */}
+                <div className="space-y-2">
+                  <Label>可见性设置</Label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="visibility"
+                        value="private"
+                        checked={String(formData.visibility || 'public') === 'private'}
+                        onChange={(e) => setFormData({ ...formData, visibility: e.target.value })}
+                        className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm">本人可见</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="visibility"
+                        value="department"
+                        checked={String(formData.visibility || 'public') === 'department'}
+                        onChange={(e) => setFormData({ ...formData, visibility: e.target.value })}
+                        className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm">部门可见</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="visibility"
+                        value="public"
+                        checked={String(formData.visibility || 'public') === 'public'}
+                        onChange={(e) => setFormData({ ...formData, visibility: e.target.value })}
+                        className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm">公开</span>
+                    </label>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    本文件的可访问范围：本人可见仅创建者可查看，部门可见同部门成员可查看，公开所有人可查看
+                  </p>
                 </div>
 
                 {/* 已有文件链接提示 */}
