@@ -2270,7 +2270,6 @@ export default function SummaryPage() {
     fileAiCheckCancelledRef.current = false;
     
     setFileAiChecking(fileKey); // 使用fileKey作为唯一标识
-    setFileAiCheckResult(null);
     
     // 创建 AbortController 用于超时控制
     const controller = new AbortController();
