@@ -192,6 +192,23 @@ export async function POST(request: NextRequest) {
         
         // 为匹配的模板匹配合适的讲师
         const templatesWithTeachers = matchedTemplates.map((t: Record<string, unknown>) => {
+          // 1. 优先使用模板已关联的讲师
+          const templateTeacherId = t.teacherId as string | undefined;
+          if (templateTeacherId) {
+            const linkedTeacher = teachersData.find((teacher: Record<string, unknown>) => teacher.id === templateTeacherId);
+            if (linkedTeacher) {
+              return {
+                ...t,
+                matchedTeacher: {
+                  id: linkedTeacher.id,
+                  name: linkedTeacher.name,
+                  title: linkedTeacher.title,
+                },
+              };
+            }
+          }
+          
+          // 2. 根据课程类别和描述匹配合适的讲师
           const templateCategory = (t.category as string) || '';
           const templateDesc = (t.description as string) || '';
           
@@ -250,24 +267,46 @@ export async function POST(request: NextRequest) {
 ${templatesToShow.map((t: Record<string, unknown>, idx: number) => {
   const template = t as Record<string, unknown>;
   const teacher = template.matchedTeacher as Record<string, unknown> | null;
+  
+  // 根据课程类别推荐讲师职称
+  let suggestedTitle = '讲师';
+  const category = (template.category as string) || '';
+  if (category.includes('管理') || category.includes('领导')) {
+    suggestedTitle = '副教授';
+  } else if (category.includes('技术') || category.includes('技能')) {
+    suggestedTitle = '高级工程师';
+  } else if (category.includes('安全') || category.includes('质量')) {
+    suggestedTitle = '高级工程师';
+  }
+  
   return `${idx + 1}. ${template.name}
-   - 模板ID：${template.id}（使用此模板时templateId字段必填此ID）
+   - 模板ID：${template.id}（使用时templateId必填此ID）
    - 类别：${template.category || '未分类'}
    - 课时：${template.duration || 4}课时
-   - 目标人群：${template.targetAudience || '不限'}
-   - 推荐讲师：${teacher ? `${teacher.name}（${teacher.title}），讲师ID：${teacher.id}` : '无'}`;
+   - 讲师：${teacher ? `${teacher.name}（${teacher.title}），讲师ID：${teacher.id}` : `无匹配讲师，建议职称：${suggestedTitle}`}`;
 }).join('\n')}
 
 模板总课时：约${templateTotalHours}课时
 
-【强制规则 - 必须遵守】：
-1. **必须优先使用上述模板**：先从模板中选择课程，尽可能用完所有相关模板
-2. **使用模板时必填字段**：
-   - templateId: 必须填写模板ID
-   - isFromTemplate: 必须为 true
-   - teacherName: 如有推荐讲师必须填写
-3. **模板不足时才自行设计**：只有当模板课程总课时不够${totalHours}课时，才自行设计补充课程
-4. **自行设计的课程**：isFromTemplate=false，teacherTitle填写建议讲师职称`;
+【讲师填写规则 - 重要】：
+1. **使用模板且有推荐讲师**：
+   - teacherName: 填写推荐讲师姓名
+   - teacherId: 填写推荐讲师ID
+   - 不填写 teacherTitle
+   
+2. **使用模板但无推荐讲师**：
+   - teacherTitle: 填写建议职称（如"副教授"、"高级工程师"）
+   - 不填写 teacherName 和 teacherId
+   
+3. **AI自行设计课程**（模板不足时）：
+   - teacherTitle: 根据课程内容填写建议职称
+   - isFromTemplate: false
+   - 不填写 teacherName 和 teacherId
+
+【其他强制规则】：
+- 必须优先使用上述模板，用完相关模板后才自行设计
+- 使用模板时：isFromTemplate=true，templateId必填
+- 总课时必须等于${totalHours}课时`;
         } else if (courseTemplatesData.length > 0) {
           // 如果没有匹配模板但有其他模板，显示所有模板
           templateContext = `\n\n【课程模板库 - 请优先使用】
@@ -382,9 +421,10 @@ ${templateContext}${visitSitesContext}${userProfileContext}
    - 单门课程课时只能是：1、2、4（禁止其他数值）
    - 生成后请累加确认总课时正确
 
-4. **讲师信息**
-   - 使用模板有推荐讲师：填写teacherName和teacherId
-   - 自行设计课程：填写teacherTitle（建议职称）
+4. **讲师信息填写规则**
+   - 模板有推荐讲师：teacherName填姓名，teacherId填ID
+   - 模板无推荐讲师：teacherTitle填建议职称（如"副教授"）
+   - AI自行设计课程：teacherTitle填建议职称
    - 参访活动：不需要讲师信息
 
 返回JSON格式：
