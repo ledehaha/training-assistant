@@ -236,8 +236,48 @@ export async function PUT(request: NextRequest) {
       .limit(1)
       .all();
 
+    // 如果记录不存在，自动转为新增操作
     if (existing.length === 0) {
-      return NextResponse.json({ error: '课程模板不存在' }, { status: 404 });
+      console.log(`课程模板 [${id}] 不存在，自动转为新增操作`);
+      
+      const now = getTimestamp();
+      const newId = id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) 
+        ? id 
+        : generateId();
+      
+      // 处理讲师ID
+      let teacherId = updateData.teacherId;
+      if (teacherId && typeof teacherId === 'string' && !teacherId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+        // 如果不是UUID，尝试查找讲师
+        const teacher = db.select({ id: teachers.id }).from(teachers).where(eq(teachers.name, teacherId)).limit(1).all();
+        teacherId = teacher[0]?.id || null;
+      }
+      
+      const result = db
+        .insert(courses)
+        .values({
+          id: newId,
+          isTemplate: true,
+          projectId: null,
+          name: updateData.name,
+          category: updateData.category,
+          description: updateData.description,
+          duration: updateData.duration,
+          targetAudience: updateData.targetAudience,
+          content: updateData.content,
+          difficulty: updateData.difficulty,
+          teacherId,
+          type: updateData.type || 'course',
+          isActive: true,
+          createdBy: user.userId,
+          createdByDepartment: user.departmentId,
+          createdAt: now,
+        })
+        .returning()
+        .get();
+
+      saveDatabaseImmediate();
+      return NextResponse.json({ data: result, autoCreated: true });
     }
     
     const template = existing[0];

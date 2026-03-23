@@ -213,8 +213,43 @@ export async function PUT(request: NextRequest) {
       .limit(1)
       .all();
 
+    // 如果记录不存在，自动转为新增操作
     if (existing.length === 0) {
-      return NextResponse.json({ error: '参访基地不存在' }, { status: 404 });
+      console.log(`参访基地 [${id}] 不存在，自动转为新增操作`);
+      
+      // 创建新记录（使用提供的ID或生成新ID）
+      const now = getTimestamp();
+      const newId = id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) 
+        ? id 
+        : generateId();
+      
+      const result = db
+        .insert(visitSites)
+        .values({
+          id: newId,
+          name: updateData.name,
+          type: updateData.type,
+          industry: updateData.industry,
+          address: updateData.address,
+          contactPerson: updateData.contactPerson,
+          contactPhone: updateData.contactPhone,
+          contactEmail: updateData.contactEmail,
+          description: updateData.description,
+          visitContent: updateData.visitContent,
+          visitDuration: updateData.visitDuration,
+          maxVisitors: updateData.maxVisitors,
+          visitFee: updateData.visitFee,
+          facilities: updateData.facilities,
+          requirements: updateData.requirements,
+          createdBy: user.userId,
+          createdByDepartment: user.departmentId,
+          createdAt: now,
+        })
+        .returning()
+        .get();
+
+      saveDatabaseImmediate();
+      return NextResponse.json({ data: result, autoCreated: true });
     }
     
     const site = existing[0];

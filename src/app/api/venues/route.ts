@@ -202,8 +202,33 @@ export async function PUT(request: NextRequest) {
       .limit(1)
       .all();
 
+    // 如果记录不存在，自动转为新增操作
     if (existing.length === 0) {
-      return NextResponse.json({ error: '场地不存在' }, { status: 404 });
+      console.log(`场地 [${id}] 不存在，自动转为新增操作`);
+      
+      const now = getTimestamp();
+      const newId = id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) 
+        ? id 
+        : generateId();
+      
+      const result = db
+        .insert(venues)
+        .values({
+          id: newId,
+          name: updateData.name,
+          location: updateData.location,
+          capacity: updateData.capacity,
+          dailyRate: updateData.dailyRate,
+          facilities: updateData.facilities,
+          createdBy: user.userId,
+          createdByDepartment: user.departmentId,
+          createdAt: now,
+        })
+        .returning()
+        .get();
+
+      saveDatabaseImmediate();
+      return NextResponse.json({ data: result, autoCreated: true });
     }
     
     const venue = existing[0];
