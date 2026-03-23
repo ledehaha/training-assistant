@@ -411,12 +411,26 @@ export default function SummaryPage() {
       return isComplete;
     });
     
+    // 计算项目完成进度（已上传必要文件数量 / 总必要文件数量）
+    const calculateProgress = (project: Project): number => {
+      const { requirements } = checkArchiveRequirements(project);
+      const requiredReqs = requirements.filter(r => r.required);
+      const uploadedCount = requiredReqs.filter(r => r.uploaded).length;
+      return uploadedCount / requiredReqs.length;
+    };
+    
+    // 待总结项目按完成进度降序排序（完成度高的排在前面）
+    const pendingProjects = [...executingProjects, ...completedProjects].sort((a, b) => {
+      const progressA = calculateProgress(a);
+      const progressB = calculateProgress(b);
+      return progressB - progressA; // 降序：完成度高的在前
+    });
+    
     return {
       executingProjects,
       completedProjects,
       archivedProjects,
-      // 待总结 = 执行中 + 已完成待归档
-      pendingProjects: [...executingProjects, ...completedProjects],
+      pendingProjects,
     };
   }, [allProjects, timeFilter, searchKeyword]);
 
