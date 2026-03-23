@@ -92,7 +92,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       
-      const data = JSON.parse(text);
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (parseError) {
+        console.error('[AuthProvider] JSON parse error:', parseError, 'Response text:', text.substring(0, 100));
+        setUser(null);
+        setAuthenticated(false);
+        return;
+      }
       
       if (data.authenticated && data.user) {
         setUser(data.user);

@@ -80,7 +80,15 @@ export function useAuth() {
         return;
       }
       
-      const data = JSON.parse(text);
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (parseError) {
+        console.error('[useAuth] JSON parse error:', parseError, 'Response text:', text.substring(0, 100));
+        setUser(null);
+        setAuthenticated(false);
+        return;
+      }
       
       console.log('[useAuth] API response:', data);
       

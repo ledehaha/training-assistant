@@ -50,7 +50,15 @@ export default function LoginPage() {
           return;
         }
         
-        const data = JSON.parse(text);
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch (parseError) {
+          console.error('JSON parse error:', parseError);
+          localStorage.removeItem('session_token');
+          setChecking(false);
+          return;
+        }
         
         if (data.authenticated) {
           // 已登录，跳转到首页
@@ -104,7 +112,15 @@ export default function LoginPage() {
         return;
       }
       
-      const data = JSON.parse(text);
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError);
+        toast.error('登录失败', { description: '服务器响应格式错误' });
+        setLoading(false);
+        return;
+      }
       
       if (data.success) {
         // 存储 session token 到 localStorage
