@@ -169,7 +169,13 @@ function generateSystemPrompt(fileType: FileType): string {
   };
 
   const projectInfoSection = shouldExtractProjectInfo 
-    ? `\n\n${generateAIFieldDescription('projectInfo')}\n\n注意：项目基本信息只能从合同、成本测算表、项目申报书等文件中提取。`
+    ? `\n\n${generateAIFieldDescription('projectInfo')}
+
+### 项目基本信息提取规则【极其重要】
+1. 只有从文件中提取到**与当前值不同**的数据时才返回
+2. 如果提取的值与当前值完全相同，**不要返回该记录**
+3. 例如：当前参训人数是50，文件中也写明50人，则不要返回这条记录
+4. 注意：项目基本信息只能从合同、成本测算表、项目申报书等文件中提取。`
     : '\n\n注意：此文件类型不应提取项目基本信息（如参训人数、培训天数等），只提取讲师、场地、课程等相关数据。';
 
   return `你是一个专业的培训项目数据分析师。你的任务是：
@@ -244,7 +250,7 @@ ${projectInfoSection}
     "field": "字段名",
     "fieldName": "字段中文名",
     "currentValue": "当前值",
-    "extractedValue": "提取值",
+    "extractedValue": "提取值（必须与currentValue不同才返回）",
     "source": "来源文件名",
     "reason": "更新理由"
   }],
@@ -558,7 +564,7 @@ ${fileContent}
         // 验证项目信息
         if (Array.isArray(rawResult.projectInfo)) {
           checkResult.projectInfo = rawResult.projectInfo.filter(
-            (item: { field?: string; extractedValue?: unknown; reason?: string }) => {
+            (item: { field?: string; currentValue?: unknown; extractedValue?: unknown; reason?: string }) => {
               // 过滤无效数据
               if (!item.field || item.extractedValue === undefined || item.extractedValue === null) {
                 return false;
@@ -574,6 +580,20 @@ ${fileContent}
                 reasonText.includes('完全一致')
               ) {
                 console.log(`过滤项目信息: ${item.field} - ${reasonText}`);
+                return false;
+              }
+              // 过滤值相同的记录（currentValue 和 extractedValue 相等时无需更新）
+              const currentVal = String(item.currentValue ?? '').trim();
+              const extractedVal = String(item.extractedValue ?? '').trim();
+              if (currentVal === extractedVal && currentVal !== '') {
+                console.log(`过滤项目信息: ${item.field} - 值相同 (${currentVal} = ${extractedVal})`);
+                return false;
+              }
+              // 数值类型比较：处理数字格式差异（如 "50" 和 50）
+              const currentNum = parseFloat(currentVal);
+              const extractedNum = parseFloat(extractedVal);
+              if (!isNaN(currentNum) && !isNaN(extractedNum) && currentNum === extractedNum) {
+                console.log(`过滤项目信息: ${item.field} - 数值相同 (${currentNum} = ${extractedNum})`);
                 return false;
               }
               return true;
