@@ -2020,8 +2020,8 @@ export default function SummaryPage() {
             'studentList',
             selectedProject.studentListFileName,
             selectedProject.studentListFile,
-            '上传学员名单Excel文件',
-            '.xls,.xlsx',
+            '上传学员名单（支持 PDF、Word、Excel 格式）',
+            '.pdf,.doc,.docx,.xls,.xlsx',
             true  // 启用AI检查
           )}
           {renderSingleFileUpload(

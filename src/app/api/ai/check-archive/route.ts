@@ -278,34 +278,29 @@ export async function POST(request: NextRequest) {
         }
         currentStepIndex++;
 
-        // Step 6: 解析学员名单（跳过PDF）
+        // Step 6: 解析学员名单（支持PDF、Word、Excel）
         sendEvent(sendProgress('正在解析学员名单...', BASE_STEPS.length));
-        if (project.studentListFile && !isPdfFile(project.studentListFile)) {
+        if (project.studentListFile) {
           const content = await readFileContent(project.studentListFile, customHeaders);
           if (content) fileData.push({ name: '学员名单', content, type: 'studentList' });
         }
         currentStepIndex++;
 
-        // Step 7: 解析满意度调查（跳过PDF）
+        // Step 7: 解析满意度调查（支持PDF、Word、Excel）
         sendEvent(sendProgress('正在解析满意度调查...', BASE_STEPS.length));
-        if (project.satisfactionSurveyFile && !isPdfFile(project.satisfactionSurveyFile)) {
+        if (project.satisfactionSurveyFile) {
           const content = await readFileContent(project.satisfactionSurveyFile, customHeaders);
           if (content) fileData.push({ name: '满意度调查', content, type: 'satisfaction' });
         }
         currentStepIndex++;
 
-        // Step 8: 解析其它附件（跳过PDF）
+        // Step 8: 解析其它附件（支持所有格式）
         sendEvent(sendProgress('正在解析其它附件...', BASE_STEPS.length));
         const otherMaterials: { key: string; name: string }[] = project.otherMaterials 
           ? JSON.parse(project.otherMaterials) 
           : [];
         
         for (const material of otherMaterials) {
-          // 跳过PDF文件
-          if (isPdfFile(material.key)) {
-            console.log('跳过PDF文件:', material.name);
-            continue;
-          }
           const content = await readFileContent(material.key, customHeaders);
           if (content) {
             fileData.push({ 
