@@ -486,7 +486,8 @@ export const coursesSchema: TableSchemaConfig = {
 - 如果文件中写的是分钟数，必须折算成课时
 - 例如：120分钟 → 2课时，90分钟 → 2课时，45分钟 → 1课时
 - 例如：2小时 → 2课时，半天(3-4小时) → 3-4课时
-- **课时数必须是整数，四舍五入取整**`,
+- **课时数必须是0.5的倍数，如：0.5、1、1.5、2、2.5、3、4等**
+- 不允许出现1.3、2.7这样的非0.5倍数值`,
       validation: { min: 0.5 },
     },
     {
@@ -968,17 +969,25 @@ export function validateAIData(schemaKey: string, data: Record<string, unknown>)
 }
 
 /**
+ * 将数值四舍五入到最接近的 0.5 的倍数
+ * 例如：1.3 → 1.5, 1.7 → 1.5, 2.3 → 2.5
+ */
+function roundToHalf(value: number): number {
+  return Math.round(value * 2) / 2;
+}
+
+/**
  * 课时自动折算函数
  * 将分钟数或小时数折算成课时（1课时 = 40-60分钟）
  * 
  * @param value 输入值（可能是数字或字符串）
  * @param unit 输入单位：'minute'（分钟）、'hour'（小时）、'auto'（自动判断）
- * @returns 折算后的课时数
+ * @returns 折算后的课时数（0.5的倍数）
  * 
  * @example
  * convertToDuration(120, 'minute')  // 返回 2（120分钟 = 2课时）
  * convertToDuration(2, 'hour')      // 返回 2（2小时 = 2课时）
- * convertToDuration('90分钟', 'auto') // 返回 1.5
+ * convertToDuration('90分钟', 'auto') // 返回 2（90分钟 ≈ 1.8课时，四舍五入到2）
  * convertToDuration('2小时', 'auto')  // 返回 2
  */
 export function convertToDuration(value: string | number | undefined | null, unit: 'minute' | 'hour' | 'auto' = 'auto'): number {
@@ -1074,18 +1083,18 @@ export function convertToDuration(value: string | number | undefined | null, uni
     }
   }
   
-  // 进行折算
+  // 进行折算，结果四舍五入到0.5的倍数
   switch (detectedUnit) {
     case 'minute':
-      // 分钟转课时：50分钟 ≈ 1课时（取中间值），四舍五入取整
-      return Math.round(numValue! / 50);
+      // 分钟转课时：50分钟 ≈ 1课时（取中间值），四舍五入到0.5倍数
+      return roundToHalf(numValue! / 50);
     case 'hour':
-      // 小时转课时：1小时 = 1课时，四舍五入取整
-      return Math.round(numValue!);
+      // 小时转课时：1小时 = 1课时，四舍五入到0.5倍数
+      return roundToHalf(numValue!);
     case 'duration':
     default:
-      // 已经是课时，四舍五入取整
-      return Math.round(numValue!);
+      // 已经是课时，四舍五入到0.5倍数
+      return roundToHalf(numValue!);
   }
 }
 
