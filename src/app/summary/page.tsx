@@ -2259,14 +2259,19 @@ export default function SummaryPage() {
     setFileAiChecking(null);
     toast.info('已取消AI检查');
     
-    // 然后取消请求（可能抛出 AbortError，但不影响用户体验）
-    if (fileAiCheckControllerRef.current) {
-      try {
-        fileAiCheckControllerRef.current.abort();
-      } catch {
-        // 忽略 abort 错误
-      }
-      fileAiCheckControllerRef.current = null;
+    // 延迟取消请求，避免在React事件处理器中抛出错误
+    const controller = fileAiCheckControllerRef.current;
+    fileAiCheckControllerRef.current = null;
+    
+    if (controller) {
+      // 使用 setTimeout 延迟 abort，使其在React事件处理器外执行
+      setTimeout(() => {
+        try {
+          controller.abort();
+        } catch {
+          // 忽略 abort 错误
+        }
+      }, 0);
     }
   };
 
