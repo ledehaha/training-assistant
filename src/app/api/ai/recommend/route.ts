@@ -268,43 +268,25 @@ ${templatesToShow.map((t: Record<string, unknown>, idx: number) => {
   const template = t as Record<string, unknown>;
   const teacher = template.matchedTeacher as Record<string, unknown> | null;
   
-  // 根据课程类别推荐讲师职称
-  let suggestedTitle = '讲师';
-  const category = (template.category as string) || '';
-  if (category.includes('管理') || category.includes('领导')) {
-    suggestedTitle = '副教授';
-  } else if (category.includes('技术') || category.includes('技能')) {
-    suggestedTitle = '高级工程师';
-  } else if (category.includes('安全') || category.includes('质量')) {
-    suggestedTitle = '高级工程师';
-  }
-  
   return `${idx + 1}. ${template.name}
    - 模板ID：${template.id}（使用时templateId必填此ID）
    - 类别：${template.category || '未分类'}
    - 课时：${template.duration || 4}课时
-   - 讲师：${teacher ? `${teacher.name}（${teacher.title}），讲师ID：${teacher.id}` : `无匹配讲师，建议职称：${suggestedTitle}`}`;
+   - 关联讲师：${teacher ? `${teacher.name}，讲师ID：${teacher.id}` : '无'}`;
 }).join('\n')}
 
-模板总课时：约${templateTotalHours}课时
+【讲师填写规则 - 简单明了】：
 
-【讲师填写规则 - 重要】：
-1. **使用模板且有推荐讲师**：
-   - teacherName: 填写推荐讲师姓名
-   - teacherId: 填写推荐讲师ID
-   - 不填写 teacherTitle
-   
-2. **使用模板但无推荐讲师**：
-   - teacherTitle: 填写建议职称（如"副教授"、"高级工程师"）
-   - 不填写 teacherName 和 teacherId
-   
-3. **AI自行设计课程**（模板不足时）：
-   - teacherTitle: 根据课程内容填写建议职称
-   - isFromTemplate: false
-   - 不填写 teacherName 和 teacherId
+**情况1：使用模板库的课程（isFromTemplate=true）**
+- 有关联讲师：填写 teacherName（讲师姓名）和 teacherId（讲师ID）
+- 无关联讲师：填写 teacherTitle（建议职称，如"副教授"）
 
-【其他强制规则】：
-- 必须优先使用上述模板，用完相关模板后才自行设计
+**情况2：AI自己生成的课程（isFromTemplate=false）**
+- 只填写 teacherTitle（建议职称）
+- 不填写 teacherName 和 teacherId
+
+【其他规则】：
+- 必须优先使用上述模板
 - 使用模板时：isFromTemplate=true，templateId必填
 - 总课时必须等于${totalHours}课时`;
         } else if (courseTemplatesData.length > 0) {
@@ -419,12 +401,11 @@ ${templateContext}${visitSitesContext}${userProfileContext}
 3. **课时控制 - 必须精确**
    - 总课时必须严格等于${totalHours}课时
    - 单门课程课时只能是：1、2、4（禁止其他数值）
-   - 生成后请累加确认总课时正确
 
-4. **讲师信息填写规则**
-   - 模板有推荐讲师：teacherName填姓名，teacherId填ID
-   - 模板无推荐讲师：teacherTitle填建议职称（如"副教授"）
-   - AI自行设计课程：teacherTitle填建议职称
+4. **讲师填写规则（重要）**
+   - 使用模板库课程：填模板关联的讲师（teacherName + teacherId）
+   - 使用模板库课程但无关联讲师：填建议职称（teacherTitle）
+   - AI自己生成的课程：只填建议职称（teacherTitle）
    - 参访活动：不需要讲师信息
 
 返回JSON格式：
@@ -438,10 +419,10 @@ ${templateContext}${visitSitesContext}${userProfileContext}
       "category": "类别", 
       "type": "course或visit",
       "isFromTemplate": true,
-      "templateId": "模板ID",
-      "teacherName": "讲师姓名",
-      "teacherId": "讲师ID",
-      "teacherTitle": "建议讲师职称（非模板时）",
+      "templateId": "模板ID（使用模板时必填）",
+      "teacherName": "讲师姓名（使用模板有关联讲师时填）",
+      "teacherId": "讲师ID（使用模板有关联讲师时填）",
+      "teacherTitle": "建议职称（无关联讲师或AI生成时填，如'副教授'）",
       "visitSiteId": "参访基地ID",
       "visitSiteName": "参访基地名称",
       "isFromVisitLibrary": true
