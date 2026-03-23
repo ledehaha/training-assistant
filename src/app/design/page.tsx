@@ -1714,7 +1714,7 @@ export default function DesignPage() {
 
           <TabsContent value="requirement" className="mt-6">
             {/* 当前编辑项目提示 */}
-            currentProjectBanner
+            {currentProjectBanner}
             <Card>
               <CardHeader>
                 <CardTitle>培训需求</CardTitle>
@@ -1976,7 +1976,7 @@ export default function DesignPage() {
 
           {/* 方案设计、场地选择、费用预算的 Tab 内容省略，保持原有逻辑 */}
           <TabsContent value="scheme" className="mt-6">
-            currentProjectBanner
+            {currentProjectBanner}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
@@ -2239,7 +2239,7 @@ export default function DesignPage() {
           </TabsContent>
 
           <TabsContent value="venue" className="mt-6">
-            currentProjectBanner
+            {currentProjectBanner}
             <Card>
               <CardHeader>
                 <CardTitle>场地选择</CardTitle>
@@ -2278,7 +2278,7 @@ export default function DesignPage() {
           </TabsContent>
 
           <TabsContent value="quotation" className="mt-6">
-            currentProjectBanner
+            {currentProjectBanner}
             <Card>
               <CardHeader>
                 <CardTitle>费用预算</CardTitle>
