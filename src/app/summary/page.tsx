@@ -2229,6 +2229,14 @@ export default function SummaryPage() {
     setFileAiChecking(fileKey); // 使用fileKey作为唯一标识
     setFileAiCheckResult(null);
     
+    // 创建 AbortController 用于超时控制
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+      setFileAiChecking(null);
+      toast.error('AI检查超时', { description: '请求超过3分钟未响应，请重试' });
+    }, 180000); // 3分钟超时
+    
     try {
       // 获取 session token
       const sessionToken = typeof window !== 'undefined' ? localStorage.getItem('session_token') : null;
@@ -2246,6 +2254,7 @@ export default function SummaryPage() {
           fileKey,
           fileName,
         }),
+        signal: controller.signal,
       });
       
       if (!res.ok) {
@@ -2274,6 +2283,7 @@ export default function SummaryPage() {
               const event = JSON.parse(line.slice(6));
               
               if (event.type === 'result') {
+                clearTimeout(timeoutId);
                 const data = event.data;
                 setFileAiCheckResult(data);
                 setShowAiCheckDialog(true);
@@ -2284,6 +2294,7 @@ export default function SummaryPage() {
                   toast.info('AI检查完成', { description: `发现 ${data.totalChanges} 条数据需要更新或新增` });
                 }
               } else if (event.type === 'error') {
+                clearTimeout(timeoutId);
                 throw new Error(event.data?.error || 'AI检查失败');
               }
             } catch (parseError) {
@@ -2293,9 +2304,15 @@ export default function SummaryPage() {
         }
       }
     } catch (error) {
+      clearTimeout(timeoutId);
       console.error('File AI check error:', error);
-      toast.error('AI检查失败', { description: error instanceof Error ? error.message : '请稍后重试' });
+      if (error instanceof Error && error.name === 'AbortError') {
+        // 超时已处理，不重复提示
+      } else {
+        toast.error('AI检查失败', { description: error instanceof Error ? error.message : '请稍后重试' });
+      }
     } finally {
+      clearTimeout(timeoutId);
       setFileAiChecking(null);
     }
   };
