@@ -2255,12 +2255,19 @@ export default function SummaryPage() {
 
   // 取消AI检查
   const handleCancelFileAiCheck = () => {
-    if (fileAiCheckControllerRef.current) {
-      fileAiCheckControllerRef.current.abort();
-      fileAiCheckControllerRef.current = null;
-    }
+    // 先清理状态
     setFileAiChecking(null);
     toast.info('已取消AI检查');
+    
+    // 然后取消请求（可能抛出 AbortError，但不影响用户体验）
+    if (fileAiCheckControllerRef.current) {
+      try {
+        fileAiCheckControllerRef.current.abort();
+      } catch {
+        // 忽略 abort 错误
+      }
+      fileAiCheckControllerRef.current = null;
+    }
   };
 
   // 单文件AI检查函数
