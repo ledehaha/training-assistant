@@ -245,7 +245,7 @@ export default function SummaryPage() {
 
   // 单文件AI检查状态
   const [fileAiChecking, setFileAiChecking] = useState<string | null>(null); // 当前正在检查的文件key
-  const fileAiCheckControllerRef = useRef<AbortController | null>(null); // 用于取消请求
+  const fileAiCheckCancelledRef = useRef(false); // 取消标志
   const [fileAiCheckResult, setFileAiCheckResult] = useState<{
     fileType: string;
     fileName: string;
@@ -2255,41 +2255,29 @@ export default function SummaryPage() {
 
   // 取消AI检查
   const handleCancelFileAiCheck = () => {
-    // 先清理状态
+    // 设置取消标志
+    fileAiCheckCancelledRef.current = true;
+    // 清理UI状态
     setFileAiChecking(null);
     toast.info('已取消AI检查');
-    
-    // 延迟取消请求，避免在React事件处理器中抛出错误
-    const controller = fileAiCheckControllerRef.current;
-    fileAiCheckControllerRef.current = null;
-    
-    if (controller) {
-      // 使用 setTimeout 延迟 abort，使其在React事件处理器外执行
-      setTimeout(() => {
-        try {
-          controller.abort();
-        } catch {
-          // 忽略 abort 错误
-        }
-      }, 0);
-    }
   };
 
   // 单文件AI检查函数
   const handleFileAiCheck = async (fileType: string, fileKey: string, fileName: string) => {
     if (!selectedProject || !fileKey) return;
     
+    // 重置取消标志
+    fileAiCheckCancelledRef.current = false;
+    
     setFileAiChecking(fileKey); // 使用fileKey作为唯一标识
     setFileAiCheckResult(null);
     
-    // 创建 AbortController 用于超时控制和手动取消
+    // 创建 AbortController 用于超时控制
     const controller = new AbortController();
-    fileAiCheckControllerRef.current = controller;
     
     const timeoutId = setTimeout(() => {
       controller.abort();
       setFileAiChecking(null);
-      fileAiCheckControllerRef.current = null;
       toast.error('AI检查超时', { description: '请求超过3分钟未响应，请重试' });
     }, 180000); // 3分钟超时
     
@@ -2326,6 +2314,12 @@ export default function SummaryPage() {
       let buffer = '';
       
       while (true) {
+        // 检查是否已取消
+        if (fileAiCheckCancelledRef.current) {
+          reader.cancel();
+          break;
+        }
+        
         const { done, value } = await reader.read();
         if (done) break;
         
@@ -2337,6 +2331,12 @@ export default function SummaryPage() {
           if (line.startsWith('data: ')) {
             try {
               const event = JSON.parse(line.slice(6));
+              
+              // 再次检查是否已取消
+              if (fileAiCheckCancelledRef.current) {
+                reader.cancel();
+                break;
+              }
               
               if (event.type === 'result') {
                 clearTimeout(timeoutId);
@@ -2370,7 +2370,6 @@ export default function SummaryPage() {
     } finally {
       clearTimeout(timeoutId);
       setFileAiChecking(null);
-      fileAiCheckControllerRef.current = null;
     }
   };
 
