@@ -245,6 +245,7 @@ export default function SummaryPage() {
 
   // 单文件AI检查状态
   const [fileAiChecking, setFileAiChecking] = useState<string | null>(null); // 当前正在检查的文件key
+  const fileAiCheckControllerRef = useRef<AbortController | null>(null); // 用于取消请求
   const [fileAiCheckResult, setFileAiCheckResult] = useState<{
     fileType: string;
     fileName: string;
@@ -1219,14 +1220,23 @@ export default function SummaryPage() {
           <Button
             variant="outline"
             size="sm"
-            className="h-7 text-xs border-purple-200 text-purple-600 hover:bg-purple-50"
-            onClick={() => handleFileAiCheck(aiCheckFileType, aiCheckFileKey, aiCheckFileName || '')}
-            disabled={fileAiChecking === aiCheckFileKey}
+            className={`h-7 text-xs ${
+              fileAiChecking === aiCheckFileKey 
+                ? 'border-red-200 text-red-600 hover:bg-red-50' 
+                : 'border-purple-200 text-purple-600 hover:bg-purple-50'
+            }`}
+            onClick={() => {
+              if (fileAiChecking === aiCheckFileKey) {
+                handleCancelFileAiCheck();
+              } else {
+                handleFileAiCheck(aiCheckFileType, aiCheckFileKey, aiCheckFileName || '');
+              }
+            }}
           >
             {fileAiChecking === aiCheckFileKey ? (
               <>
                 <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                检查中...
+                取消检查
               </>
             ) : (
               <>
@@ -1505,14 +1515,23 @@ export default function SummaryPage() {
             <Button
               variant="outline"
               size="sm"
-              className="h-7 text-xs border-purple-200 text-purple-600 hover:bg-purple-50"
-              onClick={() => handleFileAiCheck(aiCheckFileType, fileKey, fileName || '')}
-              disabled={fileAiChecking === fileKey}
+              className={`h-7 text-xs ${
+                fileAiChecking === fileKey 
+                  ? 'border-red-200 text-red-600 hover:bg-red-50' 
+                  : 'border-purple-200 text-purple-600 hover:bg-purple-50'
+              }`}
+              onClick={() => {
+                if (fileAiChecking === fileKey) {
+                  handleCancelFileAiCheck();
+                } else {
+                  handleFileAiCheck(aiCheckFileType, fileKey, fileName || '');
+                }
+              }}
             >
               {fileAiChecking === fileKey ? (
                 <>
                   <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                  检查中...
+                  取消检查
                 </>
               ) : (
                 <>
@@ -2041,12 +2060,24 @@ export default function SummaryPage() {
                       <Button 
                         variant="outline"
                         size="sm" 
-                        className="h-6 px-2 text-xs border-purple-200 text-purple-600 hover:bg-purple-50" 
-                        onClick={() => handleFileAiCheck('other', file.key, file.name)}
-                        disabled={fileAiChecking === file.key}
+                        className={`h-6 px-2 text-xs ${
+                          fileAiChecking === file.key 
+                            ? 'border-red-200 text-red-600 hover:bg-red-50' 
+                            : 'border-purple-200 text-purple-600 hover:bg-purple-50'
+                        }`}
+                        onClick={() => {
+                          if (fileAiChecking === file.key) {
+                            handleCancelFileAiCheck();
+                          } else {
+                            handleFileAiCheck('other', file.key, file.name);
+                          }
+                        }}
                       >
                         {fileAiChecking === file.key ? (
-                          <Loader2 className="w-3 h-3 animate-spin" />
+                          <>
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            <span className="ml-1">取消</span>
+                          </>
                         ) : (
                           <Brain className="w-3 h-3" />
                         )}
@@ -2222,6 +2253,16 @@ export default function SummaryPage() {
     );
   };
 
+  // 取消AI检查
+  const handleCancelFileAiCheck = () => {
+    if (fileAiCheckControllerRef.current) {
+      fileAiCheckControllerRef.current.abort();
+      fileAiCheckControllerRef.current = null;
+    }
+    setFileAiChecking(null);
+    toast.info('已取消AI检查');
+  };
+
   // 单文件AI检查函数
   const handleFileAiCheck = async (fileType: string, fileKey: string, fileName: string) => {
     if (!selectedProject || !fileKey) return;
@@ -2229,11 +2270,14 @@ export default function SummaryPage() {
     setFileAiChecking(fileKey); // 使用fileKey作为唯一标识
     setFileAiCheckResult(null);
     
-    // 创建 AbortController 用于超时控制
+    // 创建 AbortController 用于超时控制和手动取消
     const controller = new AbortController();
+    fileAiCheckControllerRef.current = controller;
+    
     const timeoutId = setTimeout(() => {
       controller.abort();
       setFileAiChecking(null);
+      fileAiCheckControllerRef.current = null;
       toast.error('AI检查超时', { description: '请求超过3分钟未响应，请重试' });
     }, 180000); // 3分钟超时
     
@@ -2307,13 +2351,14 @@ export default function SummaryPage() {
       clearTimeout(timeoutId);
       console.error('File AI check error:', error);
       if (error instanceof Error && error.name === 'AbortError') {
-        // 超时已处理，不重复提示
+        // 用户取消或超时，不显示额外错误提示
       } else {
         toast.error('AI检查失败', { description: error instanceof Error ? error.message : '请稍后重试' });
       }
     } finally {
       clearTimeout(timeoutId);
       setFileAiChecking(null);
+      fileAiCheckControllerRef.current = null;
     }
   };
 
