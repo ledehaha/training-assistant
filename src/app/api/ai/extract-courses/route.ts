@@ -174,10 +174,22 @@ export async function POST(request: NextRequest) {
     // 获取讲师列表和参访基地列表（用于匹配）
     const allTeachers = db.select().from(teachers).all();
     const allVisitSites = db.select().from(visitSites).all();
+    
+    // 根据项目地点筛选参访基地
+    const projectLocation = project.location || '';
+    let filteredVisitSites = allVisitSites;
+    if (projectLocation) {
+      const locationCity = projectLocation.replace(/[省市县区]/g, '').trim();
+      filteredVisitSites = allVisitSites.filter(site => {
+        const siteAddress = (site.address || '').replace(/[省市县区]/g, '').trim();
+        return siteAddress.includes(locationCity) || locationCity.includes(siteAddress) || site.address?.includes(projectLocation);
+      });
+    }
 
     // 构建用户提示词
     const userPrompt = `## 项目基本信息
 - 项目名称：${project.name}
+- 培训地点：${project.location || '未指定'}
 - 培训天数：${project.trainingDays || '未指定'}
 - 培训课时：${project.trainingHours || '未指定'}
 - 参训人数：${project.participantCount || '未指定'}
@@ -185,8 +197,10 @@ export async function POST(request: NextRequest) {
 ## 讲师库（用于匹配讲师）
 ${allTeachers.map(t => `- ${t.name}（${t.title || '职称未知'}）`).join('\n') || '暂无讲师'}
 
-## 参访基地库（用于匹配参访地点）
-${allVisitSites.map(v => `- ${v.name}（${v.address || '地址未知'}）`).join('\n') || '暂无参访基地'}
+## 参访基地库（已按培训地点"${project.location || '未指定'}"筛选）
+${filteredVisitSites.map(v => `- ${v.name}（${v.address || '地址未知'}）`).join('\n') || '暂无匹配的参访基地'}
+
+**重要提示**：培训地点是"${project.location || '未指定'}"，参访地点必须与培训地点在同一城市或附近。
 
 ## 待分析的课程安排表：${fileName || '课程安排表'}
 
@@ -294,11 +308,21 @@ ${fileContent}
               }
             }
             
-            // 尝试匹配参访基地库中的参访点
+            // 尝试匹配参访基地库中的参访点（优先匹配已筛选的）
             if (validatedCourse.type === 'visit' && validatedCourse.visitSiteName) {
-              const matchedSite = allVisitSites.find(
+              // 先从已筛选的参访基地中匹配
+              let matchedSite = filteredVisitSites.find(
                 v => v.name === validatedCourse.visitSiteName
               );
+              // 如果筛选列表中没有，再从全部中匹配（但会给出警告）
+              if (!matchedSite) {
+                matchedSite = allVisitSites.find(
+                  v => v.name === validatedCourse.visitSiteName
+                );
+                if (matchedSite && projectLocation) {
+                  console.warn(`参访基地"${validatedCourse.visitSiteName}"不在培训地点"${projectLocation}"附近`);
+                }
+              }
               if (matchedSite && !validatedCourse.visitAddress) {
                 validatedCourse.visitAddress = matchedSite.address || undefined;
               }

@@ -311,6 +311,9 @@ ${courseTemplatesData.slice(0, 15).map((t: Record<string, unknown>, idx: number)
           .where(eq(visitSites.isActive, true))
           .all();
         
+        // 获取培训地点
+        const trainingLocation = (projectData.location as string) || '';
+        
         // 计算参访基地匹配分数
         const scoredVisitSites = visitSitesData.map((site: Record<string, unknown>) => {
           let score = 0;
@@ -318,6 +321,22 @@ ${courseTemplatesData.slice(0, 15).map((t: Record<string, unknown>, idx: number)
           const siteType = (site.type as string) || '';
           const siteName = (site.name as string) || '';
           const visitContent = (site.visitContent as string) || '';
+          const siteAddress = (site.address as string) || '';
+          
+          // 【最重要】培训地点匹配 - 必须在同一城市/地区
+          if (trainingLocation && siteAddress) {
+            // 提取城市名（去掉"市"、"省"等后缀进行比较）
+            const locationCity = trainingLocation.replace(/[省市县区]/g, '').trim();
+            const addressCity = siteAddress.replace(/[省市县区]/g, '').trim();
+            
+            // 完全匹配（地址包含培训地点，或培训地点包含地址城市）
+            if (siteAddress.includes(locationCity) || locationCity.includes(addressCity) || addressCity.includes(locationCity)) {
+              score += 100; // 地点匹配给予最高权重
+            } else {
+              // 地点不匹配，扣分
+              score -= 50;
+            }
+          }
           
           // 培训类型匹配
           if (trainingTarget && (siteIndustry || siteType)) {
@@ -348,9 +367,9 @@ ${courseTemplatesData.slice(0, 15).map((t: Record<string, unknown>, idx: number)
           return { site, score };
         });
         
-        // 筛选高匹配度的参访基地（分数 >= 20）
+        // 筛选高匹配度的参访基地（优先选择地点匹配的）
         const matchedVisitSites = scoredVisitSites
-          .filter(ss => ss.score >= 20)
+          .filter(ss => ss.score > 0) // 过滤掉负分的（地点不匹配的）
           .sort((a, b) => b.score - a.score)
           .slice(0, 5)
           .map(ss => ss.site);
@@ -358,7 +377,7 @@ ${courseTemplatesData.slice(0, 15).map((t: Record<string, unknown>, idx: number)
         // 构建参访基地上下文
         let visitSitesContext = '';
         if (matchedVisitSites.length > 0) {
-          visitSitesContext = `\n\n【优先使用以下匹配的参访基地】（已按匹配度排序）：
+          visitSitesContext = `\n\n【优先使用以下匹配的参访基地】（已按地点和匹配度排序）：
 ${matchedVisitSites.map((site: Record<string, unknown>, idx: number) => {
   return `${idx + 1}. ${site.name}
    - 类型：${site.type || '未分类'}
@@ -370,7 +389,18 @@ ${matchedVisitSites.map((site: Record<string, unknown>, idx: number) => {
    - 费用：${site.visitFee ? site.visitFee + '元/人' : '免费'}`;
 }).join('\n')}
 
-【重要】如果培训方案中包含参访环节，请优先从上述基地中选择。`;
+【重要规则】：
+- 培训地点是"${trainingLocation || '未指定'}"，参访基地必须在同一城市或附近
+- 优先从上述匹配的基地中选择（已筛选地点匹配的基地）
+- 如果上述基地都不合适，可以在培训地点附近推荐其他参访点`;
+        } else if (trainingLocation) {
+          // 没有匹配的参访基地，但培训地点已指定
+          visitSitesContext = `\n\n【参访安排提示】
+培训地点：${trainingLocation}
+
+注意：系统中暂无与培训地点"${trainingLocation}"匹配的参访基地。
+- 如果需要安排参访，请在"${trainingLocation}"附近推荐合适的参访点
+- 参访基地ID和名称可以留空，系统会自动处理`;
         }
         
         prompt = `你是培训方案设计专家。请为以下培训项目设计课程安排：
@@ -378,6 +408,7 @@ ${matchedVisitSites.map((site: Record<string, unknown>, idx: number) => {
 培训主题：${projectData.name || projectData.trainingTarget || '未指定'}
 培训类型：${projectData.trainingTarget || '未指定'}
 目标人群：${projectData.targetAudience || '未指定'}
+培训地点：${projectData.location || '未指定'}
 参训人数：${projectData.participantCount || 0}人
 培训天数：${trainingDays}天
 总课时：${totalHours}课时
@@ -396,6 +427,7 @@ ${templateContext}${visitSitesContext}${userProfileContext}
 
 2. **参访安排**（培训天数>=2天时）
    - 安排1-2次参访活动，每次2-4课时
+   - **【重要】参访地点必须与培训地点"${projectData.location || '未指定'}"在同一城市或附近**
    - 优先从匹配的参访基地中选择
 
 3. **课时控制 - 必须精确**
