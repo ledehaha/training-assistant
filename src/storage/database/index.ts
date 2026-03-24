@@ -583,12 +583,6 @@ const migrationSQL = `
 // 执行迁移（检查并添加缺失的列）
 function runMigrations(db: SqlJsDatabase): void {
   try {
-    // 获取projects表的列信息
-    const result = db.exec("PRAGMA table_info(projects)");
-    if (result.length === 0) return;
-    
-    const columns = result[0].values.map((row) => row[1] as string);
-    
     // 检查是否需要添加新列
     const migrationStatements = migrationSQL
       .split(';')
@@ -596,30 +590,30 @@ function runMigrations(db: SqlJsDatabase): void {
       .filter((s) => s.length > 0);
     
     for (const stmt of migrationStatements) {
-      // 提取列名
-      const match = stmt.match(/ADD COLUMN (\w+)/);
-      if (match && !columns.includes(match[1])) {
+      // 提取表名和列名
+      const tableMatch = stmt.match(/ALTER TABLE (\w+)/);
+      const columnMatch = stmt.match(/ADD COLUMN (\w+)/);
+      
+      if (tableMatch && columnMatch) {
+        const tableName = tableMatch[1];
+        const columnName = columnMatch[1];
+        
         try {
-          db.run(stmt);
-          console.log(`Migration: Added column ${match[1]} to projects table`);
+          // 获取该表的列信息
+          const result = db.exec(`PRAGMA table_info(${tableName})`);
+          if (result.length === 0) continue;
+          
+          const columns = result[0].values.map((row) => row[1] as string);
+          
+          // 只有当列不存在时才添加
+          if (!columns.includes(columnName)) {
+            db.run(stmt);
+            console.log(`Migration: Added column ${columnName} to ${tableName} table`);
+          }
         } catch (err) {
-          console.warn(`Migration warning for ${match[1]}:`, err);
+          // 表可能不存在，跳过
         }
       }
-    }
-    
-    // 检查 normative_documents 表的 visibility 列
-    try {
-      const normativeResult = db.exec("PRAGMA table_info(normative_documents)");
-      if (normativeResult.length > 0) {
-        const normativeColumns = normativeResult[0].values.map((row) => row[1] as string);
-        if (!normativeColumns.includes('visibility')) {
-          db.run("ALTER TABLE normative_documents ADD COLUMN visibility TEXT DEFAULT 'public'");
-          console.log('Migration: Added visibility column to normative_documents table');
-        }
-      }
-    } catch (err) {
-      console.warn('Migration warning for normative_documents.visibility:', err);
     }
     
     // 清理无效数据（每次启动时执行）

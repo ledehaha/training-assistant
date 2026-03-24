@@ -78,6 +78,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers,
       });
       
+      // 如果返回 401，清理本地状态
+      if (res.status === 401) {
+        setUser(null);
+        setAuthenticated(false);
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('session_token');
+        }
+        return;
+      }
+      
       const contentType = res.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
         setUser(null);
@@ -125,12 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // 登出
   const logout = useCallback(async (redirectToLogin = true) => {
-    try {
-      await fetch('/api/auth/logout', { method: 'POST' });
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
-    
+    // 先清理本地状态，防止重复调用
     if (typeof window !== 'undefined') {
       localStorage.removeItem('session_token');
     }
@@ -143,8 +148,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       timerRef.current = null;
     }
     
+    // 然后尝试通知服务器
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3秒超时
+      
+      await fetch('/api/auth/logout', { 
+        method: 'POST',
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+    } catch (error) {
+      // 忽略登出错误，本地状态已清理
+      console.log('Logout request failed (ignored):', error);
+    }
+    
     if (redirectToLogin) {
-      window.location.href = '/login';
+      // 使用 replace 而不是 href，避免浏览器历史记录问题
+      window.location.replace('/login');
     }
   }, []);
 
@@ -174,6 +195,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     timerRef.current = setInterval(() => {
       if (Date.now() - lastActivityRef.current >= AUTO_LOGOUT_TIME) {
+        // 提示用户会话已超时
+        alert('由于长时间未操作，您已自动退出登录。');
         logout(true);
       }
     }, CHECK_INTERVAL);
