@@ -718,9 +718,40 @@ async function doInitDatabase(): Promise<void> {
   // 初始化种子数据（部门、角色、权限、管理员账号）
   await initializeSeedData();
   
+  // 确保系统账号存在（即使数据库已初始化也检查）
+  await ensureSystemAccounts();
+  
   saveDatabaseImmediate();
   
   console.log('Database initialized successfully');
+}
+
+// 确保系统账号存在（每次启动时检查）
+async function ensureSystemAccounts(): Promise<void> {
+  if (!sqlite) return;
+  
+  const now = new Date().toISOString();
+  const adminPasswordHash = hashPassword('123456');
+  
+  // 确保管理员账号存在 (00000000000)
+  const adminExists = sqlite.exec("SELECT id FROM users WHERE employee_id = '00000000000'");
+  if (adminExists.length === 0 || adminExists[0].values.length === 0) {
+    console.log('Creating admin account (00000000000)...');
+    sqlite.run(
+      `INSERT OR IGNORE INTO users (id, username, password_hash, name, employee_id, department_id, role_id, status, approved_by, approved_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', 'system', ?, ?)`,
+      ['user_admin', '00000000000', adminPasswordHash, '系统管理员', '00000000000', null, 'role_admin', now, now]
+    );
+  }
+  
+  // 确保调试账号存在 (00000000001)
+  const debugExists = sqlite.exec("SELECT id FROM users WHERE employee_id = '00000000001'");
+  if (debugExists.length === 0 || debugExists[0].values.length === 0) {
+    console.log('Creating debug account (00000000001)...');
+    sqlite.run(
+      `INSERT OR IGNORE INTO users (id, username, password_hash, name, employee_id, department_id, role_id, status, approved_by, approved_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', 'system', ?, ?)`,
+      ['user_debug', '00000000001', adminPasswordHash, '调试账号', '00000000001', null, 'role_admin', now, now]
+    );
+  }
 }
 
 // 生成ID（种子数据内部使用）
@@ -869,7 +900,9 @@ async function initializeSeedData(): Promise<void> {
     );
   }
   
-  // 5. 初始化管理员账号（系统调试账号，不属于任何部门）
+  // 5. 初始化管理员账号（系统管理员，不属于任何部门）
+  // 注意：系统账号现在由 ensureSystemAccounts 函数统一管理
+  // 这里保留管理员账号创建是为了向后兼容，新数据库会在 ensureSystemAccounts 中创建
   const adminPasswordHash = hashPassword('123456');
   sqlite.run(
     `INSERT OR IGNORE INTO users (id, username, password_hash, name, employee_id, department_id, role_id, status, approved_by, approved_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', 'system', ?, ?)`,

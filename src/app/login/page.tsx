@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, LogIn } from 'lucide-react';
+import { Loader2, LogIn, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
 
@@ -14,6 +14,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
+  const [showDebugAccount, setShowDebugAccount] = useState(false);
   const [formData, setFormData] = useState({
     employeeId: '',
     password: '',
@@ -216,11 +217,26 @@ export default function LoginPage() {
             </Link>
           </div>
           
-          <div className="mt-4 p-3 bg-blue-50 rounded-lg text-xs text-gray-600">
-            <p className="font-medium mb-1">系统调试账号：</p>
-            <p>工号：00000000000</p>
-            <p>密码：123456</p>
-            <p className="mt-1 text-gray-400">（该账号仅供开发调试使用）</p>
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={() => setShowDebugAccount(!showDebugAccount)}
+              className="w-full flex items-center justify-between p-3 bg-muted/50 hover:bg-muted rounded-lg text-xs text-muted-foreground transition-colors"
+            >
+              <span className="font-medium">系统调试账号</span>
+              {showDebugAccount ? (
+                <ChevronUp className="w-4 h-4" />
+              ) : (
+                <ChevronDown className="w-4 h-4" />
+              )}
+            </button>
+            {showDebugAccount && (
+              <div className="p-3 bg-blue-50 rounded-b-lg text-xs text-gray-600 border border-t-0 border-blue-100">
+                <p>工号：00000000001</p>
+                <p>密码：123456</p>
+                <p className="mt-1 text-gray-400">（该账号仅供开发调试使用）</p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
