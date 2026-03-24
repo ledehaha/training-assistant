@@ -592,6 +592,11 @@ export default function SummaryPage() {
   const checkFileExists = (fileType: string, fileName?: string): boolean => {
     if (!selectedProject) return false;
     
+    // 课程安排表是临时文件，用于AI分析，不需要检查是否已存在
+    if (fileType === 'courseSchedule') {
+      return false;
+    }
+    
     // 其它附件：检查是否有同名文件
     if (fileType === 'other' && fileName) {
       const otherMaterials = selectedProject.otherMaterials 
@@ -609,7 +614,6 @@ export default function SummaryPage() {
       declarationPdf: selectedProject.declarationFilePdf,
       declarationWord: selectedProject.declarationFileWord,
       studentList: selectedProject.studentListFile,
-      courseSchedule: selectedProject.courseScheduleFile,
       satisfaction: selectedProject.satisfactionSurveyFile,
       countersign: selectedProject.countersignFile,
     };
