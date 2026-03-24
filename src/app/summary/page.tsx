@@ -333,6 +333,29 @@ export default function SummaryPage() {
     loadProjects();
   }, []);
 
+  // 监听导航重置事件（点击当前页面的导航链接时触发）
+  useEffect(() => {
+    const handleNavigationReset = () => {
+      // 重置页面状态，回到初始页
+      setCurrentStep(1);
+      setSelectedProject(null);
+      setSummaryReport(null);
+      setExtractedData({});
+      setExtractedCourses([]);
+      setFileAiChecking(null);
+      setFileAiCheckResult(null);
+      setShowCourseTableDialog(false);
+      setEditingCourseIndex(null);
+      setEditingCourse(null);
+      toast.success('已返回项目列表');
+    };
+
+    window.addEventListener('navigation-reset', handleNavigationReset);
+    return () => {
+      window.removeEventListener('navigation-reset', handleNavigationReset);
+    };
+  }, []);
+
   // 时间过滤函数
   const filterByTime = (projects: Project[], filter: string): Project[] => {
     if (filter === 'all') return projects;

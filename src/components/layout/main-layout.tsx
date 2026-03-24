@@ -37,10 +37,24 @@ const NavigationItem = memo(function NavigationItem({
   isActive: boolean;
   onClick?: () => void;
 }) {
+  const router = useRouter();
+  
+  const handleClick = (e: React.MouseEvent) => {
+    // 如果点击的是当前页面，触发自定义事件让页面可以重置状态
+    if (isActive) {
+      e.preventDefault();
+      // 触发自定义事件，通知页面重置
+      window.dispatchEvent(new CustomEvent('navigation-reset'));
+      onClick?.();
+      return;
+    }
+    onClick?.();
+  };
+  
   return (
     <Link
       href={item.href}
-      onClick={onClick}
+      onClick={handleClick}
       className={cn(
         'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
         isActive
