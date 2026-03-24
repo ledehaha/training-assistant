@@ -19,7 +19,7 @@ interface ExtractedCourse {
   name: string;
   day: number;
   duration: number;
-  type: 'course' | 'visit' | 'break' | 'other';
+  type: 'course' | 'visit';
   description?: string;
   teacherName?: string;
   teacherTitle?: string;
@@ -63,7 +63,18 @@ async function readFileContent(fileKey: string, customHeaders: Record<string, st
 
 // AI系统提示词
 function generateSystemPrompt(): string {
-  return `你是一个专业的培训课程分析师。你的任务是从课程安排表中提取课程信息。
+  return `你是一个专业的培训课程分析师。你的任务是从课程安排表中提取真正的培训课程信息。
+
+## ⚠️ 重要：必须排除的活动（这些不是课程！）
+
+以下活动属于后勤安排，**绝对不要**提取为课程，直接忽略：
+- 用餐类：早餐、午餐、晚餐、自助餐、宴会、欢迎晚宴、告别宴等
+- 住宿类：酒店入住、办理入住、退房、住宿安排等
+- 交通类：出发、返程、集合、乘车、机场接送、交通安排等
+- 签到类：签到、报到、领取资料、开班仪式（不含培训内容的）、结业仪式（不含培训内容的）等
+- 休息类：茶歇、自由活动、休息、午休等
+
+**只有真正的培训内容才需要提取！**
 
 ## 输出要求
 
@@ -71,8 +82,8 @@ function generateSystemPrompt(): string {
 每门课程需要提取以下信息：
 - **name**: 课程名称（必填）
 - **day**: 第几天（数字，从1开始）
-- **duration**: 课时数（数字，1课时=40-60分钟）
-- **type**: 课程类型（course=理论课程, visit=参访活动, break=休息, other=其他）
+- **duration**: 课时数（数字，**必须是0.5的倍数**）
+- **type**: 课程类型（course=理论课程, visit=参访活动）
 - **description**: 课程描述/内容概要
 - **teacherName**: 讲师姓名
 - **teacherTitle**: 建议讲师职称（如：教授、副教授、高级工程师等）
@@ -81,27 +92,30 @@ function generateSystemPrompt(): string {
 - **startTime**: 开始时间（如：09:00）
 - **endTime**: 结束时间（如：11:00）
 
-### 课时折算规则
+### 课时折算规则（CRITICAL：课时必须是0.5的倍数）
 - 1课时 = 40-60分钟
-- 半天（3-4小时）= 4课时
-- 2小时左右 = 2课时
-- 1小时左右 = 1课时
-- 自动将分钟数折算为课时，四舍五入到0.5的倍数
+- 课时数**只能是**：0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6...（0.5的倍数）
+- 折算示例：
+  - 30-45分钟 → 0.5课时
+  - 45-75分钟 → 1课时
+  - 75-105分钟 → 1.5课时
+  - 90分钟 → 1.5课时
+  - 2小时（120分钟）→ 2课时
+  - 2.5小时（150分钟）→ 2.5课时
+  - 3小时（180分钟）→ 3课时
+  - 半天（3-4小时）→ 3.5或4课时
 
 ### 提取规则
-1. **按时间顺序排列**：按照课程在文件中的时间顺序提取
-2. **识别天数**：根据"第一天"、"Day 1"、"日期"等标识判断是第几天
-3. **识别时间段**：上午、下午、或具体时间（09:00-11:00）
-4. **区分课程类型**：
-   - 理论授课、讲座、研讨 → course
-   - 参观、考察、实地教学 → visit
-   - 休息、用餐、自由活动 → break
-   - 其他无法归类的 → other
-5. **讲师信息**：
+1. **排除非课程活动**：用餐、住宿、交通、签到、休息等活动直接忽略
+2. **只提取培训内容**：讲座、授课、研讨、参访、实训等才是课程
+3. **按时间顺序排列**：按照课程在文件中的时间顺序提取
+4. **识别天数**：根据"第一天"、"Day 1"、"日期"等标识判断是第几天
+5. **区分课程类型**：
+   - 理论授课、讲座、研讨、培训、讲课 → course
+   - 参观、考察、实地教学、现场教学 → visit
+6. **讲师信息**：
    - 如果有明确讲师姓名，提取到teacherName
    - 如果没有具体姓名但有职称要求，提取到teacherTitle
-6. **参访信息**：
-   - 参访类型的课程，提取参访地点和地址
 
 ### 输出格式
 返回严格的JSON格式：
@@ -111,24 +125,25 @@ function generateSystemPrompt(): string {
     {
       "name": "课程名称",
       "day": 1,
-      "duration": 4,
+      "duration": 1.5,
       "type": "course",
       "description": "课程描述",
       "teacherName": "张教授",
       "teacherTitle": "教授",
       "startTime": "09:00",
-      "endTime": "12:00"
+      "endTime": "10:30"
     }
   ],
-  "totalHours": 32
+  "totalHours": 32.5
 }
 \`\`\`
 
 ## 重要提示
-1. **必须提取所有课程**：不要遗漏任何课程安排
-2. **课时计算准确**：确保总课时数合理
-3. **类型判断正确**：正确区分理论课和参访活动
+1. **过滤后勤活动**：午餐、晚餐、酒店入住、出发、返程等不是课程！
+2. **课时必须是0.5的倍数**：如1、1.5、2、2.5、3、3.5、4等
+3. **只提取真正的培训内容**：没有培训内容的活动不要提取
 4. **保持原始顺序**：按照文件中的顺序排列课程`;
+
 }
 
 export async function POST(
@@ -236,13 +251,33 @@ ${fileContent}
           for (const course of parsed.courses) {
             if (!course.name || typeof course.name !== 'string') continue;
             
+            // 过滤掉非课程活动（用餐、住宿、交通等）
+            const name = course.name.trim().toLowerCase();
+            const excludedKeywords = [
+              '早餐', '午餐', '晚餐', '自助餐', '宴会', '晚宴', '用餐', '吃饭',
+              '酒店', '入住', '退房', '住宿',
+              '出发', '返程', '集合', '乘车', '接送', '机场',
+              '签到', '报到', '领取资料',
+              '茶歇', '自由活动', '休息', '午休', '开班仪式', '结业仪式'
+            ];
+            if (excludedKeywords.some(kw => name.includes(kw))) {
+              console.log('过滤非课程活动:', course.name);
+              continue;
+            }
+            
+            // 课时数四舍五入到0.5的倍数
+            let duration = parseFloat(course.duration) || 2;
+            duration = Math.round(duration * 2) / 2; // 四舍五入到0.5
+            duration = Math.max(0.5, Math.min(8, duration)); // 限制范围0.5-8
+            
+            // 类型只能是 course 或 visit
+            const courseType = course.type === 'visit' ? 'visit' : 'course';
+            
             const validatedCourse: ExtractedCourse = {
               name: course.name.trim(),
               day: Math.max(1, parseInt(course.day) || 1),
-              duration: Math.max(1, Math.min(8, parseFloat(course.duration) || 2)),
-              type: ['course', 'visit', 'break', 'other'].includes(course.type) 
-                ? course.type 
-                : 'course',
+              duration: duration,
+              type: courseType,
               description: course.description?.trim() || undefined,
               teacherName: course.teacherName?.trim() || undefined,
               teacherTitle: course.teacherTitle?.trim() || undefined,
