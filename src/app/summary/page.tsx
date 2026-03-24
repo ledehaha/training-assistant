@@ -254,7 +254,7 @@ export default function SummaryPage() {
     name: string;
     day: number;
     duration: number;
-    type: 'course' | 'visit' | 'break' | 'other';
+    type: 'course' | 'visit';  // 只保留课程和参访两种类型
     description?: string;
     teacherName?: string;
     teacherTitle?: string;
@@ -2357,12 +2357,10 @@ export default function SummaryPage() {
                               className={
                                 course.type === 'visit' 
                                   ? 'border-orange-300 text-orange-600' 
-                                  : course.type === 'break'
-                                    ? 'border-gray-300 text-gray-600'
-                                    : 'border-blue-300 text-blue-600'
+                                  : 'border-blue-300 text-blue-600'
                               }
                             >
-                              {course.type === 'visit' ? '参访' : course.type === 'break' ? '休息' : '课程'}
+                              {course.type === 'visit' ? '参访' : '课程'}
                             </Badge>
                           </td>
                           <td className="px-2 py-2 text-center">
@@ -2716,10 +2714,11 @@ export default function SummaryPage() {
       }
 
       // 先删除现有课程
-      await fetch(`/api/projects/${selectedProject.id}/courses`, {
+      const deleteRes = await fetch(`/api/projects/${selectedProject.id}/courses`, {
         method: 'DELETE',
         headers,
       });
+      console.log('删除课程结果:', deleteRes.status);
 
       // 如果有课程，添加新的课程
       if (extractedCourses.length > 0) {
@@ -2732,6 +2731,12 @@ export default function SummaryPage() {
           }))),
         });
 
+        console.log('保存课程响应状态:', res.status);
+        
+        // 先获取响应文本
+        const responseText = await res.text();
+        console.log('保存课程响应内容:', responseText.substring(0, 500));
+        
         if (res.ok) {
           toast.success('课程安排已保存');
           // 更新当前项目的 hasSavedCourses 状态
@@ -2739,8 +2744,14 @@ export default function SummaryPage() {
           // 刷新项目列表
           loadProjects();
         } else {
-          const data = await res.json();
-          toast.error(data.error || '保存失败');
+          let errorMsg = '保存失败';
+          try {
+            const data = JSON.parse(responseText);
+            errorMsg = data.error || errorMsg;
+          } catch {
+            errorMsg = responseText || errorMsg;
+          }
+          toast.error(errorMsg);
         }
       } else {
         // 没有课程，更新状态为未保存
