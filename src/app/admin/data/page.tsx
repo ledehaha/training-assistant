@@ -1447,7 +1447,7 @@ export default function DataManagementPage() {
                             className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                           />
                         </TableHead>
-                        {selectedTable.columns.map(col => (
+                        {selectedTable.columns.filter(col => col.key !== 'id').map(col => (
                           <TableHead key={col.key}>{col.label}</TableHead>
                         ))}
                         <TableHead className="w-[100px]">操作</TableHead>
@@ -1479,7 +1479,7 @@ export default function DataManagementPage() {
                                 className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                               />
                             </TableCell>
-                            {selectedTable.columns.map(col => (
+                            {selectedTable.columns.filter(col => col.key !== 'id').map(col => (
                               <TableCell key={col.key}>
                                 {renderCellValue(col, item[col.key])}
                               </TableCell>
