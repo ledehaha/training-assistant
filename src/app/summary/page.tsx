@@ -2751,8 +2751,10 @@ export default function SummaryPage() {
           toast.success('课程安排已保存');
           // 更新当前项目的 hasSavedCourses 状态
           setSelectedProject(prev => prev ? { ...prev, hasSavedCourses: true } : null);
-          // 刷新项目列表
-          loadProjects();
+          // 同步更新 allProjects 中的对应项目状态（避免重新加载整个列表）
+          setAllProjects(prev => prev.map(p => 
+            p.id === selectedProject.id ? { ...p, hasSavedCourses: true } : p
+          ));
         } else {
           toast.warning(`已保存 ${successCount}/${extractedCourses.length} 门课程`);
         }
@@ -2760,7 +2762,6 @@ export default function SummaryPage() {
         // 没有课程，更新状态为未保存
         setSelectedProject(prev => prev ? { ...prev, hasSavedCourses: false } : null);
         toast.success('课程安排已清空');
-        loadProjects();
       }
     } catch (error) {
       console.error('保存课程失败:', error);
