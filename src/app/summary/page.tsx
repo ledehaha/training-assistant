@@ -268,6 +268,11 @@ export default function SummaryPage() {
   const [editingCourse, setEditingCourse] = useState<ExtractedCourse | null>(null);
   const [savingCourses, setSavingCourses] = useState(false);
 
+  // 课程安排上传对话框
+  const [showCourseUploadDialog, setShowCourseUploadDialog] = useState(false);
+  const [tempCourseFile, setTempCourseFile] = useState<File | null>(null);
+  const [tempCourseFileUploading, setTempCourseFileUploading] = useState(false);
+
   // 单文件AI检查状态
   const [fileAiChecking, setFileAiChecking] = useState<string | null>(null); // 当前正在检查的文件key
   const fileAiCheckCancelledRef = useRef(false); // 取消标志
@@ -2194,37 +2199,15 @@ export default function SummaryPage() {
                 </CardDescription>
               </div>
               <div className="flex gap-2">
-                <input
-                  type="file"
-                  accept=".pdf,.doc,.docx,.xls,.xlsx"
-                  className="hidden"
-                  id="file-courseSchedule-analysis"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleFileUpload('courseSchedule', file);
-                  }}
-                />
                 <Button
                   variant="outline"
                   size="sm"
                   className="border-purple-200 text-purple-600 hover:bg-purple-50"
-                  onClick={() => {
-                    const input = document.getElementById('file-courseSchedule-analysis') as HTMLInputElement;
-                    input?.click();
-                  }}
-                  disabled={uploading === 'courseSchedule' || extractingCourses}
+                  onClick={() => setShowCourseUploadDialog(true)}
+                  disabled={extractingCourses}
                 >
-                  {uploading === 'courseSchedule' ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      上传中...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="w-4 h-4 mr-2" />
-                      上传文件智能分析
-                    </>
-                  )}
+                  <Upload className="w-4 h-4 mr-2" />
+                  上传文件智能分析
                 </Button>
                 {isValidFile(selectedProject.courseScheduleFile) && (
                   <>
@@ -3848,6 +3831,189 @@ export default function SummaryPage() {
               </Button>
             )}
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 课程安排上传对话框 */}
+      <Dialog open={showCourseUploadDialog} onOpenChange={(open) => {
+        if (!open) {
+          setShowCourseUploadDialog(false);
+          setTempCourseFile(null);
+        }
+      }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Upload className="w-5 h-5 text-purple-600" />
+              上传课程安排表
+            </DialogTitle>
+            <DialogDescription>
+              上传课程安排表文件，系统将智能提取课程信息
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* 拖拽上传区域 */}
+            <div
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
+                tempCourseFile ? 'bg-green-50 border-green-400' : 'hover:bg-gray-50 border-gray-200'
+              }`}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const file = e.dataTransfer.files[0];
+                if (file) {
+                  const validTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+                  if (validTypes.includes(file.type) || /\.(pdf|doc|docx|xls|xlsx)$/i.test(file.name)) {
+                    setTempCourseFile(file);
+                  } else {
+                    toast.error('请上传 PDF、Word 或 Excel 格式的文件');
+                  }
+                }
+              }}
+              onClick={() => {
+                const input = document.getElementById('temp-course-file-input') as HTMLInputElement;
+                input?.click();
+              }}
+            >
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx,.xls,.xlsx"
+                className="hidden"
+                id="temp-course-file-input"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    setTempCourseFile(file);
+                  }
+                }}
+              />
+              {tempCourseFile ? (
+                <div className="flex items-center justify-center gap-2">
+                  <CheckCircle className="w-8 h-8 text-green-600" />
+                  <div className="text-left">
+                    <p className="font-medium text-green-700">{tempCourseFile.name}</p>
+                    <p className="text-xs text-green-600">{(tempCourseFile.size / 1024).toFixed(1)} KB</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center">
+                  <FileText className="w-12 h-12 text-gray-400 mb-2" />
+                  <p className="text-sm text-gray-600">拖拽文件到此处</p>
+                  <p className="text-xs text-gray-400 mt-1">支持 PDF、Word、Excel 格式</p>
+                </div>
+              )}
+            </div>
+
+            {/* 操作按钮 */}
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => {
+                  const input = document.getElementById('temp-course-file-input') as HTMLInputElement;
+                  input?.click();
+                }}
+                disabled={tempCourseFileUploading}
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                点击上传文件
+              </Button>
+              <Button
+                className="flex-1"
+                disabled={!tempCourseFile || tempCourseFileUploading}
+                onClick={async () => {
+                  if (!tempCourseFile || !selectedProject) return;
+                  
+                  setTempCourseFileUploading(true);
+                  try {
+                    // 1. 上传文件
+                    const formData = new FormData();
+                    formData.append('file', tempCourseFile);
+                    formData.append('projectId', selectedProject.id);
+                    formData.append('fileType', 'courseSchedule');
+
+                    const uploadRes = await fetch('/api/upload', {
+                      method: 'POST',
+                      body: formData,
+                    });
+
+                    const uploadData = await uploadRes.json();
+                    if (!uploadRes.ok) {
+                      throw new Error(uploadData.error || '上传失败');
+                    }
+
+                    // 更新项目状态
+                    setSelectedProject(prev => prev ? {
+                      ...prev,
+                      courseScheduleFile: uploadData.fileKey,
+                      courseScheduleFileName: uploadData.fileName
+                    } : null);
+
+                    // 2. 关闭对话框
+                    setShowCourseUploadDialog(false);
+                    setTempCourseFile(null);
+
+                    // 3. 自动触发AI提取
+                    setExtractingCourses(true);
+                    const sessionToken = localStorage.getItem('session_token');
+                    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                    if (sessionToken) {
+                      headers['Authorization'] = `Bearer ${sessionToken}`;
+                    }
+
+                    const extractRes = await fetch(`/api/projects/${selectedProject.id}/courses/extract`, {
+                      method: 'POST',
+                      headers,
+                      body: JSON.stringify({
+                        fileKey: uploadData.fileKey,
+                        fileName: uploadData.fileName,
+                      }),
+                    });
+
+                    const extractData = await extractRes.json();
+                    if (extractRes.ok && extractData.courses) {
+                      const coursesWithIds = extractData.courses.map((c: ExtractedCourse, i: number) => ({
+                        ...c,
+                        id: c.id || `course-${Date.now()}-${i}`,
+                      }));
+                      setExtractedCourses(coursesWithIds);
+                      toast.success(`成功提取 ${coursesWithIds.length} 门课程`);
+                    } else {
+                      setExtractedCourses([]);
+                      if (extractData.message) {
+                        toast.warning(extractData.message);
+                      } else {
+                        toast.info('未识别到课程信息，请手动添加');
+                      }
+                    }
+                  } catch (error) {
+                    console.error('上传或提取失败:', error);
+                    toast.error('操作失败，请重试');
+                  } finally {
+                    setTempCourseFileUploading(false);
+                    setExtractingCourses(false);
+                  }
+                }}
+              >
+                {tempCourseFileUploading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    分析中...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    开始智能分析
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
