@@ -87,6 +87,11 @@ export async function POST(request: NextRequest) {
         updateData.countersignFile = fileKey;
         updateData.countersignFileName = file.name;
         break;
+      // 课程安排表
+      case 'courseSchedule':
+        updateData.courseScheduleFile = fileKey;
+        updateData.courseScheduleFileName = file.name;
+        break;
       // 其他材料
       case 'other':
         const project = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
@@ -208,6 +213,12 @@ export async function DELETE(request: NextRequest) {
         fileKey = project[0].countersignFile || '';
         updateData.countersignFile = null;
         updateData.countersignFileName = null;
+        break;
+      // 课程安排表
+      case 'courseSchedule':
+        fileKey = project[0].courseScheduleFile || '';
+        updateData.courseScheduleFile = null;
+        updateData.courseScheduleFileName = null;
         break;
       // 其他材料
       case 'other':

@@ -3918,14 +3918,14 @@ export default function SummaryPage() {
                   const input = document.getElementById('temp-course-file-input') as HTMLInputElement;
                   input?.click();
                 }}
-                disabled={tempCourseFileUploading}
+                disabled={tempCourseFileUploading || extractingCourses}
               >
                 <Upload className="w-4 h-4 mr-2" />
                 点击上传文件
               </Button>
               <Button
                 className="flex-1"
-                disabled={!tempCourseFile || tempCourseFileUploading}
+                disabled={!tempCourseFile || tempCourseFileUploading || extractingCourses}
                 onClick={async () => {
                   if (!tempCourseFile || !selectedProject) return;
                   
@@ -3954,12 +3954,9 @@ export default function SummaryPage() {
                       courseScheduleFileName: uploadData.fileName
                     } : null);
 
-                    // 2. 关闭对话框
-                    setShowCourseUploadDialog(false);
-                    setTempCourseFile(null);
-
-                    // 3. 自动触发AI提取
+                    // 2. 开始AI提取（先显示loading）
                     setExtractingCourses(true);
+                    
                     const sessionToken = localStorage.getItem('session_token');
                     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
                     if (sessionToken) {
@@ -3976,6 +3973,11 @@ export default function SummaryPage() {
                     });
 
                     const extractData = await extractRes.json();
+                    
+                    // 3. 关闭对话框
+                    setShowCourseUploadDialog(false);
+                    setTempCourseFile(null);
+                    
                     if (extractRes.ok && extractData.courses) {
                       const coursesWithIds = extractData.courses.map((c: ExtractedCourse, i: number) => ({
                         ...c,
@@ -3994,6 +3996,9 @@ export default function SummaryPage() {
                   } catch (error) {
                     console.error('上传或提取失败:', error);
                     toast.error('操作失败，请重试');
+                    // 出错时也关闭对话框
+                    setShowCourseUploadDialog(false);
+                    setTempCourseFile(null);
                   } finally {
                     setTempCourseFileUploading(false);
                     setExtractingCourses(false);
@@ -4001,6 +4006,11 @@ export default function SummaryPage() {
                 }}
               >
                 {tempCourseFileUploading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    上传中...
+                  </>
+                ) : extractingCourses ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     分析中...
