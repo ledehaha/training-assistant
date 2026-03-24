@@ -2309,44 +2309,19 @@ export default function SummaryPage() {
           </CardHeader>
           <CardContent>
             {extractedCourses.length === 0 ? (
-              <div className="space-y-4">
-                {/* 拖拽上传区域 */}
-                <div
-                  className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
-                    dragActive === 'courseSchedule' ? 'bg-purple-50 border-purple-400' : 'hover:bg-gray-50 border-gray-300'
-                  }`}
-                  onDragOver={(e) => handleDragOver(e, 'courseSchedule')}
-                  onDragLeave={handleDragLeave}
-                  onDrop={(e) => handleDrop(e, 'courseSchedule')}
-                  onClick={() => {
-                    if (uploading !== 'courseSchedule') {
-                      const input = document.getElementById('file-courseSchedule-analysis') as HTMLInputElement;
-                      input?.click();
-                    }
-                  }}
-                >
-                  {uploading === 'courseSchedule' ? (
-                    <div className="flex flex-col items-center">
-                      <Loader2 className="w-12 h-12 animate-spin text-purple-600 mb-2" />
-                      <p className="text-sm text-gray-600">正在上传文件...</p>
-                    </div>
-                  ) : extractingCourses ? (
-                    <div className="flex flex-col items-center">
-                      <Loader2 className="w-12 h-12 animate-spin text-purple-600 mb-2" />
-                      <p className="text-sm text-gray-600">正在AI提取课程信息...</p>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center">
-                      <Upload className="w-12 h-12 text-gray-400 mb-3" />
-                      <p className="text-sm font-medium text-gray-700 mb-1">
-                        点击或拖拽文件到此处上传
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        支持 PDF、Word、Excel 格式，上传后AI自动提取课程
-                      </p>
-                    </div>
-                  )}
-                </div>
+              <div className="text-center py-8 text-muted-foreground">
+                {extractingCourses ? (
+                  <>
+                    <Loader2 className="w-12 h-12 mx-auto mb-2 animate-spin text-purple-600" />
+                    <p>正在AI提取课程信息...</p>
+                  </>
+                ) : (
+                  <>
+                    <BookOpen className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                    <p>暂无课程安排</p>
+                    <p className="text-xs mt-1">点击"上传文件智能分析"按钮上传课程表，或点击"新增课程"手动添加</p>
+                  </>
+                )}
               </div>
             ) : (
               <>
