@@ -869,6 +869,7 @@ export default function SummaryPage() {
   const autoExtractCourses = async (fileKey: string, fileName: string) => {
     if (!selectedProject) return;
 
+    const projectId = selectedProject.id; // 保存项目ID，防止状态变化导致问题
     setExtractingCourses(true);
     try {
       const sessionToken = localStorage.getItem('session_token');
@@ -877,18 +878,26 @@ export default function SummaryPage() {
         headers['Authorization'] = `Bearer ${sessionToken}`;
       }
 
-      const res = await fetch('/api/ai/extract-courses', {
+      const res = await fetch(`/api/projects/${projectId}/courses/extract`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          projectId: selectedProject.id,
           fileKey,
           fileName,
         }),
       });
 
-      const data = await res.json();
-      if (data.success && data.courses && data.courses.length > 0) {
+      // 检查响应是否有效
+      const responseText = await res.text();
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        console.error('JSON解析失败，响应内容:', responseText.substring(0, 200));
+        throw new Error('服务器响应格式错误');
+      }
+      
+      if (res.ok && data && data.courses && data.courses.length > 0) {
         // 为每个课程生成ID
         const coursesWithIds = data.courses.map((course: ExtractedCourse, index: number) => ({
           ...course,
@@ -899,7 +908,7 @@ export default function SummaryPage() {
       } else {
         // AI提取失败或没有课程，显示空表格
         setExtractedCourses([]);
-        if (data.message) {
+        if (data?.message) {
           toast.warning(data.message);
         } else {
           toast.info('未识别到课程信息，请手动添加');
@@ -909,7 +918,7 @@ export default function SummaryPage() {
       console.error('提取课程失败:', error);
       // 提取失败，显示空表格让用户手动编辑
       setExtractedCourses([]);
-      toast.error('AI提取失败，请手动添加课程');
+      toast.error(error instanceof Error ? error.message : 'AI提取失败，请手动添加课程');
     } finally {
       setExtractingCourses(false);
     }
@@ -3879,12 +3888,13 @@ export default function SummaryPage() {
                 onClick={async () => {
                   if (!tempCourseFile || !selectedProject) return;
                   
+                  const projectId = selectedProject.id; // 保存项目ID
                   setTempCourseFileUploading(true);
                   try {
                     // 1. 上传文件
                     const formData = new FormData();
                     formData.append('file', tempCourseFile);
-                    formData.append('projectId', selectedProject.id);
+                    formData.append('projectId', projectId);
                     formData.append('fileType', 'courseSchedule');
 
                     const uploadRes = await fetch('/api/upload', {
@@ -3904,7 +3914,11 @@ export default function SummaryPage() {
                       courseScheduleFileName: uploadData.fileName
                     } : null);
 
-                    // 2. 开始AI提取（先显示loading）
+                    // 关闭对话框
+                    setShowCourseUploadDialog(false);
+                    setTempCourseFile(null);
+
+                    // 2. 开始AI提取
                     setExtractingCourses(true);
                     
                     const sessionToken = localStorage.getItem('session_token');
@@ -3913,7 +3927,7 @@ export default function SummaryPage() {
                       headers['Authorization'] = `Bearer ${sessionToken}`;
                     }
 
-                    const extractRes = await fetch(`/api/projects/${selectedProject.id}/courses/extract`, {
+                    const extractRes = await fetch(`/api/projects/${projectId}/courses/extract`, {
                       method: 'POST',
                       headers,
                       body: JSON.stringify({
@@ -3922,13 +3936,17 @@ export default function SummaryPage() {
                       }),
                     });
 
-                    const extractData = await extractRes.json();
+                    // 检查响应是否有效
+                    const responseText = await extractRes.text();
+                    let extractData;
+                    try {
+                      extractData = JSON.parse(responseText);
+                    } catch {
+                      console.error('JSON解析失败:', responseText.substring(0, 200));
+                      throw new Error('服务器响应格式错误');
+                    }
                     
-                    // 3. 关闭对话框
-                    setShowCourseUploadDialog(false);
-                    setTempCourseFile(null);
-                    
-                    if (extractRes.ok && extractData.courses) {
+                    if (extractRes.ok && extractData && extractData.courses && extractData.courses.length > 0) {
                       const coursesWithIds = extractData.courses.map((c: ExtractedCourse, i: number) => ({
                         ...c,
                         id: c.id || `course-${Date.now()}-${i}`,
@@ -3937,7 +3955,7 @@ export default function SummaryPage() {
                       toast.success(`成功提取 ${coursesWithIds.length} 门课程`);
                     } else {
                       setExtractedCourses([]);
-                      if (extractData.message) {
+                      if (extractData?.message) {
                         toast.warning(extractData.message);
                       } else {
                         toast.info('未识别到课程信息，请手动添加');
@@ -3945,8 +3963,8 @@ export default function SummaryPage() {
                     }
                   } catch (error) {
                     console.error('上传或提取失败:', error);
-                    toast.error('操作失败，请重试');
-                    // 出错时也关闭对话框
+                    toast.error(error instanceof Error ? error.message : '操作失败，请重试');
+                    // 出错时关闭对话框
                     setShowCourseUploadDialog(false);
                     setTempCourseFile(null);
                   } finally {
