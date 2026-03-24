@@ -115,4 +115,4 @@ esac
 
 echo "Starting HTTP service on port ${PORT} for dev..."
 
-npx next dev --webpack --port $PORT
+./node_modules/.bin/next dev --webpack --port $PORT
