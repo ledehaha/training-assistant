@@ -6,6 +6,18 @@
 
 这是一个基于 [Next.js 16](https://nextjs.org) + [shadcn/ui](https://ui.shadcn.com) 的全栈应用项目，由扣子编程 CLI 创建。
 
+## 快速开始
+
+```bash
+# 安装依赖
+pnpm install
+
+# 启动开发服务器
+coze dev
+```
+
+访问 [http://localhost:5000](http://localhost:5000) 查看应用。
+
 ## 功能特性
 
 - **项目设计**：需求分析、方案设计、费用预算
@@ -408,3 +420,140 @@ export const useStore = create<Store>((set) => ({
 3. **遵循 Next.js App Router 规范**，正确区分服务端/客户端组件
 4. **使用 TypeScript** 进行类型安全开发
 5. **使用 `@/` 路径别名** 导入模块（已配置）
+
+---
+
+## 故障排查
+
+### 服务启动失败
+
+#### 问题：`node_modules/.bin/next: No such file or directory`
+
+**原因**：依赖未完全安装或损坏
+
+**解决方案**：
+
+```bash
+# 方案1：使用恢复脚本（推荐）
+bash scripts/recover.sh
+
+# 方案2：手动重新安装
+rm -rf node_modules pnpm-lock.yaml
+pnpm install
+```
+
+#### 问题：端口 5000 被占用
+
+**原因**：之前的服务未正确关闭
+
+**解决方案**：
+
+```bash
+# 方案1：使用恢复脚本自动处理
+bash scripts/recover.sh
+
+# 方案2：手动查找并关闭占用端口的进程
+ss -lntp | grep :5000
+kill -9 <PID>
+```
+
+#### 问题：`.next` 缓存损坏
+
+**症状**：启动时报错或页面显示异常
+
+**解决方案**：
+
+```bash
+# 清理缓存
+rm -rf .next
+
+# 重新启动
+coze dev
+```
+
+### 常用诊断工具
+
+#### 快速诊断
+
+```bash
+# 运行诊断脚本，检查环境状态
+bash scripts/diagnose.sh
+```
+
+诊断脚本会检查：
+- 文件系统完整性
+- 依赖安装状态
+- 构建配置
+- 运行时状态
+- 磁盘空间
+
+#### 完整恢复
+
+```bash
+# 运行恢复脚本，自动修复所有常见问题
+bash scripts/recover.sh
+```
+
+恢复脚本会：
+- 释放被占用的端口
+- 清理损坏的缓存
+- 重新安装依赖
+
+### 查看日志
+
+```bash
+# 查看开发服务器日志
+tail -f /app/work/logs/bypass/dev.log
+
+# 查看应用日志
+tail -f /app/work/logs/bypass/app.log
+
+# 查看控制台日志
+tail -f /app/work/logs/bypass/console.log
+
+# 搜索错误
+grep -iE "error|exception" /app/work/logs/bypass/dev.log | tail -20
+```
+
+### 常见错误码
+
+| 错误信息 | 原因 | 解决方案 |
+|---------|------|---------|
+| `Cannot find module 'next/dist/...'` | Next.js 依赖缺失 | 运行 `bash scripts/recover.sh` |
+| `duplicate column name` | 数据库迁移问题 | 运行 `rm -f training.db && coze dev` |
+| `cannot unmarshal array` | API 请求格式错误 | 检查 API 调用是否发送了数组类型的数据 |
+| `Port 5000 is already in use` | 端口被占用 | 运行 `bash scripts/recover.sh` |
+| `EMFILE: too many open files` | 文件描述符限制 | 检查磁盘空间和进程数量 |
+
+### 手动修复步骤
+
+如果自动恢复脚本无法解决问题，请按以下步骤手动修复：
+
+```bash
+# 1. 停止所有服务
+pkill -f "next dev"
+pkill -f "node"
+
+# 2. 清理所有缓存和依赖
+rm -rf node_modules .next .pnpm-store
+
+# 3. 重新安装依赖
+pnpm install
+
+# 4. 验证 Next.js 是否正确安装
+test -f node_modules/.bin/next && echo "Next.js 安装成功" || echo "Next.js 安装失败"
+
+# 5. 启动服务
+coze dev
+```
+
+### 获取帮助
+
+如果以上方法都无法解决问题，请提供以下信息：
+
+1. 错误信息截图或日志
+2. 诊断脚本输出：`bash scripts/diagnose.sh > diagnose-report.txt`
+3. 环境信息：
+   - Node.js 版本：`node --version`
+   - pnpm 版本：`pnpm --version`
+   - 操作系统：`uname -a`
