@@ -264,7 +264,6 @@ export default function SummaryPage() {
   
   const [extractedCourses, setExtractedCourses] = useState<ExtractedCourse[]>([]);
   const [extractingCourses, setExtractingCourses] = useState(false);
-  const [showCourseTableDialog, setShowCourseTableDialog] = useState(false);
   const [editingCourseIndex, setEditingCourseIndex] = useState<number | null>(null);
   const [editingCourse, setEditingCourse] = useState<ExtractedCourse | null>(null);
   const [savingCourses, setSavingCourses] = useState(false);
@@ -344,7 +343,6 @@ export default function SummaryPage() {
       setExtractedCourses([]);
       setFileAiChecking(null);
       setFileAiCheckResult(null);
-      setShowCourseTableDialog(false);
       setEditingCourseIndex(null);
       setEditingCourse(null);
       toast.success('已返回项目列表');
@@ -585,7 +583,7 @@ export default function SummaryPage() {
   };
 
   // 选择项目并进入下一步
-  const handleSelectProject = (project: Project) => {
+  const handleSelectProject = async (project: Project) => {
     setSelectedProject(project);
     // 如果已有报告，加载报告
     if (project.summaryReport) {
@@ -601,6 +599,26 @@ export default function SummaryPage() {
       setSummaryReport(null);
       setExtractedData({});
     }
+    
+    // 加载已有的课程数据
+    try {
+      const sessionToken = localStorage.getItem('session_token');
+      const headers: Record<string, string> = {};
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`;
+      }
+      const res = await fetch(`/api/projects/${project.id}/courses`, { headers });
+      const data = await res.json();
+      if (data.data && data.data.length > 0) {
+        setExtractedCourses(data.data);
+      } else {
+        setExtractedCourses([]);
+      }
+    } catch (error) {
+      console.error('加载课程失败:', error);
+      setExtractedCourses([]);
+    }
+    
     setCurrentStep(2);
   };
 
@@ -880,14 +898,11 @@ export default function SummaryPage() {
           toast.info('未识别到课程信息，请手动添加');
         }
       }
-      // 无论成功与否，都显示课程表格对话框
-      setShowCourseTableDialog(true);
     } catch (error) {
       console.error('提取课程失败:', error);
       // 提取失败，显示空表格让用户手动编辑
       setExtractedCourses([]);
       toast.error('AI提取失败，请手动添加课程');
-      setShowCourseTableDialog(true);
     } finally {
       setExtractingCourses(false);
     }
@@ -2125,51 +2140,238 @@ export default function SummaryPage() {
             '.pdf,.doc,.docx,.xls,.xlsx',
             true  // 启用AI检查
           )}
-          <div className="space-y-2">
-            {renderSingleFileUpload(
-              '课程安排表 *',
-              'courseSchedule',
-              selectedProject.courseScheduleFileName,
-              selectedProject.courseScheduleFile,
-              '上传实际执行的课程安排表（Excel格式为主），上传后自动AI提取',
-              '.pdf,.doc,.docx,.xls,.xlsx',
-              true  // 启用AI检查
-            )}
-            {/* 课程操作按钮 */}
-            <div className="flex gap-2">
-              {isValidFile(selectedProject.courseScheduleFile) && (
+          {renderSingleFileUpload(
+            '课程安排表 *',
+            'courseSchedule',
+            selectedProject.courseScheduleFileName,
+            selectedProject.courseScheduleFile,
+            '上传实际执行的课程安排表，AI自动提取课程',
+            '.pdf,.doc,.docx,.xls,.xlsx',
+            true  // 启用AI检查
+          )}
+        </div>
+
+        {/* 课程安排表格 */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <BookOpen className="w-5 h-5 text-blue-600" />
+                  课程安排
+                  {extractingCourses && (
+                    <Badge variant="outline" className="text-purple-600 border-purple-200">
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                      AI提取中...
+                    </Badge>
+                  )}
+                  {!extractingCourses && extractedCourses.length > 0 && (
+                    <Badge variant="outline" className="text-green-600 border-green-200">
+                      {extractedCourses.length} 门课程
+                    </Badge>
+                  )}
+                </CardTitle>
+                <CardDescription>
+                  {isValidFile(selectedProject.courseScheduleFile) 
+                    ? '上传课程安排表后AI自动提取，也可手动编辑'
+                    : '请上传课程安排表，或手动添加课程'}
+                </CardDescription>
+              </div>
+              <div className="flex gap-2">
+                {isValidFile(selectedProject.courseScheduleFile) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-purple-200 text-purple-600 hover:bg-purple-50"
+                    onClick={handleExtractCourses}
+                    disabled={extractingCourses}
+                  >
+                    {extractingCourses ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        提取中...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        AI重新提取
+                      </>
+                    )}
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
-                  className="flex-1 border-purple-200 text-purple-600 hover:bg-purple-50"
-                  onClick={handleExtractCourses}
-                  disabled={extractingCourses}
+                  className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                  onClick={() => handleAddCourse('course')}
                 >
-                  {extractingCourses ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      提取中...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4 mr-2" />
-                      AI重新提取
-                    </>
-                  )}
+                  <Plus className="w-4 h-4 mr-2" />
+                  新增课程
                 </Button>
-              )}
-              <Button
-                variant="outline"
-                size="sm"
-                className={`${isValidFile(selectedProject.courseScheduleFile) ? '' : 'w-full'} border-blue-200 text-blue-600 hover:bg-blue-50`}
-                onClick={handleOpenCourseTable}
-              >
-                <BookOpen className="w-4 h-4 mr-2" />
-                编辑课程安排
-              </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-orange-200 text-orange-600 hover:bg-orange-50"
+                  onClick={() => handleAddCourse('visit')}
+                >
+                  <MapPin className="w-4 h-4 mr-2" />
+                  新增参访
+                </Button>
+                {extractedCourses.length > 0 && (
+                  <Button
+                    size="sm"
+                    onClick={handleSaveCourses}
+                    disabled={savingCourses}
+                  >
+                    {savingCourses ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        保存中...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 mr-2" />
+                        保存课程
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
             </div>
-          </div>
-        </div>
+          </CardHeader>
+          <CardContent>
+            {extractedCourses.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                {extractingCourses ? (
+                  <>
+                    <Loader2 className="w-12 h-12 mx-auto mb-2 animate-spin text-purple-600" />
+                    <p>正在AI提取课程信息...</p>
+                  </>
+                ) : (
+                  <>
+                    <BookOpen className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                    <p>暂无课程安排</p>
+                    <p className="text-xs mt-1">上传课程安排表自动提取，或点击上方按钮手动添加</p>
+                  </>
+                )}
+              </div>
+            ) : (
+              <>
+                {/* 统计信息 */}
+                <div className="grid grid-cols-4 gap-4 mb-4 p-3 bg-muted/50 rounded-lg">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-600">{extractedCourses.length}</div>
+                    <div className="text-xs text-muted-foreground">课程总数</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-600">
+                      {extractedCourses.reduce((sum, c) => sum + c.duration, 0)}
+                    </div>
+                    <div className="text-xs text-muted-foreground">总课时</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-orange-600">
+                      {extractedCourses.filter(c => c.type === 'visit').length}
+                    </div>
+                    <div className="text-xs text-muted-foreground">参访活动</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-purple-600">
+                      {Math.max(...extractedCourses.map(c => c.day), 0)}
+                    </div>
+                    <div className="text-xs text-muted-foreground">培训天数</div>
+                  </div>
+                </div>
+
+                {/* 课程表格 */}
+                <div className="border rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50">
+                      <tr>
+                        <th className="w-16 px-2 py-2 text-center">排序</th>
+                        <th className="w-16 px-2 py-2 text-center">序号</th>
+                        <th className="w-20 px-2 py-2 text-center">天数</th>
+                        <th className="px-2 py-2 text-left">课程名称</th>
+                        <th className="w-20 px-2 py-2 text-center">课时</th>
+                        <th className="w-28 px-2 py-2 text-left">讲师/地点</th>
+                        <th className="w-20 px-2 py-2 text-center">类型</th>
+                        <th className="w-20 px-2 py-2 text-center">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {extractedCourses.map((course, index) => (
+                        <tr 
+                          key={course.id || index}
+                          className="border-t cursor-pointer hover:bg-muted/30"
+                          onClick={() => handleEditCourse(index)}
+                        >
+                          <td className="px-2 py-2 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                className="p-0.5 hover:bg-muted rounded disabled:opacity-30"
+                                disabled={index === 0}
+                                onClick={(e) => { e.stopPropagation(); handleMoveCourseUp(index); }}
+                              >
+                                ↑
+                              </button>
+                              <button
+                                className="p-0.5 hover:bg-muted rounded disabled:opacity-30"
+                                disabled={index === extractedCourses.length - 1}
+                                onClick={(e) => { e.stopPropagation(); handleMoveCourseDown(index); }}
+                              >
+                                ↓
+                              </button>
+                            </div>
+                          </td>
+                          <td className="px-2 py-2 text-center font-medium">{index + 1}</td>
+                          <td className="px-2 py-2 text-center">第{course.day}天</td>
+                          <td className="px-2 py-2">
+                            <span className="font-medium">{course.name || '未填写'}</span>
+                            {course.description && (
+                              <p className="text-xs text-muted-foreground truncate">{course.description}</p>
+                            )}
+                          </td>
+                          <td className="px-2 py-2 text-center">{course.duration}</td>
+                          <td className="px-2 py-2 text-sm">
+                            {course.type === 'visit' ? (
+                              <span className="text-orange-600">{course.visitSiteName || '待定'}</span>
+                            ) : (
+                              <span className="text-green-600">{course.teacherName || course.teacherTitle || '-'}</span>
+                            )}
+                          </td>
+                          <td className="px-2 py-2 text-center">
+                            <Badge 
+                              variant="outline" 
+                              className={
+                                course.type === 'visit' 
+                                  ? 'border-orange-300 text-orange-600' 
+                                  : course.type === 'break'
+                                    ? 'border-gray-300 text-gray-600'
+                                    : 'border-blue-300 text-blue-600'
+                              }
+                            >
+                              {course.type === 'visit' ? '参访' : course.type === 'break' ? '休息' : '课程'}
+                            </Badge>
+                          </td>
+                          <td className="px-2 py-2 text-center">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive hover:text-destructive h-7 px-2"
+                              onClick={(e) => { e.stopPropagation(); handleDeleteCourse(index); }}
+                            >
+                              删除
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {renderSingleFileUpload(
@@ -2457,48 +2659,14 @@ export default function SummaryPage() {
           toast.info('未识别到课程信息，请手动添加');
         }
       }
-      // 无论成功与否，都显示课程表格对话框
-      setShowCourseTableDialog(true);
+      // 结果会自动显示在页面上的课程表格中
     } catch (error) {
       console.error('提取课程失败:', error);
       // 提取失败，显示空表格让用户手动编辑
       setExtractedCourses([]);
       toast.error('AI提取失败，请手动添加课程');
-      setShowCourseTableDialog(true);
     } finally {
       setExtractingCourses(false);
-    }
-  };
-
-  // 手动打开课程表格编辑（不需要上传文件）
-  const handleOpenCourseTable = () => {
-    // 先加载已有的课程数据
-    loadExistingCourses();
-    setShowCourseTableDialog(true);
-  };
-
-  // 加载已有的课程数据
-  const loadExistingCourses = async () => {
-    if (!selectedProject) return;
-    
-    try {
-      const sessionToken = localStorage.getItem('session_token');
-      const headers: Record<string, string> = {};
-      if (sessionToken) {
-        headers['Authorization'] = `Bearer ${sessionToken}`;
-      }
-
-      const res = await fetch(`/api/projects/${selectedProject.id}/courses`, { headers });
-      const data = await res.json();
-      // API返回的是data字段
-      if (data.data && data.data.length > 0) {
-        setExtractedCourses(data.data);
-      } else {
-        setExtractedCourses([]);
-      }
-    } catch (error) {
-      console.error('加载课程失败:', error);
-      setExtractedCourses([]);
     }
   };
 
@@ -2573,7 +2741,6 @@ export default function SummaryPage() {
 
         if (res.ok) {
           toast.success('课程安排已保存');
-          setShowCourseTableDialog(false);
           loadProjects();
         } else {
           const data = await res.json();
@@ -2581,7 +2748,6 @@ export default function SummaryPage() {
         }
       } else {
         toast.success('课程安排已清空');
-        setShowCourseTableDialog(false);
         loadProjects();
       }
     } catch (error) {
@@ -3635,183 +3801,6 @@ export default function SummaryPage() {
                 一键确认所有变更
               </Button>
             )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* 课程安排表编辑对话框 */}
-      <Dialog open={showCourseTableDialog} onOpenChange={setShowCourseTableDialog}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-blue-600" />
-              课程安排确认
-            </DialogTitle>
-            <DialogDescription>
-              已从课程安排表中提取以下课程，请确认或修改后保存
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="flex-1 overflow-auto">
-            {/* 统计信息 */}
-            <div className="grid grid-cols-4 gap-4 mb-4 p-3 bg-muted/50 rounded-lg">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">{extractedCourses.length}</div>
-                <div className="text-xs text-muted-foreground">课程总数</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">
-                  {extractedCourses.reduce((sum, c) => sum + c.duration, 0)}
-                </div>
-                <div className="text-xs text-muted-foreground">总课时</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-orange-600">
-                  {extractedCourses.filter(c => c.type === 'visit').length}
-                </div>
-                <div className="text-xs text-muted-foreground">参访活动</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-purple-600">
-                  {Math.max(...extractedCourses.map(c => c.day), 0)}
-                </div>
-                <div className="text-xs text-muted-foreground">培训天数</div>
-              </div>
-            </div>
-
-            {/* 操作按钮 */}
-            <div className="flex gap-2 mb-4">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleAddCourse('course')}
-                className="text-blue-600 border-blue-200 hover:bg-blue-50"
-              >
-                <Plus className="w-4 h-4 mr-1" />
-                新增课程
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleAddCourse('visit')}
-                className="text-orange-600 border-orange-200 hover:bg-orange-50"
-              >
-                <MapPin className="w-4 h-4 mr-1" />
-                新增参访
-              </Button>
-            </div>
-
-            {/* 课程表格 */}
-            {extractedCourses.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <BookOpen className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p>暂无课程数据</p>
-              </div>
-            ) : (
-              <div className="border rounded-lg overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/50">
-                    <tr>
-                      <th className="w-16 px-2 py-2 text-center">排序</th>
-                      <th className="w-16 px-2 py-2 text-center">序号</th>
-                      <th className="w-20 px-2 py-2 text-center">天数</th>
-                      <th className="px-2 py-2 text-left">课程名称</th>
-                      <th className="w-20 px-2 py-2 text-center">课时</th>
-                      <th className="w-28 px-2 py-2 text-left">讲师/参访地点</th>
-                      <th className="w-20 px-2 py-2 text-center">类型</th>
-                      <th className="w-20 px-2 py-2 text-center">操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {extractedCourses.map((course, index) => (
-                      <tr 
-                        key={course.id || index}
-                        className="border-t cursor-pointer hover:bg-muted/30"
-                        onClick={() => handleEditCourse(index)}
-                      >
-                        <td className="px-2 py-2 text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <button
-                              className="p-0.5 hover:bg-muted rounded disabled:opacity-30"
-                              disabled={index === 0}
-                              onClick={(e) => { e.stopPropagation(); handleMoveCourseUp(index); }}
-                            >
-                              ↑
-                            </button>
-                            <button
-                              className="p-0.5 hover:bg-muted rounded disabled:opacity-30"
-                              disabled={index === extractedCourses.length - 1}
-                              onClick={(e) => { e.stopPropagation(); handleMoveCourseDown(index); }}
-                            >
-                              ↓
-                            </button>
-                          </div>
-                        </td>
-                        <td className="px-2 py-2 text-center font-medium">{index + 1}</td>
-                        <td className="px-2 py-2 text-center">第{course.day}天</td>
-                        <td className="px-2 py-2">
-                          <span className="font-medium">{course.name || '未填写'}</span>
-                          {course.description && (
-                            <p className="text-xs text-muted-foreground truncate">{course.description}</p>
-                          )}
-                        </td>
-                        <td className="px-2 py-2 text-center">{course.duration}</td>
-                        <td className="px-2 py-2 text-sm">
-                          {course.type === 'visit' ? (
-                            <span className="text-orange-600">{course.visitSiteName || '待定'}</span>
-                          ) : (
-                            <span className="text-green-600">{course.teacherName || course.teacherTitle || '-'}</span>
-                          )}
-                        </td>
-                        <td className="px-2 py-2 text-center">
-                          <Badge 
-                            variant="outline" 
-                            className={
-                              course.type === 'visit' 
-                                ? 'border-orange-300 text-orange-600' 
-                                : course.type === 'break'
-                                  ? 'border-gray-300 text-gray-600'
-                                  : 'border-blue-300 text-blue-600'
-                            }
-                          >
-                            {course.type === 'visit' ? '参访' : course.type === 'break' ? '休息' : '课程'}
-                          </Badge>
-                        </td>
-                        <td className="px-2 py-2 text-center">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-destructive hover:text-destructive h-7 px-2"
-                            onClick={(e) => { e.stopPropagation(); handleDeleteCourse(index); }}
-                          >
-                            删除
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => setShowCourseTableDialog(false)}>
-              取消
-            </Button>
-            <Button onClick={handleSaveCourses} disabled={savingCourses}>
-              {savingCourses ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  保存中...
-                </>
-              ) : (
-                <>
-                  <Check className="w-4 h-4 mr-2" />
-                  确认并保存
-                </>
-              )}
-            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
