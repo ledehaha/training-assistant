@@ -246,6 +246,29 @@ export default function SummaryPage() {
     pendingItem: null,
   });
 
+  // 课程安排表提取状态
+  interface ExtractedCourse {
+    id: string;
+    name: string;
+    day: number;
+    duration: number;
+    type: 'course' | 'visit' | 'break' | 'other';
+    description?: string;
+    teacherName?: string;
+    teacherTitle?: string;
+    visitSiteName?: string;
+    visitAddress?: string;
+    startTime?: string;
+    endTime?: string;
+  }
+  
+  const [extractedCourses, setExtractedCourses] = useState<ExtractedCourse[]>([]);
+  const [extractingCourses, setExtractingCourses] = useState(false);
+  const [showCourseTableDialog, setShowCourseTableDialog] = useState(false);
+  const [editingCourseIndex, setEditingCourseIndex] = useState<number | null>(null);
+  const [editingCourse, setEditingCourse] = useState<ExtractedCourse | null>(null);
+  const [savingCourses, setSavingCourses] = useState(false);
+
   // 单文件AI检查状态
   const [fileAiChecking, setFileAiChecking] = useState<string | null>(null); // 当前正在检查的文件key
   const fileAiCheckCancelledRef = useRef(false); // 取消标志
@@ -2014,15 +2037,39 @@ export default function SummaryPage() {
             '.pdf,.doc,.docx,.xls,.xlsx',
             true  // 启用AI检查
           )}
-          {renderSingleFileUpload(
-            '课程安排表 *',
-            'courseSchedule',
-            selectedProject.courseScheduleFileName,
-            selectedProject.courseScheduleFile,
-            '上传实际执行的课程安排表（Excel格式为主）',
-            '.pdf,.doc,.docx,.xls,.xlsx',
-            true  // 启用AI检查
-          )}
+          <div className="space-y-2">
+            {renderSingleFileUpload(
+              '课程安排表 *',
+              'courseSchedule',
+              selectedProject.courseScheduleFileName,
+              selectedProject.courseScheduleFile,
+              '上传实际执行的课程安排表（Excel格式为主）',
+              '.pdf,.doc,.docx,.xls,.xlsx',
+              true  // 启用AI检查
+            )}
+            {/* AI提取课程按钮 */}
+            {isValidFile(selectedProject.courseScheduleFile) && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full border-purple-200 text-purple-600 hover:bg-purple-50"
+                onClick={handleExtractCourses}
+                disabled={extractingCourses}
+              >
+                {extractingCourses ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    正在提取课程...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    AI提取课程安排
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -2266,6 +2313,146 @@ export default function SummaryPage() {
         </div>
       </div>
     );
+  };
+
+  // 从课程安排表提取课程
+  const handleExtractCourses = async () => {
+    if (!selectedProject?.courseScheduleFile) {
+      toast.error('请先上传课程安排表');
+      return;
+    }
+
+    setExtractingCourses(true);
+    try {
+      const sessionToken = localStorage.getItem('session_token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`;
+      }
+
+      const res = await fetch('/api/ai/extract-courses', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          projectId: selectedProject.id,
+          fileKey: selectedProject.courseScheduleFile,
+          fileName: selectedProject.courseScheduleFileName,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success && data.courses) {
+        // 为每个课程生成ID
+        const coursesWithIds = data.courses.map((course: ExtractedCourse, index: number) => ({
+          ...course,
+          id: `course-${Date.now()}-${index}`,
+        }));
+        setExtractedCourses(coursesWithIds);
+        setShowCourseTableDialog(true);
+        toast.success(`成功提取 ${coursesWithIds.length} 门课程`);
+      } else {
+        toast.error(data.message || '提取课程失败');
+      }
+    } catch (error) {
+      console.error('提取课程失败:', error);
+      toast.error('提取课程失败，请稍后重试');
+    } finally {
+      setExtractingCourses(false);
+    }
+  };
+
+  // 编辑课程
+  const handleEditCourse = (index: number) => {
+    setEditingCourseIndex(index);
+    setEditingCourse({ ...extractedCourses[index] });
+  };
+
+  // 保存编辑的课程
+  const handleSaveEditedCourse = () => {
+    if (editingCourseIndex !== null && editingCourse) {
+      const updatedCourses = [...extractedCourses];
+      updatedCourses[editingCourseIndex] = editingCourse;
+      setExtractedCourses(updatedCourses);
+      setEditingCourseIndex(null);
+      setEditingCourse(null);
+      toast.success('课程已更新');
+    }
+  };
+
+  // 删除课程
+  const handleDeleteCourse = (index: number) => {
+    const updatedCourses = extractedCourses.filter((_, i) => i !== index);
+    setExtractedCourses(updatedCourses);
+    toast.success('课程已删除');
+  };
+
+  // 新增课程
+  const handleAddCourse = (type: 'course' | 'visit' = 'course') => {
+    const newCourse: ExtractedCourse = {
+      id: `course-${Date.now()}`,
+      name: '',
+      day: extractedCourses.length > 0 ? Math.max(...extractedCourses.map(c => c.day)) : 1,
+      duration: 2,
+      type,
+      description: '',
+    };
+    setExtractedCourses([...extractedCourses, newCourse]);
+    setEditingCourseIndex(extractedCourses.length);
+    setEditingCourse(newCourse);
+  };
+
+  // 保存课程到数据库
+  const handleSaveCourses = async () => {
+    if (!selectedProject || extractedCourses.length === 0) return;
+
+    setSavingCourses(true);
+    try {
+      const sessionToken = localStorage.getItem('session_token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`;
+      }
+
+      const res = await fetch(`/api/projects/${selectedProject.id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          courses: extractedCourses.map((course, index) => ({
+            ...course,
+            order: index,
+          })),
+        }),
+      });
+
+      if (res.ok) {
+        toast.success('课程安排已保存');
+        setShowCourseTableDialog(false);
+        // 刷新项目数据
+        loadProjects();
+      } else {
+        toast.error('保存失败');
+      }
+    } catch (error) {
+      console.error('保存课程失败:', error);
+      toast.error('保存失败，请稍后重试');
+    } finally {
+      setSavingCourses(false);
+    }
+  };
+
+  // 移动课程顺序
+  const handleMoveCourseUp = (index: number) => {
+    if (index === 0) return;
+    const updatedCourses = [...extractedCourses];
+    [updatedCourses[index - 1], updatedCourses[index]] = [updatedCourses[index], updatedCourses[index - 1]];
+    setExtractedCourses(updatedCourses);
+  };
+
+  const handleMoveCourseDown = (index: number) => {
+    if (index === extractedCourses.length - 1) return;
+    const updatedCourses = [...extractedCourses];
+    [updatedCourses[index], updatedCourses[index + 1]] = [updatedCourses[index + 1], updatedCourses[index]];
+    setExtractedCourses(updatedCourses);
   };
 
   // 取消AI检查
@@ -3299,7 +3486,301 @@ export default function SummaryPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      
+
+      {/* 课程安排表编辑对话框 */}
+      <Dialog open={showCourseTableDialog} onOpenChange={setShowCourseTableDialog}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-blue-600" />
+              课程安排确认
+            </DialogTitle>
+            <DialogDescription>
+              已从课程安排表中提取以下课程，请确认或修改后保存
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex-1 overflow-auto">
+            {/* 统计信息 */}
+            <div className="grid grid-cols-4 gap-4 mb-4 p-3 bg-muted/50 rounded-lg">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">{extractedCourses.length}</div>
+                <div className="text-xs text-muted-foreground">课程总数</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">
+                  {extractedCourses.reduce((sum, c) => sum + c.duration, 0)}
+                </div>
+                <div className="text-xs text-muted-foreground">总课时</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-orange-600">
+                  {extractedCourses.filter(c => c.type === 'visit').length}
+                </div>
+                <div className="text-xs text-muted-foreground">参访活动</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-purple-600">
+                  {Math.max(...extractedCourses.map(c => c.day), 0)}
+                </div>
+                <div className="text-xs text-muted-foreground">培训天数</div>
+              </div>
+            </div>
+
+            {/* 操作按钮 */}
+            <div className="flex gap-2 mb-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleAddCourse('course')}
+                className="text-blue-600 border-blue-200 hover:bg-blue-50"
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                新增课程
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleAddCourse('visit')}
+                className="text-orange-600 border-orange-200 hover:bg-orange-50"
+              >
+                <MapPin className="w-4 h-4 mr-1" />
+                新增参访
+              </Button>
+            </div>
+
+            {/* 课程表格 */}
+            {extractedCourses.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <BookOpen className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p>暂无课程数据</p>
+              </div>
+            ) : (
+              <div className="border rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="w-16 px-2 py-2 text-center">排序</th>
+                      <th className="w-16 px-2 py-2 text-center">序号</th>
+                      <th className="w-20 px-2 py-2 text-center">天数</th>
+                      <th className="px-2 py-2 text-left">课程名称</th>
+                      <th className="w-20 px-2 py-2 text-center">课时</th>
+                      <th className="w-28 px-2 py-2 text-left">讲师/参访地点</th>
+                      <th className="w-20 px-2 py-2 text-center">类型</th>
+                      <th className="w-20 px-2 py-2 text-center">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {extractedCourses.map((course, index) => (
+                      <tr 
+                        key={course.id || index}
+                        className="border-t cursor-pointer hover:bg-muted/30"
+                        onClick={() => handleEditCourse(index)}
+                      >
+                        <td className="px-2 py-2 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              className="p-0.5 hover:bg-muted rounded disabled:opacity-30"
+                              disabled={index === 0}
+                              onClick={(e) => { e.stopPropagation(); handleMoveCourseUp(index); }}
+                            >
+                              ↑
+                            </button>
+                            <button
+                              className="p-0.5 hover:bg-muted rounded disabled:opacity-30"
+                              disabled={index === extractedCourses.length - 1}
+                              onClick={(e) => { e.stopPropagation(); handleMoveCourseDown(index); }}
+                            >
+                              ↓
+                            </button>
+                          </div>
+                        </td>
+                        <td className="px-2 py-2 text-center font-medium">{index + 1}</td>
+                        <td className="px-2 py-2 text-center">第{course.day}天</td>
+                        <td className="px-2 py-2">
+                          <span className="font-medium">{course.name || '未填写'}</span>
+                          {course.description && (
+                            <p className="text-xs text-muted-foreground truncate">{course.description}</p>
+                          )}
+                        </td>
+                        <td className="px-2 py-2 text-center">{course.duration}</td>
+                        <td className="px-2 py-2 text-sm">
+                          {course.type === 'visit' ? (
+                            <span className="text-orange-600">{course.visitSiteName || '待定'}</span>
+                          ) : (
+                            <span className="text-green-600">{course.teacherName || course.teacherTitle || '-'}</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <Badge 
+                            variant="outline" 
+                            className={
+                              course.type === 'visit' 
+                                ? 'border-orange-300 text-orange-600' 
+                                : course.type === 'break'
+                                  ? 'border-gray-300 text-gray-600'
+                                  : 'border-blue-300 text-blue-600'
+                            }
+                          >
+                            {course.type === 'visit' ? '参访' : course.type === 'break' ? '休息' : '课程'}
+                          </Badge>
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive h-7 px-2"
+                            onClick={(e) => { e.stopPropagation(); handleDeleteCourse(index); }}
+                          >
+                            删除
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setShowCourseTableDialog(false)}>
+              取消
+            </Button>
+            <Button onClick={handleSaveCourses} disabled={savingCourses || extractedCourses.length === 0}>
+              {savingCourses ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  保存中...
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4 mr-2" />
+                  确认并保存
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 课程编辑对话框 */}
+      <Dialog open={editingCourseIndex !== null} onOpenChange={(open) => {
+        if (!open) {
+          setEditingCourseIndex(null);
+          setEditingCourse(null);
+        }
+      }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {editingCourse?.type === 'visit' ? '编辑参访活动' : '编辑课程'}
+            </DialogTitle>
+          </DialogHeader>
+          
+          {editingCourse && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">第几天</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={editingCourse.day}
+                    onChange={(e) => setEditingCourse({ ...editingCourse, day: parseInt(e.target.value) || 1 })}
+                    className="w-full px-3 py-2 border rounded-md"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">课时数</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="8"
+                    step="0.5"
+                    value={editingCourse.duration}
+                    onChange={(e) => setEditingCourse({ ...editingCourse, duration: parseFloat(e.target.value) || 2 })}
+                    className="w-full px-3 py-2 border rounded-md"
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  {editingCourse.type === 'visit' ? '参访地点' : '课程名称'}
+                </label>
+                <input
+                  type="text"
+                  value={editingCourse.name}
+                  onChange={(e) => setEditingCourse({ ...editingCourse, name: e.target.value })}
+                  placeholder={editingCourse.type === 'visit' ? '请输入参访地点' : '请输入课程名称'}
+                  className="w-full px-3 py-2 border rounded-md"
+                />
+              </div>
+              
+              {editingCourse.type === 'visit' ? (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">参访地址</label>
+                  <input
+                    type="text"
+                    value={editingCourse.visitAddress || ''}
+                    onChange={(e) => setEditingCourse({ ...editingCourse, visitAddress: e.target.value })}
+                    placeholder="请输入参访地址"
+                    className="w-full px-3 py-2 border rounded-md"
+                  />
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">讲师姓名</label>
+                    <input
+                      type="text"
+                      value={editingCourse.teacherName || ''}
+                      onChange={(e) => setEditingCourse({ ...editingCourse, teacherName: e.target.value })}
+                      placeholder="讲师姓名"
+                      className="w-full px-3 py-2 border rounded-md"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">讲师职称</label>
+                    <input
+                      type="text"
+                      value={editingCourse.teacherTitle || ''}
+                      onChange={(e) => setEditingCourse({ ...editingCourse, teacherTitle: e.target.value })}
+                      placeholder="如：教授、副教授"
+                      className="w-full px-3 py-2 border rounded-md"
+                    />
+                  </div>
+                </div>
+              )}
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium">课程描述</label>
+                <textarea
+                  value={editingCourse.description || ''}
+                  onChange={(e) => setEditingCourse({ ...editingCourse, description: e.target.value })}
+                  placeholder="请输入课程描述或内容概要"
+                  rows={3}
+                  className="w-full px-3 py-2 border rounded-md"
+                />
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setEditingCourseIndex(null);
+              setEditingCourse(null);
+            }}>
+              取消
+            </Button>
+            <Button onClick={handleSaveEditedCourse}>
+              保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* 权限错误对话框 */}
       <Dialog open={permissionErrorDialog.isOpen} onOpenChange={(open) => {
         if (!open) {
