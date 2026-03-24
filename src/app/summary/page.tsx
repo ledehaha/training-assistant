@@ -1782,19 +1782,6 @@ export default function SummaryPage() {
             <div className="space-y-4">
               {/* 待总结项目列表 - 按完成进度排序 */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                {/* 新建项目卡片 - 放在列表第一位 */}
-                <Card
-                  className="cursor-pointer border-2 border-dashed hover:border-indigo-400 hover:bg-indigo-50/50 transition-all"
-                  onClick={() => setShowNewProjectDialog(true)}
-                >
-                  <CardContent className="p-3 flex flex-col items-center justify-center min-h-[100px]">
-                    <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center mb-2">
-                      <Plus className="w-5 h-5 text-indigo-600" />
-                    </div>
-                    <p className="font-medium text-gray-700 text-sm">新建项目</p>
-                    <p className="text-xs text-gray-400">补录历史项目</p>
-                  </CardContent>
-                </Card>
                 {categorizedProjects.pendingProjects
                   .slice((pendingPage - 1) * PAGE_SIZE, pendingPage * PAGE_SIZE)
                   .map((project) => {
