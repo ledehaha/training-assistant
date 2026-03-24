@@ -95,6 +95,9 @@ interface Project {
   // 学员名单
   studentListFile: string | null;
   studentListFileName: string | null;
+  // 课程安排表（实际执行的）
+  courseScheduleFile: string | null;
+  courseScheduleFileName: string | null;
   // 会签单（PDF）
   countersignFile: string | null;
   countersignFileName: string | null;
@@ -365,6 +368,11 @@ export default function SummaryPage() {
         required: true,
       },
       {
+        name: '课程安排表',
+        uploaded: isValidFile(project.courseScheduleFile),
+        required: true,
+      },
+      {
         name: '满意度调查结果',
         uploaded: isValidFile(project.satisfactionSurveyFile),
         required: false, // 非必选
@@ -578,6 +586,7 @@ export default function SummaryPage() {
       declarationPdf: selectedProject.declarationFilePdf,
       declarationWord: selectedProject.declarationFileWord,
       studentList: selectedProject.studentListFile,
+      courseSchedule: selectedProject.courseScheduleFile,
       satisfaction: selectedProject.satisfactionSurveyFile,
       countersign: selectedProject.countersignFile,
     };
@@ -804,6 +813,10 @@ export default function SummaryPage() {
         updates.studentListFile = data.fileKey;
         updates.studentListFileName = data.fileName;
         break;
+      case 'courseSchedule':
+        updates.courseScheduleFile = data.fileKey;
+        updates.courseScheduleFileName = data.fileName;
+        break;
       case 'satisfaction':
         updates.satisfactionSurveyFile = data.fileKey;
         updates.satisfactionSurveyFileName = data.fileName;
@@ -882,6 +895,7 @@ export default function SummaryPage() {
       declarationPdf: ['declarationFilePdf', 'declarationFileNamePdf'],
       declarationWord: ['declarationFileWord', 'declarationFileNameWord'],
       studentList: ['studentListFile', 'studentListFileName'],
+      courseSchedule: ['courseScheduleFile', 'courseScheduleFileName'],
       satisfaction: ['satisfactionSurveyFile', 'satisfactionSurveyFileName'],
       countersign: ['countersignFile', 'countersignFileName'],
     };
@@ -2011,6 +2025,18 @@ export default function SummaryPage() {
             '.pdf,.doc,.docx,.xls,.xlsx',
             true  // 启用AI检查
           )}
+          {renderSingleFileUpload(
+            '课程安排表 *',
+            'courseSchedule',
+            selectedProject.courseScheduleFileName,
+            selectedProject.courseScheduleFile,
+            '上传实际执行的课程安排表（Excel格式为主）',
+            '.pdf,.doc,.docx,.xls,.xlsx',
+            true  // 启用AI检查
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {renderSingleFileUpload(
             '满意度调查结果',
             'satisfaction',

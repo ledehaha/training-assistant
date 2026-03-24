@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import ProjectInfoCard from '@/components/project-info-card';
 import { 
   Search, 
   Filter, 
@@ -262,7 +263,7 @@ export default function QueryPage() {
           </Card>
 
           {/* 项目列表 */}
-          <Card className="lg:col-span-2">
+          <Card className="lg:col-span-1">
             <CardHeader>
               <CardTitle>查询结果</CardTitle>
               <CardDescription>
@@ -325,6 +326,11 @@ export default function QueryPage() {
                 </div>
               )}
             </CardContent>
+          </Card>
+
+          {/* 项目详情卡 */}
+          <Card className="lg:col-span-1">
+            <ProjectInfoCard projectId={selectedProject?.id || null} />
           </Card>
         </div>
 

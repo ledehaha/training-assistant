@@ -452,6 +452,9 @@ export const projects = sqliteTable(
     // 学员名单
     studentListFile: text('student_list_file'),
     studentListFileName: text('student_list_name'),
+    // 课程安排表（实际执行的课程安排，Excel格式）
+    courseScheduleFile: text('course_schedule_file'),
+    courseScheduleFileName: text('course_schedule_file_name'),
     // 会签单（PDF）
     countersignFile: text('countersign_file'),
     countersignFileName: text('countersign_file_name'),
