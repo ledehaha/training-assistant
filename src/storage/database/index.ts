@@ -359,6 +359,10 @@ const createTablesSQL = `
     declaration_file_name TEXT,
     student_list_file TEXT,
     student_list_name TEXT,
+    course_schedule_file TEXT,
+    course_schedule_file_name TEXT,
+    countersign_file TEXT,
+    countersign_file_name TEXT,
     other_materials TEXT,
     satisfaction_survey_file TEXT,
     satisfaction_survey_file_name TEXT,
@@ -549,6 +553,8 @@ const migrationSQL = `
   ALTER TABLE projects ADD COLUMN declaration_file_name TEXT;
   ALTER TABLE projects ADD COLUMN student_list_file TEXT;
   ALTER TABLE projects ADD COLUMN student_list_name TEXT;
+  ALTER TABLE projects ADD COLUMN course_schedule_file TEXT;
+  ALTER TABLE projects ADD COLUMN course_schedule_file_name TEXT;
   ALTER TABLE projects ADD COLUMN countersign_file TEXT;
   ALTER TABLE projects ADD COLUMN countersign_file_name TEXT;
   ALTER TABLE projects ADD COLUMN other_materials TEXT;
