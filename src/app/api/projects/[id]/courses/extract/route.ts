@@ -244,6 +244,7 @@ ${fileContent}
         jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1');
         
         const parsed = JSON.parse(jsonStr);
+        console.log('AI返回的课程数量:', parsed.courses?.length || 0);
         
         if (Array.isArray(parsed.courses)) {
           const validatedCourses: ExtractedCourse[] = [];
@@ -324,6 +325,8 @@ ${fileContent}
             courses: validatedCourses,
             totalHours: parsed.totalHours || validatedCourses.reduce((sum, c) => sum + c.duration, 0),
           };
+          console.log('课程提取结果: 提取到', validatedCourses.length, '门课程');
+          console.log('课程列表:', validatedCourses.map(c => c.name).join(', '));
         }
       }
     } catch (parseError) {
@@ -331,6 +334,7 @@ ${fileContent}
       result.message = '解析课程信息失败，请检查文件格式';
     }
 
+    console.log('最终返回课程数量:', result.courses?.length || 0);
     return Response.json(result);
   } catch (error) {
     console.error('课程提取失败:', error);

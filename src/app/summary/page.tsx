@@ -903,10 +903,12 @@ export default function SummaryPage() {
           ...course,
           id: `course-${Date.now()}-${index}`,
         }));
+        console.log('设置课程列表，数量:', coursesWithIds.length);
         setExtractedCourses(coursesWithIds);
         toast.success(`成功提取 ${coursesWithIds.length} 门课程`);
       } else {
         // AI提取失败或没有课程，显示空表格
+        console.log('课程提取结果为空，data:', JSON.stringify(data).substring(0, 500));
         setExtractedCourses([]);
         if (data?.message) {
           toast.warning(data.message);
@@ -2702,6 +2704,9 @@ export default function SummaryPage() {
   const handleSaveCourses = async () => {
     if (!selectedProject) return;
 
+    console.log('保存课程: 当前课程数量', extractedCourses.length);
+    console.log('课程列表:', extractedCourses.map(c => c.name).join(', '));
+    
     setSavingCourses(true);
     try {
       const sessionToken = localStorage.getItem('session_token');
