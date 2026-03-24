@@ -2720,38 +2720,41 @@ export default function SummaryPage() {
       });
       console.log('删除课程结果:', deleteRes.status);
 
-      // 如果有课程，添加新的课程
+      // 如果有课程，逐个添加
       if (extractedCourses.length > 0) {
-        const res = await fetch(`/api/projects/${selectedProject.id}/courses`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(extractedCourses.map((course, index) => ({
-            ...course,
-            order: index,
-          }))),
-        });
+        let successCount = 0;
+        
+        for (let index = 0; index < extractedCourses.length; index++) {
+          const course = extractedCourses[index];
+          try {
+            const res = await fetch(`/api/projects/${selectedProject.id}/courses`, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({
+                ...course,
+                order: index,
+              }),
+            });
 
-        console.log('保存课程响应状态:', res.status);
-        
-        // 先获取响应文本
-        const responseText = await res.text();
-        console.log('保存课程响应内容:', responseText.substring(0, 500));
-        
-        if (res.ok) {
+            if (res.ok) {
+              successCount++;
+            } else {
+              const text = await res.text();
+              console.error('课程保存失败:', course.name, text);
+            }
+          } catch (err) {
+            console.error('课程保存异常:', course.name, err);
+          }
+        }
+
+        if (successCount === extractedCourses.length) {
           toast.success('课程安排已保存');
           // 更新当前项目的 hasSavedCourses 状态
           setSelectedProject(prev => prev ? { ...prev, hasSavedCourses: true } : null);
           // 刷新项目列表
           loadProjects();
         } else {
-          let errorMsg = '保存失败';
-          try {
-            const data = JSON.parse(responseText);
-            errorMsg = data.error || errorMsg;
-          } catch {
-            errorMsg = responseText || errorMsg;
-          }
-          toast.error(errorMsg);
+          toast.warning(`已保存 ${successCount}/${extractedCourses.length} 门课程`);
         }
       } else {
         // 没有课程，更新状态为未保存
