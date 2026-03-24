@@ -151,8 +151,8 @@ export default function ProjectInfoCard({ projectId, onClose }: ProjectInfoCardP
       // 加载课程安排
       const coursesRes = await fetch(`/api/projects/${projectId}/courses`, { headers });
       const coursesData = await coursesRes.json();
-      if (coursesData.courses) {
-        setCourses(coursesData.courses);
+      if (coursesData.data) {
+        setCourses(coursesData.data);
       }
     } catch (error) {
       console.error('Load project detail error:', error);

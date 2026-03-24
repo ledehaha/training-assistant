@@ -34,13 +34,19 @@ interface Project {
   id: string;
   name: string;
   status: string;
-  training_target: string;
-  target_audience: string;
-  participant_count: number;
-  training_days: number;
-  total_budget: string;
-  avg_satisfaction: string | null;
-  created_at: string;
+  trainingTarget?: string;
+  targetAudience?: string;
+  participantCount?: number;
+  trainingDays?: number;
+  trainingHours?: number;
+  totalBudget?: number;
+  avgSatisfaction?: number;
+  createdAt?: string;
+  departmentId?: string;
+  createdById?: string;
+  startDate?: string;
+  endDate?: string;
+  hasSavedCourses?: boolean;
 }
 
 const statusMap: Record<string, { label: string; color: string }> = {
@@ -109,13 +115,13 @@ export default function QueryPage() {
   const stats = {
     total: projects.length,
     completed: projects.filter((p) => p.status === 'completed' || p.status === 'archived').length,
-    totalParticipants: projects.reduce((sum, p) => sum + (p.participant_count || 0), 0),
-    totalBudget: projects.reduce((sum, p) => sum + parseFloat(p.total_budget || '0'), 0),
-    avgSatisfaction: projects.filter((p) => p.avg_satisfaction).length > 0
+    totalParticipants: projects.reduce((sum, p) => sum + (p.participantCount || 0), 0),
+    totalBudget: projects.reduce((sum, p) => sum + (p.totalBudget || 0), 0),
+    avgSatisfaction: projects.filter((p) => p.avgSatisfaction).length > 0
       ? (projects
-          .filter((p) => p.avg_satisfaction)
-          .reduce((sum, p) => sum + parseFloat(p.avg_satisfaction || '0'), 0) /
-          projects.filter((p) => p.avg_satisfaction).length
+          .filter((p) => p.avgSatisfaction)
+          .reduce((sum, p) => sum + (p.avgSatisfaction || 0), 0) /
+          projects.filter((p) => p.avgSatisfaction).length
         ).toFixed(2)
       : '-',
   };
@@ -294,7 +300,7 @@ export default function QueryPage() {
                         <div>
                           <p className="font-medium text-gray-900">{project.name}</p>
                           <p className="text-sm text-gray-500 mt-1">
-                            {project.training_target} · {project.target_audience}
+                            {project.trainingTarget} · {project.targetAudience}
                           </p>
                         </div>
                         <Badge className={statusMap[project.status]?.color}>
@@ -304,20 +310,20 @@ export default function QueryPage() {
                       <div className="mt-2 flex items-center gap-4 text-sm text-gray-500">
                         <span className="flex items-center gap-1">
                           <Users className="w-3 h-3" />
-                          {project.participant_count}人
+                          {project.participantCount || 0}人
                         </span>
                         <span className="flex items-center gap-1">
                           <Calendar className="w-3 h-3" />
-                          {project.training_days}天
+                          {project.trainingDays || 0}天
                         </span>
                         <span className="flex items-center gap-1">
                           <DollarSign className="w-3 h-3" />
-                          ¥{parseFloat(project.total_budget || '0').toLocaleString()}
+                          ¥{(project.totalBudget || 0).toLocaleString()}
                         </span>
-                        {project.avg_satisfaction && (
+                        {project.avgSatisfaction && (
                           <span className="flex items-center gap-1">
                             <Star className="w-3 h-3 text-yellow-500" />
-                            {project.avg_satisfaction}
+                            {project.avgSatisfaction}
                           </span>
                         )}
                       </div>
@@ -386,7 +392,7 @@ export default function QueryPage() {
                     <h4 className="font-medium text-gray-900 mb-4">培训类型分布</h4>
                     <div className="space-y-2">
                       {['企业内训', '管理培训', '技能培训', '新员工培训'].map((type) => {
-                        const count = projects.filter((p) => p.training_target === type).length;
+                        const count = projects.filter((p) => p.trainingTarget === type).length;
                         return (
                           <div key={type} className="flex items-center justify-between text-sm">
                             <span className="text-gray-600">{type}</span>
