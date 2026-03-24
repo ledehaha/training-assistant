@@ -2089,7 +2089,7 @@ export default function SummaryPage() {
           )}
         </div>
 
-        {/* 必须上传的材料 */}
+        {/* 第一行：合同文件、成本测算表 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {renderDualFileUpload(
             '合同文件 *',
@@ -2115,6 +2115,10 @@ export default function SummaryPage() {
             'excel',
             true  // 启用AI检查
           )}
+        </div>
+
+        {/* 第二行：项目申报书、学员名单 */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {renderDualFileUpload(
             '项目申报书 *',
             'declarationPdf',
@@ -2127,10 +2131,6 @@ export default function SummaryPage() {
             'word',
             true  // 启用AI检查
           )}
-        </div>
-
-        {/* 其他材料 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {renderSingleFileUpload(
             '学员名单 *',
             'studentList',
@@ -2140,18 +2140,30 @@ export default function SummaryPage() {
             '.pdf,.doc,.docx,.xls,.xlsx',
             true  // 启用AI检查
           )}
+        </div>
+
+        {/* 第三行：会签单、满意度调查结果 */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {renderSingleFileUpload(
-            '课程安排表 *',
-            'courseSchedule',
-            selectedProject.courseScheduleFileName,
-            selectedProject.courseScheduleFile,
-            '上传实际执行的课程安排表，AI自动提取课程',
+            '会签单 *',
+            'countersign',
+            selectedProject.countersignFileName,
+            selectedProject.countersignFile,
+            '上传会签单PDF文件（必传）',
+            '.pdf'
+          )}
+          {renderSingleFileUpload(
+            '满意度调查结果',
+            'satisfaction',
+            selectedProject.satisfactionSurveyFileName,
+            selectedProject.satisfactionSurveyFile,
+            '上传满意度调查原始数据（非必传）',
             '.pdf,.doc,.docx,.xls,.xlsx',
             true  // 启用AI检查
           )}
         </div>
 
-        {/* 课程安排表格 */}
+        {/* 第四行：课程安排（文件上传+课程表格） */}
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
@@ -2239,7 +2251,109 @@ export default function SummaryPage() {
               </div>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {/* 课程安排表文件上传 */}
+            <div className="border rounded-lg p-4 bg-muted/30">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium">课程安排表 *</span>
+                {isValidFile(selectedProject.courseScheduleFile) && (
+                  <div className="flex items-center gap-2">
+                    <Badge variant="default" className="bg-green-100 text-green-700">
+                      <CheckCircle className="w-3 h-3 mr-1" />
+                      已上传
+                    </Badge>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-6 px-2" 
+                      onClick={() => handlePreview(selectedProject.courseScheduleFile!, selectedProject.courseScheduleFileName!)}
+                    >
+                      <Eye className="w-3 h-3" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-6 px-2" 
+                      onClick={() => getFileUrl(selectedProject.courseScheduleFile!)}
+                    >
+                      <Download className="w-3 h-3" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+              <div
+                className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer ${
+                  dragActive === 'courseSchedule' ? 'bg-blue-50 border-blue-400' : 'hover:bg-gray-50 border-gray-200'
+                }`}
+                onDragOver={(e) => handleDragOver(e, 'courseSchedule')}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, 'courseSchedule')}
+                onClick={() => {
+                  if (uploading !== 'courseSchedule') {
+                    const input = document.getElementById('file-courseSchedule') as HTMLInputElement;
+                    input?.click();
+                  }
+                }}
+              >
+                <input
+                  type="file"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx"
+                  className="hidden"
+                  id="file-courseSchedule"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileUpload('courseSchedule', file);
+                  }}
+                />
+                {uploading === 'courseSchedule' ? (
+                  <div className="flex items-center justify-center">
+                    <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                    <span className="ml-2 text-sm text-gray-600">上传中...</span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center">
+                    <Upload className="w-8 h-8 text-gray-400 mb-2" />
+                    <p className="text-sm text-gray-600">
+                      点击或拖拽上传课程安排表
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      支持 PDF、Word、Excel 格式
+                    </p>
+                  </div>
+                )}
+              </div>
+              {/* AI检查按钮 */}
+              {isValidFile(selectedProject.courseScheduleFile) && (
+                <div className="mt-2 flex justify-end">
+                  <Button 
+                    variant="outline"
+                    size="sm" 
+                    className={`h-7 ${fileAiChecking === 'courseSchedule' ? 'border-red-200 text-red-600' : 'border-purple-200 text-purple-600 hover:bg-purple-50'}`}
+                    onClick={() => {
+                      if (fileAiChecking === 'courseSchedule') {
+                        handleCancelFileAiCheck();
+                      } else {
+                        handleFileAiCheck('courseSchedule', selectedProject.courseScheduleFile!, selectedProject.courseScheduleFileName!);
+                      }
+                    }}
+                  >
+                    {fileAiChecking === 'courseSchedule' ? (
+                      <>
+                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                        取消
+                      </>
+                    ) : (
+                      <>
+                        <Brain className="w-3 h-3 mr-1" />
+                        AI检查
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* 课程表格 */}
             {extractedCourses.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 {extractingCourses ? (
@@ -2258,7 +2372,7 @@ export default function SummaryPage() {
             ) : (
               <>
                 {/* 统计信息 */}
-                <div className="grid grid-cols-4 gap-4 mb-4 p-3 bg-muted/50 rounded-lg">
+                <div className="grid grid-cols-4 gap-4 p-3 bg-muted/50 rounded-lg">
                   <div className="text-center">
                     <div className="text-2xl font-bold text-blue-600">{extractedCourses.length}</div>
                     <div className="text-xs text-muted-foreground">课程总数</div>
@@ -2373,29 +2487,7 @@ export default function SummaryPage() {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {renderSingleFileUpload(
-            '满意度调查结果',
-            'satisfaction',
-            selectedProject.satisfactionSurveyFileName,
-            selectedProject.satisfactionSurveyFile,
-            '上传满意度调查原始数据（非必传）',
-            '.pdf,.doc,.docx,.xls,.xlsx',
-            true  // 启用AI检查
-          )}
-        </div>
-
-        {/* 会签单（必须，只支持PDF） */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {renderSingleFileUpload(
-            '会签单 *',
-            'countersign',
-            selectedProject.countersignFileName,
-            selectedProject.countersignFile,
-            '上传会签单PDF文件（必传）',
-            '.pdf'
-          )}
-        </div>
+        {/* 第五行：其它附件 */}
 
         {/* 其它附件（非必须，支持多种格式） */}
         <Card>
