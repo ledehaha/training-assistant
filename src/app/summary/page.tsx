@@ -2163,14 +2163,14 @@ export default function SummaryPage() {
           )}
         </div>
 
-        {/* 第四行：课程安排（文件上传+课程表格） */}
+        {/* 第四行：课程安排 */}
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="text-base flex items-center gap-2">
                   <BookOpen className="w-5 h-5 text-blue-600" />
-                  课程安排
+                  课程安排 *
                   {extractingCourses && (
                     <Badge variant="outline" className="text-purple-600 border-purple-200">
                       <Loader2 className="w-3 h-3 mr-1 animate-spin" />
@@ -2182,34 +2182,90 @@ export default function SummaryPage() {
                       {extractedCourses.length} 门课程
                     </Badge>
                   )}
+                  {isValidFile(selectedProject.courseScheduleFile) && (
+                    <Badge variant="default" className="bg-green-100 text-green-700">
+                      <CheckCircle className="w-3 h-3 mr-1" />
+                      已上传文件
+                    </Badge>
+                  )}
                 </CardTitle>
                 <CardDescription>
-                  {isValidFile(selectedProject.courseScheduleFile) 
-                    ? '上传课程安排表后AI自动提取，也可手动编辑'
-                    : '请上传课程安排表，或手动添加课程'}
+                  上传课程安排表AI自动提取，或手动添加课程
                 </CardDescription>
               </div>
               <div className="flex gap-2">
+                <input
+                  type="file"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx"
+                  className="hidden"
+                  id="file-courseSchedule-analysis"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileUpload('courseSchedule', file);
+                  }}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-purple-200 text-purple-600 hover:bg-purple-50"
+                  onClick={() => {
+                    const input = document.getElementById('file-courseSchedule-analysis') as HTMLInputElement;
+                    input?.click();
+                  }}
+                  disabled={uploading === 'courseSchedule' || extractingCourses}
+                >
+                  {uploading === 'courseSchedule' ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      上传中...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4 mr-2" />
+                      上传文件智能分析
+                    </>
+                  )}
+                </Button>
                 {isValidFile(selectedProject.courseScheduleFile) && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-purple-200 text-purple-600 hover:bg-purple-50"
-                    onClick={handleExtractCourses}
-                    disabled={extractingCourses}
-                  >
-                    {extractingCourses ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        提取中...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-4 h-4 mr-2" />
-                        AI重新提取
-                      </>
-                    )}
-                  </Button>
+                  <>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-8 px-2" 
+                      onClick={() => handlePreview(selectedProject.courseScheduleFile!, selectedProject.courseScheduleFileName!)}
+                      title="预览文件"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-8 px-2" 
+                      onClick={() => getFileUrl(selectedProject.courseScheduleFile!)}
+                      title="下载文件"
+                    >
+                      <Download className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-purple-200 text-purple-600 hover:bg-purple-50"
+                      onClick={handleExtractCourses}
+                      disabled={extractingCourses}
+                    >
+                      {extractingCourses ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          提取中...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4 mr-2" />
+                          重新提取
+                        </>
+                      )}
+                    </Button>
+                  </>
                 )}
                 <Button
                   variant="outline"
@@ -2251,109 +2307,7 @@ export default function SummaryPage() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {/* 课程安排表文件上传 */}
-            <div className="border rounded-lg p-4 bg-muted/30">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">课程安排表 *</span>
-                {isValidFile(selectedProject.courseScheduleFile) && (
-                  <div className="flex items-center gap-2">
-                    <Badge variant="default" className="bg-green-100 text-green-700">
-                      <CheckCircle className="w-3 h-3 mr-1" />
-                      已上传
-                    </Badge>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="h-6 px-2" 
-                      onClick={() => handlePreview(selectedProject.courseScheduleFile!, selectedProject.courseScheduleFileName!)}
-                    >
-                      <Eye className="w-3 h-3" />
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="h-6 px-2" 
-                      onClick={() => getFileUrl(selectedProject.courseScheduleFile!)}
-                    >
-                      <Download className="w-3 h-3" />
-                    </Button>
-                  </div>
-                )}
-              </div>
-              <div
-                className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer ${
-                  dragActive === 'courseSchedule' ? 'bg-blue-50 border-blue-400' : 'hover:bg-gray-50 border-gray-200'
-                }`}
-                onDragOver={(e) => handleDragOver(e, 'courseSchedule')}
-                onDragLeave={handleDragLeave}
-                onDrop={(e) => handleDrop(e, 'courseSchedule')}
-                onClick={() => {
-                  if (uploading !== 'courseSchedule') {
-                    const input = document.getElementById('file-courseSchedule') as HTMLInputElement;
-                    input?.click();
-                  }
-                }}
-              >
-                <input
-                  type="file"
-                  accept=".pdf,.doc,.docx,.xls,.xlsx"
-                  className="hidden"
-                  id="file-courseSchedule"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleFileUpload('courseSchedule', file);
-                  }}
-                />
-                {uploading === 'courseSchedule' ? (
-                  <div className="flex items-center justify-center">
-                    <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
-                    <span className="ml-2 text-sm text-gray-600">上传中...</span>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center">
-                    <Upload className="w-8 h-8 text-gray-400 mb-2" />
-                    <p className="text-sm text-gray-600">
-                      点击或拖拽上传课程安排表
-                    </p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      支持 PDF、Word、Excel 格式
-                    </p>
-                  </div>
-                )}
-              </div>
-              {/* AI检查按钮 */}
-              {isValidFile(selectedProject.courseScheduleFile) && (
-                <div className="mt-2 flex justify-end">
-                  <Button 
-                    variant="outline"
-                    size="sm" 
-                    className={`h-7 ${fileAiChecking === 'courseSchedule' ? 'border-red-200 text-red-600' : 'border-purple-200 text-purple-600 hover:bg-purple-50'}`}
-                    onClick={() => {
-                      if (fileAiChecking === 'courseSchedule') {
-                        handleCancelFileAiCheck();
-                      } else {
-                        handleFileAiCheck('courseSchedule', selectedProject.courseScheduleFile!, selectedProject.courseScheduleFileName!);
-                      }
-                    }}
-                  >
-                    {fileAiChecking === 'courseSchedule' ? (
-                      <>
-                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                        取消
-                      </>
-                    ) : (
-                      <>
-                        <Brain className="w-3 h-3 mr-1" />
-                        AI检查
-                      </>
-                    )}
-                  </Button>
-                </div>
-              )}
-            </div>
-
-            {/* 课程表格 */}
+          <CardContent>
             {extractedCourses.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 {extractingCourses ? (
@@ -2365,14 +2319,14 @@ export default function SummaryPage() {
                   <>
                     <BookOpen className="w-12 h-12 mx-auto mb-2 opacity-50" />
                     <p>暂无课程安排</p>
-                    <p className="text-xs mt-1">上传课程安排表自动提取，或点击上方按钮手动添加</p>
+                    <p className="text-xs mt-1">点击"上传文件智能分析"按钮上传课程表，或点击"新增课程"手动添加</p>
                   </>
                 )}
               </div>
             ) : (
               <>
                 {/* 统计信息 */}
-                <div className="grid grid-cols-4 gap-4 p-3 bg-muted/50 rounded-lg">
+                <div className="grid grid-cols-4 gap-4 mb-4 p-3 bg-muted/50 rounded-lg">
                   <div className="text-center">
                     <div className="text-2xl font-bold text-blue-600">{extractedCourses.length}</div>
                     <div className="text-xs text-muted-foreground">课程总数</div>
