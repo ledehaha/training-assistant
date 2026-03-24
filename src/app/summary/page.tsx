@@ -2729,12 +2729,17 @@ export default function SummaryPage() {
 
         if (res.ok) {
           toast.success('课程安排已保存');
+          // 更新当前项目的 hasSavedCourses 状态
+          setSelectedProject(prev => prev ? { ...prev, hasSavedCourses: true } : null);
+          // 刷新项目列表
           loadProjects();
         } else {
           const data = await res.json();
           toast.error(data.error || '保存失败');
         }
       } else {
+        // 没有课程，更新状态为未保存
+        setSelectedProject(prev => prev ? { ...prev, hasSavedCourses: false } : null);
         toast.success('课程安排已清空');
         loadProjects();
       }
