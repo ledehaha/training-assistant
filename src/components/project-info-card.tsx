@@ -112,6 +112,12 @@ const courseTypeMap: Record<string, { label: string; color: string }> = {
   other: { label: '其他', color: 'bg-orange-100 text-orange-700' },
 };
 
+// 检查文件是否是有效的上传文件
+const isValidFile = (fileKey: string | undefined): boolean => {
+  if (!fileKey || typeof fileKey !== 'string') return false;
+  return fileKey.startsWith('projects/');
+};
+
 export default function ProjectInfoCard({ projectId, onClose }: ProjectInfoCardProps) {
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -175,47 +181,47 @@ export default function ProjectInfoCard({ projectId, onClose }: ProjectInfoCardP
     const files: { name: string; key: string; type: string }[] = [];
     
     // 合同文件
-    if (project.contractFilePdf) {
-      files.push({ name: project.contractFileNamePdf || '合同文件.pdf', key: project.contractFilePdf, type: '合同' });
+    if (isValidFile(project.contractFilePdf)) {
+      files.push({ name: project.contractFileNamePdf || '合同文件.pdf', key: project.contractFilePdf!, type: '合同' });
     }
-    if (project.contractFileWord) {
-      files.push({ name: project.contractFileNameWord || '合同文件.docx', key: project.contractFileWord, type: '合同' });
+    if (isValidFile(project.contractFileWord)) {
+      files.push({ name: project.contractFileNameWord || '合同文件.docx', key: project.contractFileWord!, type: '合同' });
     }
     
     // 成本测算表
-    if (project.costFilePdf) {
-      files.push({ name: project.costFileNamePdf || '成本测算表.pdf', key: project.costFilePdf, type: '成本测算' });
+    if (isValidFile(project.costFilePdf)) {
+      files.push({ name: project.costFileNamePdf || '成本测算表.pdf', key: project.costFilePdf!, type: '成本测算' });
     }
-    if (project.costFileExcel) {
-      files.push({ name: project.costFileNameExcel || '成本测算表.xlsx', key: project.costFileExcel, type: '成本测算' });
+    if (isValidFile(project.costFileExcel)) {
+      files.push({ name: project.costFileNameExcel || '成本测算表.xlsx', key: project.costFileExcel!, type: '成本测算' });
     }
     
     // 项目申报书
-    if (project.declarationFilePdf) {
-      files.push({ name: project.declarationFileNamePdf || '项目申报书.pdf', key: project.declarationFilePdf, type: '申报书' });
+    if (isValidFile(project.declarationFilePdf)) {
+      files.push({ name: project.declarationFileNamePdf || '项目申报书.pdf', key: project.declarationFilePdf!, type: '申报书' });
     }
-    if (project.declarationFileWord) {
-      files.push({ name: project.declarationFileNameWord || '项目申报书.docx', key: project.declarationFileWord, type: '申报书' });
+    if (isValidFile(project.declarationFileWord)) {
+      files.push({ name: project.declarationFileNameWord || '项目申报书.docx', key: project.declarationFileWord!, type: '申报书' });
     }
     
     // 学员名单
-    if (project.studentListFile) {
-      files.push({ name: project.studentListFileName || '学员名单', key: project.studentListFile, type: '学员名单' });
+    if (isValidFile(project.studentListFile)) {
+      files.push({ name: project.studentListFileName || '学员名单', key: project.studentListFile!, type: '学员名单' });
     }
     
     // 课程安排表
-    if (project.courseScheduleFile) {
-      files.push({ name: project.courseScheduleFileName || '课程安排表', key: project.courseScheduleFile, type: '课程安排' });
+    if (isValidFile(project.courseScheduleFile)) {
+      files.push({ name: project.courseScheduleFileName || '课程安排表', key: project.courseScheduleFile!, type: '课程安排' });
     }
     
     // 会签单
-    if (project.countersignFile) {
-      files.push({ name: project.countersignFileName || '会签单.pdf', key: project.countersignFile, type: '会签单' });
+    if (isValidFile(project.countersignFile)) {
+      files.push({ name: project.countersignFileName || '会签单.pdf', key: project.countersignFile!, type: '会签单' });
     }
     
     // 满意度调查
-    if (project.satisfactionSurveyFile) {
-      files.push({ name: project.satisfactionSurveyFileName || '满意度调查', key: project.satisfactionSurveyFile, type: '满意度' });
+    if (isValidFile(project.satisfactionSurveyFile)) {
+      files.push({ name: project.satisfactionSurveyFileName || '满意度调查', key: project.satisfactionSurveyFile!, type: '满意度' });
     }
     
     return files;

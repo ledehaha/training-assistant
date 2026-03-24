@@ -21,6 +21,7 @@ function checkArchiveRequirements(project: Record<string, unknown>): { isComplet
     { name: '成本测算表', uploaded: isValidFile(project.costFilePdf) && isValidFile(project.costFileExcel), required: true },
     { name: '项目申报书', uploaded: isValidFile(project.declarationFilePdf) && isValidFile(project.declarationFileWord), required: true },
     { name: '学员名单', uploaded: isValidFile(project.studentListFile), required: true },
+    { name: '课程安排表', uploaded: isValidFile(project.courseScheduleFile), required: true },
     { name: '满意度调查结果', uploaded: isValidFile(project.satisfactionSurveyFile), required: false },
     { name: '会签单', uploaded: isValidFile(project.countersignFile), required: true },
   ];
@@ -183,9 +184,16 @@ export async function PUT(
       surveyResponseRate: 'surveyResponseRate', completedAt: 'completedAt',
       archivedAt: 'archivedAt', summaryReport: 'summaryReport',
       contractFilePdf: 'contractFilePdf', contractFileWord: 'contractFileWord',
+      contractFileNamePdf: 'contractFileNamePdf', contractFileNameWord: 'contractFileNameWord',
       costFilePdf: 'costFilePdf', costFileExcel: 'costFileExcel',
+      costFileNamePdf: 'costFileNamePdf', costFileNameExcel: 'costFileNameExcel',
       declarationFilePdf: 'declarationFilePdf', declarationFileWord: 'declarationFileWord',
-      studentListFile: 'studentListFile', satisfactionSurveyFile: 'satisfactionSurveyFile',
+      declarationFileNamePdf: 'declarationFileNamePdf', declarationFileNameWord: 'declarationFileNameWord',
+      studentListFile: 'studentListFile', studentListFileName: 'studentListFileName',
+      courseScheduleFile: 'courseScheduleFile', courseScheduleFileName: 'courseScheduleFileName',
+      satisfactionSurveyFile: 'satisfactionSurveyFile', satisfactionSurveyFileName: 'satisfactionSurveyFileName',
+      countersignFile: 'countersignFile', countersignFileName: 'countersignFileName',
+      otherMaterials: 'otherMaterials',
     };
 
     Object.entries(fieldMapping).forEach(([bodyKey, dbKey]) => {

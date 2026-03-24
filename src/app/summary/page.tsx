@@ -1510,6 +1510,8 @@ export default function SummaryPage() {
   ) => {
     // 从fileType提取AI检查类型
     const aiCheckFileType = fileType.toLowerCase();
+    // 判断文件是否真正上传（fileKey必须以 "projects/" 开头）
+    const hasValidFile = isValidFile(fileKey);
     
     return (
     <div className="p-4 border rounded-lg">
@@ -1519,13 +1521,13 @@ export default function SummaryPage() {
           <span className="font-medium text-gray-900">{title}</span>
         </div>
         <div className="flex items-center gap-2">
-          {fileName && (
+          {hasValidFile && (
             <Badge variant="default" className="bg-green-100 text-green-700">
               <CheckCircle className="w-3 h-3 mr-1" />
               已上传
             </Badge>
           )}
-          {enableAiCheck && fileKey && (
+          {enableAiCheck && hasValidFile && (
             <Button
               variant="outline"
               size="sm"
@@ -1538,7 +1540,7 @@ export default function SummaryPage() {
                 if (fileAiChecking === fileKey) {
                   handleCancelFileAiCheck();
                 } else {
-                  handleFileAiCheck(aiCheckFileType, fileKey, fileName || '');
+                  handleFileAiCheck(aiCheckFileType, fileKey!, fileName || '未知文件');
                 }
               }}
             >
@@ -1559,7 +1561,7 @@ export default function SummaryPage() {
       </div>
       <p className="text-xs text-gray-500 mb-3">{description}</p>
       
-      {fileName ? (
+      {hasValidFile ? (
         <div 
           className={`p-3 bg-green-50 border border-green-200 rounded-lg transition-colors ${
             dragActive === fileType ? 'bg-blue-50 border-blue-400 border-dashed' : ''
@@ -1574,7 +1576,7 @@ export default function SummaryPage() {
               variant="outline" 
               size="sm" 
               className="h-7 flex-1 text-xs"
-              onClick={() => fileKey && handlePreview(fileKey, fileName)}
+              onClick={() => fileKey && handlePreview(fileKey, fileName || '未知文件')}
             >
               <Eye className="w-3 h-3 mr-1" />
               预览
