@@ -379,6 +379,7 @@ const createTablesSQL = `
     declaration_file_name_pdf TEXT,
     declaration_file_word TEXT,
     declaration_file_name_word TEXT,
+    has_saved_courses INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT,
     completed_at TEXT,
@@ -575,6 +576,7 @@ const migrationSQL = `
   ALTER TABLE projects ADD COLUMN declaration_file_name_pdf TEXT;
   ALTER TABLE projects ADD COLUMN declaration_file_word TEXT;
   ALTER TABLE projects ADD COLUMN declaration_file_name_word TEXT;
+  ALTER TABLE projects ADD COLUMN has_saved_courses INTEGER DEFAULT 0;
   ALTER TABLE normative_documents ADD COLUMN visibility TEXT DEFAULT 'public';
 `;
 

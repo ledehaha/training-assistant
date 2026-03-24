@@ -465,6 +465,8 @@ export const projects = sqliteTable(
     satisfactionSurveyFileName: text('satisfaction_survey_file_name'),
     // 总结报告
     summaryReport: text('summary_report'),
+    // 课程是否已保存
+    hasSavedCourses: integer('has_saved_courses', { mode: 'boolean' }).default(false),
     // 时间戳
     createdAt: text('created_at').default(sql`datetime('now')`).notNull(),
     updatedAt: text('updated_at'),

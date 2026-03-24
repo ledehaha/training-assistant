@@ -108,6 +108,8 @@ interface Project {
   satisfactionSurveyFileName: string | null;
   // 总结报告
   summaryReport: string | null;
+  // 课程是否已保存
+  hasSavedCourses: boolean | null;
   archivedAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -417,8 +419,8 @@ export default function SummaryPage() {
         required: true,
       },
       {
-        name: '课程安排表',
-        uploaded: isValidFile(project.courseScheduleFile),
+        name: '课程安排',
+        uploaded: project.hasSavedCourses === true,
         required: true,
       },
       {
@@ -2182,17 +2184,6 @@ export default function SummaryPage() {
                       AI提取中...
                     </Badge>
                   )}
-                  {!extractingCourses && extractedCourses.length > 0 && (
-                    <Badge variant="outline" className="text-green-600 border-green-200">
-                      {extractedCourses.length} 门课程
-                    </Badge>
-                  )}
-                  {isValidFile(selectedProject.courseScheduleFile) && (
-                    <Badge variant="default" className="bg-green-100 text-green-700">
-                      <CheckCircle className="w-3 h-3 mr-1" />
-                      已上传文件
-                    </Badge>
-                  )}
                 </CardTitle>
                 <CardDescription>
                   上传课程安排表AI自动提取，或手动添加课程
@@ -2209,47 +2200,6 @@ export default function SummaryPage() {
                   <Upload className="w-4 h-4 mr-2" />
                   上传文件智能分析
                 </Button>
-                {isValidFile(selectedProject.courseScheduleFile) && (
-                  <>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="h-8 px-2" 
-                      onClick={() => handlePreview(selectedProject.courseScheduleFile!, selectedProject.courseScheduleFileName!)}
-                      title="预览文件"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="h-8 px-2" 
-                      onClick={() => getFileUrl(selectedProject.courseScheduleFile!)}
-                      title="下载文件"
-                    >
-                      <Download className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="border-purple-200 text-purple-600 hover:bg-purple-50"
-                      onClick={handleExtractCourses}
-                      disabled={extractingCourses}
-                    >
-                      {extractingCourses ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          提取中...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="w-4 h-4 mr-2" />
-                          重新提取
-                        </>
-                      )}
-                    </Button>
-                  </>
-                )}
                 <Button
                   variant="outline"
                   size="sm"

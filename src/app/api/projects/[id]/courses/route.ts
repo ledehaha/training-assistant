@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, courses, eq, asc, and, saveDatabaseImmediate, ensureDatabaseReady } from '@/storage/database';
+import { db, courses, projects, eq, asc, and, saveDatabaseImmediate, ensureDatabaseReady } from '@/storage/database';
 import { generateId, getTimestamp } from '@/storage/database';
 
 // POST /api/projects/[id]/courses - 添加课程到项目
@@ -56,6 +56,18 @@ export async function POST(
     // 保存数据库到文件
     saveDatabaseImmediate();
 
+    // 更新项目的 hasSavedCourses 字段
+    try {
+      db.update(projects)
+        .set({ hasSavedCourses: true, updatedAt: now })
+        .where(eq(projects.id, id))
+        .run();
+      saveDatabaseImmediate();
+      console.log('已更新项目 hasSavedCourses 为 true');
+    } catch (updateError) {
+      console.error('更新项目 hasSavedCourses 失败:', updateError);
+    }
+
     console.log('项目课程添加完成, 成功:', results.length);
 
     return NextResponse.json({ data: results, count: results.length });
@@ -100,6 +112,16 @@ export async function DELETE(
     const { id } = await params;
 
     db.delete(courses).where(and(eq(courses.projectId, id), eq(courses.isTemplate, false))).run();
+
+    // 更新项目的 hasSavedCourses 字段为 false
+    try {
+      db.update(projects)
+        .set({ hasSavedCourses: false, updatedAt: getTimestamp() })
+        .where(eq(projects.id, id))
+        .run();
+    } catch (updateError) {
+      console.error('更新项目 hasSavedCourses 失败:', updateError);
+    }
 
     // 保存数据库到文件
     saveDatabaseImmediate();
