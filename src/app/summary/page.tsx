@@ -796,6 +796,14 @@ export default function SummaryPage() {
           // 其他类型：直接更新字段
           const updates = getUpdatedProjectData(fileType, data);
           setSelectedProject(prev => prev ? { ...prev, ...updates } : null);
+          
+          // 课程安排表上传成功后自动触发AI提取
+          if (fileType === 'courseSchedule') {
+            // 延迟一下让状态更新完成
+            setTimeout(() => {
+              autoExtractCourses(data.fileKey, data.fileName);
+            }, 500);
+          }
         }
         setLastSaveTime(new Date());
       } else {
@@ -806,6 +814,59 @@ export default function SummaryPage() {
       toast.error('上传失败', { description: error instanceof Error ? error.message : '文件上传失败' });
     } finally {
       setUploading(null);
+    }
+  };
+
+  // 自动提取课程（上传后自动触发）
+  const autoExtractCourses = async (fileKey: string, fileName: string) => {
+    if (!selectedProject) return;
+
+    setExtractingCourses(true);
+    try {
+      const sessionToken = localStorage.getItem('session_token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`;
+      }
+
+      const res = await fetch('/api/ai/extract-courses', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          projectId: selectedProject.id,
+          fileKey,
+          fileName,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success && data.courses && data.courses.length > 0) {
+        // 为每个课程生成ID
+        const coursesWithIds = data.courses.map((course: ExtractedCourse, index: number) => ({
+          ...course,
+          id: `course-${Date.now()}-${index}`,
+        }));
+        setExtractedCourses(coursesWithIds);
+        toast.success(`成功提取 ${coursesWithIds.length} 门课程`);
+      } else {
+        // AI提取失败或没有课程，显示空表格
+        setExtractedCourses([]);
+        if (data.message) {
+          toast.warning(data.message);
+        } else {
+          toast.info('未识别到课程信息，请手动添加');
+        }
+      }
+      // 无论成功与否，都显示课程表格对话框
+      setShowCourseTableDialog(true);
+    } catch (error) {
+      console.error('提取课程失败:', error);
+      // 提取失败，显示空表格让用户手动编辑
+      setExtractedCourses([]);
+      toast.error('AI提取失败，请手动添加课程');
+      setShowCourseTableDialog(true);
+    } finally {
+      setExtractingCourses(false);
     }
   };
 
@@ -2047,32 +2108,43 @@ export default function SummaryPage() {
               'courseSchedule',
               selectedProject.courseScheduleFileName,
               selectedProject.courseScheduleFile,
-              '上传实际执行的课程安排表（Excel格式为主）',
+              '上传实际执行的课程安排表（Excel格式为主），上传后自动AI提取',
               '.pdf,.doc,.docx,.xls,.xlsx',
               true  // 启用AI检查
             )}
-            {/* AI提取课程按钮 */}
-            {isValidFile(selectedProject.courseScheduleFile) && (
+            {/* 课程操作按钮 */}
+            <div className="flex gap-2">
+              {isValidFile(selectedProject.courseScheduleFile) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 border-purple-200 text-purple-600 hover:bg-purple-50"
+                  onClick={handleExtractCourses}
+                  disabled={extractingCourses}
+                >
+                  {extractingCourses ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      提取中...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      AI重新提取
+                    </>
+                  )}
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full border-purple-200 text-purple-600 hover:bg-purple-50"
-                onClick={handleExtractCourses}
-                disabled={extractingCourses}
+                className={`${isValidFile(selectedProject.courseScheduleFile) ? '' : 'w-full'} border-blue-200 text-blue-600 hover:bg-blue-50`}
+                onClick={handleOpenCourseTable}
               >
-                {extractingCourses ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    正在提取课程...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    AI提取课程安排
-                  </>
-                )}
+                <BookOpen className="w-4 h-4 mr-2" />
+                编辑课程安排
               </Button>
-            )}
+            </div>
           </div>
         </div>
 
@@ -2345,23 +2417,65 @@ export default function SummaryPage() {
       });
 
       const data = await res.json();
-      if (data.success && data.courses) {
+      if (data.success && data.courses && data.courses.length > 0) {
         // 为每个课程生成ID
         const coursesWithIds = data.courses.map((course: ExtractedCourse, index: number) => ({
           ...course,
           id: `course-${Date.now()}-${index}`,
         }));
         setExtractedCourses(coursesWithIds);
-        setShowCourseTableDialog(true);
         toast.success(`成功提取 ${coursesWithIds.length} 门课程`);
       } else {
-        toast.error(data.message || '提取课程失败');
+        // AI提取失败或没有课程，显示空表格
+        setExtractedCourses([]);
+        if (data.message) {
+          toast.warning(data.message);
+        } else {
+          toast.info('未识别到课程信息，请手动添加');
+        }
       }
+      // 无论成功与否，都显示课程表格对话框
+      setShowCourseTableDialog(true);
     } catch (error) {
       console.error('提取课程失败:', error);
-      toast.error('提取课程失败，请稍后重试');
+      // 提取失败，显示空表格让用户手动编辑
+      setExtractedCourses([]);
+      toast.error('AI提取失败，请手动添加课程');
+      setShowCourseTableDialog(true);
     } finally {
       setExtractingCourses(false);
+    }
+  };
+
+  // 手动打开课程表格编辑（不需要上传文件）
+  const handleOpenCourseTable = () => {
+    // 先加载已有的课程数据
+    loadExistingCourses();
+    setShowCourseTableDialog(true);
+  };
+
+  // 加载已有的课程数据
+  const loadExistingCourses = async () => {
+    if (!selectedProject) return;
+    
+    try {
+      const sessionToken = localStorage.getItem('session_token');
+      const headers: Record<string, string> = {};
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`;
+      }
+
+      const res = await fetch(`/api/projects/${selectedProject.id}/courses`, { headers });
+      const data = await res.json();
+      // API返回的是data字段
+      if (data.data && data.data.length > 0) {
+        setExtractedCourses(data.data);
+      } else {
+        setExtractedCourses([]);
+      }
+    } catch (error) {
+      console.error('加载课程失败:', error);
+      setExtractedCourses([]);
     }
   };
 
@@ -2407,7 +2521,7 @@ export default function SummaryPage() {
 
   // 保存课程到数据库
   const handleSaveCourses = async () => {
-    if (!selectedProject || extractedCourses.length === 0) return;
+    if (!selectedProject) return;
 
     setSavingCourses(true);
     try {
@@ -2417,24 +2531,35 @@ export default function SummaryPage() {
         headers['Authorization'] = `Bearer ${sessionToken}`;
       }
 
-      const res = await fetch(`/api/projects/${selectedProject.id}`, {
-        method: 'PUT',
+      // 先删除现有课程
+      await fetch(`/api/projects/${selectedProject.id}/courses`, {
+        method: 'DELETE',
         headers,
-        body: JSON.stringify({
-          courses: extractedCourses.map((course, index) => ({
-            ...course,
-            order: index,
-          })),
-        }),
       });
 
-      if (res.ok) {
-        toast.success('课程安排已保存');
-        setShowCourseTableDialog(false);
-        // 刷新项目数据
-        loadProjects();
+      // 如果有课程，添加新的课程
+      if (extractedCourses.length > 0) {
+        const res = await fetch(`/api/projects/${selectedProject.id}/courses`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(extractedCourses.map((course, index) => ({
+            ...course,
+            order: index,
+          }))),
+        });
+
+        if (res.ok) {
+          toast.success('课程安排已保存');
+          setShowCourseTableDialog(false);
+          loadProjects();
+        } else {
+          const data = await res.json();
+          toast.error(data.error || '保存失败');
+        }
       } else {
-        toast.error('保存失败');
+        toast.success('课程安排已清空');
+        setShowCourseTableDialog(false);
+        loadProjects();
       }
     } catch (error) {
       console.error('保存课程失败:', error);
@@ -3651,7 +3776,7 @@ export default function SummaryPage() {
             <Button variant="outline" onClick={() => setShowCourseTableDialog(false)}>
               取消
             </Button>
-            <Button onClick={handleSaveCourses} disabled={savingCourses || extractedCourses.length === 0}>
+            <Button onClick={handleSaveCourses} disabled={savingCourses}>
               {savingCourses ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
