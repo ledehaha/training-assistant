@@ -90,7 +90,8 @@ interface Venue {
   name: string;
   location: string;
   capacity: number;
-  daily_rate: string;
+  unit_rate: string;
+  unit_type: string;
   rating: string;
 }
 
@@ -2270,7 +2271,11 @@ export default function DesignPage() {
                           容纳人数：{venue.capacity}人
                         </p>
                         <p className="text-sm">
-                          日租金：¥{venue.daily_rate}
+                          {venue.unit_type === 'day' && `日租金：¥${venue.unit_rate}`}
+                          {venue.unit_type === 'half_day' && `半天租金：¥${venue.unit_rate}`}
+                          {venue.unit_type === 'hour' && `小时租金：¥${venue.unit_rate}`}
+                          {venue.unit_type === 'session' && `场次租金：¥${venue.unit_rate}`}
+                          {!venue.unit_type && `租金：¥${venue.unit_rate}`}
                         </p>
                       </CardContent>
                     </Card>
