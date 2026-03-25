@@ -15,6 +15,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
   const [showDebugAccount, setShowDebugAccount] = useState(false);
+  const [sessionExpired, setSessionExpired] = useState(false);
   const [formData, setFormData] = useState({
     employeeId: '',
     password: '',
@@ -24,6 +25,14 @@ export default function LoginPage() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
+        // 检查 URL 参数，判断是否是会话超时跳转
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('session') === 'expired') {
+          setSessionExpired(true);
+          // 清理 URL 参数
+          window.history.replaceState({}, '', window.location.pathname);
+        }
+        
         const sessionToken = localStorage.getItem('session_token');
         if (!sessionToken || sessionToken.trim() === '') {
           setChecking(false);
@@ -162,6 +171,15 @@ export default function LoginPage() {
           <CardDescription>请登录您的账号</CardDescription>
         </CardHeader>
         <CardContent>
+          {/* 会话超时提示 */}
+          {sessionExpired && (
+            <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+              <p className="text-sm text-orange-700">
+                由于长时间未操作，您的会话已超时，请重新登录。
+              </p>
+            </div>
+          )}
+          
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="employeeId">工号</Label>

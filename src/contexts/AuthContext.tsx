@@ -164,10 +164,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     
     if (redirectToLogin) {
-      // 使用 replace 而不是 href，避免浏览器历史记录问题
-      window.location.replace('/login');
+      // 使用 router.push 而不是 window.location.replace
+      try {
+        router.push('/login');
+      } catch (error) {
+        // 如果 router.push 失败，使用降级方案
+        console.error('[AuthProvider] Router push failed, using fallback:', error);
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 100);
+      }
     }
-  }, []);
+  }, [router]);
 
   // 初始化：只在首次挂载时获取用户信息
   useEffect(() => {
@@ -208,14 +216,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
         setAuthenticated(false);
         
-        // 先显示提示，延迟跳转让用户看到提示信息
-        alert('由于长时间未操作，您已自动退出登录。即将跳转到登录页面...');
-        
-        // 延迟 500ms 后跳转，确保提示信息被显示
-        setTimeout(() => {
-          // 使用 replace 而不是 href，避免浏览器历史记录问题
-          window.location.replace('/login');
-        }, 500);
+        // 使用 router.push 而不是 window.location.replace，避免触发浏览器 beforeunload 事件
+        try {
+          router.push('/login?session=expired');
+        } catch (error) {
+          // 如果 router.push 失败，使用降级方案
+          console.error('[AuthProvider] Router push failed, using fallback:', error);
+          setTimeout(() => {
+            window.location.href = '/login?session=expired';
+          }, 100);
+        }
       }
     }, CHECK_INTERVAL);
 
@@ -228,7 +238,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         timerRef.current = null;
       }
     };
-  }, [authenticated]);
+  }, [authenticated, router]);
 
   // Context 值使用 useMemo 缓存
   const contextValue = {
