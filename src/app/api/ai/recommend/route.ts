@@ -450,6 +450,7 @@ ${templateContext}${visitSitesContext}${userProfileContext}
       "description": "内容概述", 
       "category": "类别", 
       "type": "course或visit",
+      "location": "课程地点（如：101教室、线上会议室等）",
       "isFromTemplate": true,
       "templateId": "模板ID（使用模板时必填）",
       "teacherName": "讲师姓名（使用模板有关联讲师时填）",
@@ -457,6 +458,7 @@ ${templateContext}${visitSitesContext}${userProfileContext}
       "teacherTitle": "建议职称（无关联讲师或AI生成时填，如'副教授'）",
       "visitSiteId": "参访基地ID",
       "visitSiteName": "参访基地名称",
+      "visitSiteAddress": "参访地址（参访时填写）",
       "isFromVisitLibrary": true
     }
   ],
@@ -503,7 +505,7 @@ ${projectData.modifySuggestion}
 返回JSON格式：
 {
   "courses": [
-    {"day": 1, "name": "课程名", "duration": 4, "description": "概述", "category": "类别", "teacherTitle": "职称"}
+    {"day": 1, "name": "课程名", "duration": 4, "description": "概述", "category": "类别", "teacherTitle": "职称", "location": "课程地点"}
   ],
   "totalDurationCheck": ${projectData.trainingHours || 32},
   "summary": "调整说明"
@@ -719,7 +721,8 @@ ${projectData.adjustRequirement}
     "description": "调整后的课程描述",
     "duration": 4,
     "category": "课程类别",
-    "teacherTitle": "建议讲师职称"
+    "teacherTitle": "建议讲师职称",
+    "location": "课程地点"
   }
 }
 

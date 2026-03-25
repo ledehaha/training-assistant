@@ -34,8 +34,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Loader2, Sparkles, Save, ArrowRight, User, MapPin, BookOpen, DollarSign, X, FolderOpen, Plus, Clock, Check, CheckCircle, AlertCircle, Wand2, RefreshCw } from 'lucide-react';
+import { Loader2, Sparkles, Save, ArrowRight, User, MapPin, BookOpen, DollarSign, X, FolderOpen, Plus, Clock, Check, CheckCircle, AlertCircle, Wand2, RefreshCw, Info } from 'lucide-react';
 import ApiKeyCheckDialog, { checkApiKeyConfigured } from '@/components/api-key-check-dialog';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface ProjectFormData {
   name: string;
@@ -2097,7 +2103,7 @@ export default function DesignPage() {
                             <TableHead>课程名称</TableHead>
                             <TableHead className="w-20 text-center">课时</TableHead>
                             <TableHead className="w-32">建议讲师</TableHead>
-                            <TableHead>课程描述</TableHead>
+                            <TableHead className="w-40">课程地点</TableHead>
                             <TableHead className="w-20 text-center">操作</TableHead>
                           </TableRow>
                         </TableHeader>
@@ -2139,16 +2145,30 @@ export default function DesignPage() {
                               <TableCell className="text-center font-medium">{index + 1}</TableCell>
                               <TableCell className="text-center">第{course.day}天</TableCell>
                               <TableCell className="font-medium">
-                                {course.name}
-                                {course.type === 'visit' && (
-                                  <Badge variant="outline" className="ml-2 text-xs border-orange-300 text-orange-600">参访</Badge>
-                                )}
-                                {course.isFromTemplate && (
-                                  <Badge variant="secondary" className="ml-2 text-xs">模板</Badge>
-                                )}
-                                {course.isFromVisitLibrary && (
-                                  <Badge variant="outline" className="ml-2 text-xs border-blue-300 text-blue-600">基地库</Badge>
-                                )}
+                                <div className="flex items-center gap-2">
+                                  {course.name}
+                                  {course.description && (
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Info className="h-4 w-4 text-muted-foreground cursor-help hover:text-blue-600 transition-colors" />
+                                        </TooltipTrigger>
+                                        <TooltipContent side="top" className="max-w-md">
+                                          <div className="text-sm whitespace-pre-wrap">{course.description}</div>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  )}
+                                  {course.type === 'visit' && (
+                                    <Badge variant="outline" className="text-xs border-orange-300 text-orange-600">参访</Badge>
+                                  )}
+                                  {course.isFromTemplate && (
+                                    <Badge variant="secondary" className="text-xs">模板</Badge>
+                                  )}
+                                  {course.isFromVisitLibrary && (
+                                    <Badge variant="outline" className="text-xs border-blue-300 text-blue-600">基地库</Badge>
+                                  )}
+                                </div>
                               </TableCell>
                               <TableCell className="text-center">{course.duration}</TableCell>
                               <TableCell>
@@ -2164,8 +2184,20 @@ export default function DesignPage() {
                                   <span className="text-muted-foreground">{course.teacherTitle}</span>
                                 ) : '-'}
                               </TableCell>
-                              <TableCell className="text-muted-foreground text-sm">
-                                {course.description || '-'}
+                              <TableCell className="text-sm">
+                                {course.type === 'visit' && course.visitSiteAddress ? (
+                                  <div className="flex items-center gap-1 text-muted-foreground">
+                                    <MapPin className="h-3.5 w-3.5" />
+                                    <span>{course.visitSiteAddress}</span>
+                                  </div>
+                                ) : course.location ? (
+                                  <div className="flex items-center gap-1 text-muted-foreground">
+                                    <MapPin className="h-3.5 w-3.5" />
+                                    <span>{course.location}</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
                               </TableCell>
                               <TableCell className="text-center">
                                 <Button
@@ -2673,6 +2705,22 @@ export default function DesignPage() {
                     rows={3}
                     placeholder={editingCourse.type === 'visit' ? '参访内容概述...' : '课程内容概述...'}
                   />
+                </div>
+                {/* 课程地点 */}
+                <div className="space-y-2">
+                  <Label>课程地点</Label>
+                  {editingCourse.type === 'visit' && editingCourse.isFromVisitLibrary && editingCourse.visitSiteAddress ? (
+                    <div className="flex items-center gap-2 p-2 bg-orange-50 border border-orange-200 rounded-md">
+                      <MapPin className="w-4 h-4 text-orange-600" />
+                      <span className="text-orange-700">{editingCourse.visitSiteAddress}</span>
+                    </div>
+                  ) : (
+                    <Input
+                      value={editingCourse.location || ''}
+                      onChange={(e) => setEditingCourse({ ...editingCourse, location: e.target.value })}
+                      placeholder={editingCourse.type === 'visit' ? '参访地址' : '输入课程地点，如：101教室'}
+                    />
+                  )}
                 </div>
                 <div className="flex justify-end gap-2">
                   <Button variant="outline" onClick={() => setShowEditCourseDialog(false)}>
