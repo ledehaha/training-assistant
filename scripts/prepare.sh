@@ -40,12 +40,14 @@ fi
 
 # 检查 node_modules 是否需要重新安装
 NEED_INSTALL=0
+NEED_CLEAN=0
 if [[ ! -d "node_modules" ]]; then
     echo "node_modules 不存在，需要安装"
     NEED_INSTALL=1
 elif [[ ! -f "node_modules/.bin/next" ]]; then
     echo -e "${YELLOW}node_modules/.bin/next 不存在，需要重新安装${NC}"
     NEED_INSTALL=1
+    NEED_CLEAN=1  # 标记需要清理
 elif [[ ! -f "package.json" ]] || [[ ! -f "pnpm-lock.yaml" ]]; then
     echo -e "${YELLOW}package.json 或 pnpm-lock.yaml 已更改，需要重新安装${NC}"
     NEED_INSTALL=1
@@ -62,7 +64,7 @@ if [[ $NEED_INSTALL -eq 1 ]]; then
     echo "========================================="
     
     # 清理旧的 node_modules（如果存在但可能损坏）
-    if [[ -d "node_modules" ]] && [[ ! -f "node_modules/.bin/next" ]]; then
+    if [[ $NEED_CLEAN -eq 1 ]] && [[ -d "node_modules" ]]; then
         echo -e "${YELLOW}检测到损坏的 node_modules，正在清理...${NC}"
         rm -rf node_modules .pnpm-store
         echo ""
