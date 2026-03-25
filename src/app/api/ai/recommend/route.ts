@@ -279,10 +279,10 @@ ${templatesToShow.map((t: Record<string, unknown>, idx: number) => {
 
 **情况1：使用模板库的课程（isFromTemplate=true）**
 - 有关联讲师：填写 teacherName（讲师姓名）和 teacherId（讲师ID）
-- 无关联讲师：填写 teacherTitle（建议职称，如"副教授"）
+- 无关联讲师：填写 teacherTitle = "待确认"
 
 **情况2：AI自己生成的课程（isFromTemplate=false）**
-- 只填写 teacherTitle（建议职称）
+- 填写 teacherTitle = "待确认"
 - 不填写 teacherName 和 teacherId
 
 【其他规则】：
@@ -436,11 +436,11 @@ ${templateContext}${visitSitesContext}${userProfileContext}
 
 4. **讲师信息（强制要求 - 最重要）**
    - 使用模板库课程：优先填模板关联的讲师（teacherName + teacherId）
-   - 使用模板库课程但无关联讲师：必须填建议讲师职称（teacherTitle），如"教授""副教授""高级工程师"等
-   - AI自己生成的课程：必须填建议讲师职称（teacherTitle），根据课程内容推荐合适的职称
+   - 使用模板库课程但无关联讲师：teacherTitle必须填写"待确认"
+   - AI自己生成的课程：teacherTitle必须填写"待确认"
    - 参访活动：不需要讲师信息（teacherName、teacherId、teacherTitle 都可以为空或省略）
-   - 【强制】每门普通课程（type="course"）都必须有 teacherTitle 字段
-   - 【强制】绝对不能省略 teacherTitle，即使没有具体讲师也必须填写职称建议
+   - 【强制】每门普通课程（type="course"）都必须有讲师信息
+   - 【强制】模板课程优先显示关联讲师，AI生成的课程统一显示"待确认"
 
 返回JSON格式：
 {
@@ -457,7 +457,7 @@ ${templateContext}${visitSitesContext}${userProfileContext}
       "templateId": "模板ID（使用模板时必填）",
       "teacherName": "讲师姓名（使用模板有关联讲师时填）",
       "teacherId": "讲师ID（使用模板有关联讲师时填）",
-      "teacherTitle": "建议职称（无关联讲师或AI生成时填，如'副教授'）",
+      "teacherTitle": "待确认（无关联讲师或AI生成时填）",
       "visitSiteId": "参访基地ID",
       "visitSiteName": "参访基地名称",
       "visitSiteAddress": "参访地址（参访时填写）",
@@ -503,6 +503,10 @@ ${projectData.modifySuggestion}
    - 【禁止】生成大于4的课时数
 4. 根据"平均每天课时"合理安排每天的课时量，不要机械地每天排满
 5. 如果内容较多需要拆分为多门课程，命名使用"（上）"、"（下）"、"（中）"区分
+6. 【讲师信息规则】
+   - 保持原有课程的讲师信息不变
+   - 新增的课程：如果是模板课程且有关联讲师，填写 teacherName 和 teacherId；否则 teacherTitle 填写"待确认"
+   - 参访课程不需要讲师信息
 
 返回JSON格式：
 {
@@ -715,6 +719,9 @@ ${projectData.adjustRequirement}
 2. 保持课程的合理性和专业性
 3. 课时只能是：1、2、4 这三个标准值（4课时=半天，2课时=约2小时，1课时=约1小时）
 4. 如果需要特殊课时，可以是1-8之间的整数
+5. 【讲师信息规则】
+   - 保持原有课程的讲师信息不变
+   - 如果原课程没有讲师信息，teacherTitle填写"待确认"
 
 请返回调整后的课程信息，格式如下：
 {
@@ -723,7 +730,7 @@ ${projectData.adjustRequirement}
     "description": "调整后的课程描述",
     "duration": 4,
     "category": "课程类别",
-    "teacherTitle": "建议讲师职称",
+    "teacherTitle": "待确认",
     "location": "课程地点"
   }
 }
@@ -828,71 +835,64 @@ ${projectData.adjustRequirement}
       result = { raw: response.content };
     }
 
-    // 【关键验证】确保每门课程都有 teacherTitle 字段
+    // 【关键验证】确保每门课程都有讲师信息
     if (result && result.courses && Array.isArray(result.courses)) {
-      const courseTypeToTitleMap: Record<string, string> = {
-        '管理': '副教授',
-        '领导': '教授',
-        '政策': '研究员',
-        '技能': '高级工程师',
-        '实践': '高级技师',
-        '理论': '副教授',
-        '培训': '副教授',
-        '发展': '教授',
-        '创新': '教授',
-        '技术': '高级工程师',
-        '经济': '研究员',
-        '法律': '研究员',
-        '财务': '高级会计师',
-        '人事': '高级人力资源管理师',
-        '营销': '高级经济师',
-        '信息': '高级工程师',
-        '数字化': '高级工程师',
-        '党建': '教授',
-        '廉政': '研究员',
-        '安全': '高级工程师',
-        '环保': '高级工程师',
-        '质量': '高级工程师',
-        '文化': '教授',
-        '心理': '教授',
-        '应急': '高级工程师',
-      };
-
       result.courses.forEach((course: Record<string, unknown>, index: number) => {
         // 参访课程不需要讲师信息
         if (course.type === 'visit') {
           return;
         }
 
-        // 如果没有 teacherTitle，根据课程类别自动补全
-        if (!course.teacherTitle || course.teacherTitle === '') {
-          const category = (course.category as string) || '';
-          const courseName = (course.name as string) || '';
-          
-          // 优先根据类别匹配
-          let suggestedTitle = '副教授'; // 默认职称
-          
-          for (const [keyword, title] of Object.entries(courseTypeToTitleMap)) {
-            if (category.includes(keyword)) {
-              suggestedTitle = title;
-              break;
-            }
-          }
-          
-          // 如果类别中没有匹配，尝试从课程名称匹配
-          if (suggestedTitle === '副教授') {
-            for (const [keyword, title] of Object.entries(courseTypeToTitleMap)) {
-              if (courseName.includes(keyword)) {
-                suggestedTitle = title;
-                break;
-              }
-            }
-          }
-          
-          course.teacherTitle = suggestedTitle;
-          console.log(`[AI推荐] 第${index + 1}门课程"${courseName}"缺少讲师职称，已自动补全为"${suggestedTitle}"`);
+        const courseName = (course.name as string) || `第${index + 1}门课程`;
+        const isFromTemplate = (course.isFromTemplate as boolean) || false;
+        const hasTeacher = !!((course.teacherName as string) && (course.teacherId as string));
+
+        // 情况1：使用模板课程且有讲师关联 - 保持原样
+        if (isFromTemplate && hasTeacher) {
+          console.log(`[AI推荐] 第${index + 1}门课程"${courseName}"使用模板，显示关联讲师：${course.teacherName}`);
+          return;
+        }
+
+        // 情况2：使用模板课程但无讲师关联 - 职称填写"待确认"
+        if (isFromTemplate && !hasTeacher) {
+          course.teacherTitle = '待确认';
+          console.log(`[AI推荐] 第${index + 1}门课程"${courseName}"使用模板但无关联讲师，职称设置为"待确认"`);
+          return;
+        }
+
+        // 情况3：AI 生成的课程 - 职称填写"待确认"
+        if (!isFromTemplate) {
+          course.teacherTitle = '待确认';
+          console.log(`[AI推荐] 第${index + 1}门课程"${courseName}"为AI生成课程，职称设置为"待确认"`);
+          return;
         }
       });
+    }
+
+    // 【关键验证】确保调整单个课程时也有正确的讲师信息
+    if (result && result.course && typeof result.course === 'object') {
+      const course = result.course as Record<string, unknown>;
+      const courseName = (course.name as string) || '调整后的课程';
+      const isFromTemplate = (course.isFromTemplate as boolean) || false;
+      const hasTeacher = !!((course.teacherName as string) && (course.teacherId as string));
+
+      // 参访课程不需要讲师信息
+      if (course.type !== 'visit') {
+        // 情况1：使用模板课程且有讲师关联 - 保持原样
+        if (isFromTemplate && hasTeacher) {
+          console.log(`[AI调整] 课程"${courseName}"使用模板，显示关联讲师：${course.teacherName}`);
+        }
+        // 情况2：使用模板课程但无讲师关联 - 职称填写"待确认"
+        else if (isFromTemplate && !hasTeacher) {
+          course.teacherTitle = '待确认';
+          console.log(`[AI调整] 课程"${courseName}"使用模板但无关联讲师，职称设置为"待确认"`);
+        }
+        // 情况3：其他情况 - 职称填写"待确认"
+        else {
+          course.teacherTitle = '待确认';
+          console.log(`[AI调整] 课程"${courseName}"职称设置为"待确认"`);
+        }
+      }
     }
 
     return NextResponse.json({ data: result });
