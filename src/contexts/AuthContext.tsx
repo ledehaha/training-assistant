@@ -195,9 +195,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     timerRef.current = setInterval(() => {
       if (Date.now() - lastActivityRef.current >= AUTO_LOGOUT_TIME) {
-        // 提示用户会话已超时
-        alert('由于长时间未操作，您已自动退出登录。');
-        logout(true);
+        // 清理定时器，防止重复触发
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+        
+        // 清理本地状态
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('session_token');
+        }
+        setUser(null);
+        setAuthenticated(false);
+        
+        // 先显示提示，延迟跳转让用户看到提示信息
+        alert('由于长时间未操作，您已自动退出登录。即将跳转到登录页面...');
+        
+        // 延迟 500ms 后跳转，确保提示信息被显示
+        setTimeout(() => {
+          // 使用 replace 而不是 href，避免浏览器历史记录问题
+          window.location.replace('/login');
+        }, 500);
       }
     }, CHECK_INTERVAL);
 
@@ -210,7 +228,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         timerRef.current = null;
       }
     };
-  }, [authenticated, logout]);
+  }, [authenticated]);
 
   // Context 值使用 useMemo 缓存
   const contextValue = {
