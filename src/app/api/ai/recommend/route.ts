@@ -434,12 +434,13 @@ ${templateContext}${visitSitesContext}${userProfileContext}
    - 总课时必须严格等于${totalHours}课时
    - 单门课程课时只能是：1、2、4（禁止其他数值）
 
-4. **讲师信息（必须填写，不能留空）**
+4. **讲师信息（强制要求 - 最重要）**
    - 使用模板库课程：优先填模板关联的讲师（teacherName + teacherId）
-   - 使用模板库课程但无关联讲师：填建议讲师职称（teacherTitle），如"教授""副教授""高级工程师"等
+   - 使用模板库课程但无关联讲师：必须填建议讲师职称（teacherTitle），如"教授""副教授""高级工程师"等
    - AI自己生成的课程：必须填建议讲师职称（teacherTitle），根据课程内容推荐合适的职称
    - 参访活动：不需要讲师信息（teacherName、teacherId、teacherTitle 都可以为空或省略）
-   - **每门普通课程都必须有 teacherTitle 字段，确保显示建议讲师职称**
+   - 【强制】每门普通课程（type="course"）都必须有 teacherTitle 字段
+   - 【强制】绝对不能省略 teacherTitle，即使没有具体讲师也必须填写职称建议
 
 返回JSON格式：
 {
@@ -825,6 +826,73 @@ ${projectData.adjustRequirement}
     } catch (parseError) {
       console.error('JSON parse error:', parseError);
       result = { raw: response.content };
+    }
+
+    // 【关键验证】确保每门课程都有 teacherTitle 字段
+    if (result && result.courses && Array.isArray(result.courses)) {
+      const courseTypeToTitleMap: Record<string, string> = {
+        '管理': '副教授',
+        '领导': '教授',
+        '政策': '研究员',
+        '技能': '高级工程师',
+        '实践': '高级技师',
+        '理论': '副教授',
+        '培训': '副教授',
+        '发展': '教授',
+        '创新': '教授',
+        '技术': '高级工程师',
+        '经济': '研究员',
+        '法律': '研究员',
+        '财务': '高级会计师',
+        '人事': '高级人力资源管理师',
+        '营销': '高级经济师',
+        '信息': '高级工程师',
+        '数字化': '高级工程师',
+        '党建': '教授',
+        '廉政': '研究员',
+        '安全': '高级工程师',
+        '环保': '高级工程师',
+        '质量': '高级工程师',
+        '文化': '教授',
+        '心理': '教授',
+        '应急': '高级工程师',
+      };
+
+      result.courses.forEach((course: Record<string, unknown>, index: number) => {
+        // 参访课程不需要讲师信息
+        if (course.type === 'visit') {
+          return;
+        }
+
+        // 如果没有 teacherTitle，根据课程类别自动补全
+        if (!course.teacherTitle || course.teacherTitle === '') {
+          const category = (course.category as string) || '';
+          const courseName = (course.name as string) || '';
+          
+          // 优先根据类别匹配
+          let suggestedTitle = '副教授'; // 默认职称
+          
+          for (const [keyword, title] of Object.entries(courseTypeToTitleMap)) {
+            if (category.includes(keyword)) {
+              suggestedTitle = title;
+              break;
+            }
+          }
+          
+          // 如果类别中没有匹配，尝试从课程名称匹配
+          if (suggestedTitle === '副教授') {
+            for (const [keyword, title] of Object.entries(courseTypeToTitleMap)) {
+              if (courseName.includes(keyword)) {
+                suggestedTitle = title;
+                break;
+              }
+            }
+          }
+          
+          course.teacherTitle = suggestedTitle;
+          console.log(`[AI推荐] 第${index + 1}门课程"${courseName}"缺少讲师职称，已自动补全为"${suggestedTitle}"`);
+        }
+      });
     }
 
     return NextResponse.json({ data: result });
