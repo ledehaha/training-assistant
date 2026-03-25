@@ -209,7 +209,7 @@ export const venues = sqliteTable(
     name: text('name').notNull(),
     location: text('location'),
     capacity: integer('capacity'),
-    dailyRate: real('daily_rate'),
+    hourlyRate: real('hourly_rate'), // 每课时租金（元）
     facilities: text('facilities'),
     rating: real('rating').default(4.0),
     usageCount: integer('usage_count').default(0),
@@ -688,7 +688,7 @@ export const insertVenueSchema = createInsertSchema(venues).pick({
   name: true,
   location: true,
   capacity: true,
-  dailyRate: true,
+  hourlyRate: true,
   facilities: true,
 });
 

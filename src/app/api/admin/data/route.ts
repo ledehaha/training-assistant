@@ -214,7 +214,7 @@ export async function GET(request: NextRequest) {
           name: venues.name,
           location: venues.location,
           capacity: venues.capacity,
-          dailyRate: venues.dailyRate,
+          hourlyRate: venues.hourlyRate,
           facilities: venues.facilities,
           rating: venues.rating,
           usageCount: venues.usageCount,

@@ -189,7 +189,7 @@ const createTablesSQL = `
     name TEXT NOT NULL,
     location TEXT,
     capacity INTEGER,
-    daily_rate REAL,
+    hourly_rate REAL,
     facilities TEXT,
     rating REAL DEFAULT 4.0,
     usage_count INTEGER DEFAULT 0,
@@ -631,6 +631,56 @@ function runMigrations(db: SqlJsDatabase): void {
       // 列可能不存在，忽略错误
     }
     
+    // 重命名 venues 表的 daily_rate 列为 hourly_rate
+    try {
+      const venueColumns = db.exec(`PRAGMA table_info(venues)`);
+      if (venueColumns.length > 0) {
+        const columns = venueColumns[0].values.map((row) => row[1] as string);
+        
+        // 如果存在 daily_rate 但不存在 hourly_rate，则重命名
+        if (columns.includes('daily_rate') && !columns.includes('hourly_rate')) {
+          // SQLite 不支持直接重命名列，需要重建表
+          db.run(`
+            CREATE TABLE venues_new (
+              id TEXT PRIMARY KEY,
+              name TEXT NOT NULL,
+              location TEXT,
+              capacity INTEGER,
+              hourly_rate REAL,
+              facilities TEXT,
+              rating REAL DEFAULT 4.0,
+              usage_count INTEGER DEFAULT 0,
+              is_active INTEGER DEFAULT 1,
+              created_by TEXT,
+              created_by_department TEXT,
+              created_at TEXT DEFAULT (datetime('now')),
+              updated_at TEXT
+            )
+          `);
+          
+          db.run(`
+            INSERT INTO venues_new 
+            SELECT id, name, location, capacity, daily_rate, facilities, rating, 
+                   usage_count, is_active, created_by, created_by_department, 
+                   created_at, updated_at 
+            FROM venues
+          `);
+          
+          db.run(`DROP TABLE venues`);
+          db.run(`ALTER TABLE venues_new RENAME TO venues`);
+          
+          // 重建索引
+          db.run(`CREATE INDEX IF NOT EXISTS venues_name_idx ON venues(name)`);
+          db.run(`CREATE INDEX IF NOT EXISTS venues_location_idx ON venues(location)`);
+          db.run(`CREATE INDEX IF NOT EXISTS venues_created_by_department_idx ON venues(created_by_department)`);
+          
+          console.log('Migration: Renamed daily_rate to hourly_rate in venues table');
+        }
+      }
+    } catch (err) {
+      console.warn('Migration: Failed to rename daily_rate column:', err);
+    }
+    
     // 迁移课程数据：将 course_templates 和 project_courses 数据合并到 courses 表
     try {
       // 检查 courses 表是否有数据
@@ -948,20 +998,20 @@ async function initializeSeedData(): Promise<void> {
   
   // 8. 初始化场地示例数据
   const venues = [
-    { id: 'venue_001', name: '学术报告厅', location: '培训中心A栋1楼', capacity: 200, dailyRate: 2000, facilities: '投影仪、音响系统、演讲台、空调、WiFi', rating: 4.8, usageCount: 156, isActive: 1 },
-    { id: 'venue_002', name: '多媒体教室1', location: '培训中心B栋2楼', capacity: 50, dailyRate: 800, facilities: '投影仪、电脑、白板、空调、WiFi', rating: 4.6, usageCount: 234, isActive: 1 },
-    { id: 'venue_003', name: '多媒体教室2', location: '培训中心B栋2楼', capacity: 50, dailyRate: 800, facilities: '投影仪、电脑、白板、空调、WiFi', rating: 4.5, usageCount: 189, isActive: 1 },
-    { id: 'venue_004', name: '研讨室A', location: '培训中心C栋3楼', capacity: 20, dailyRate: 500, facilities: '投影仪、白板、空调、WiFi', rating: 4.7, usageCount: 312, isActive: 1 },
-    { id: 'venue_005', name: '研讨室B', location: '培训中心C栋3楼', capacity: 20, dailyRate: 500, facilities: '投影仪、白板、空调、WiFi', rating: 4.6, usageCount: 287, isActive: 1 },
-    { id: 'venue_006', name: '计算机实训室', location: '培训中心D栋1楼', capacity: 40, dailyRate: 1500, facilities: '电脑40台、投影仪、空调、WiFi', rating: 4.9, usageCount: 178, isActive: 1 },
-    { id: 'venue_007', name: '多功能厅', location: '培训中心A栋2楼', capacity: 100, dailyRate: 1500, facilities: '投影仪、音响系统、舞台、空调、WiFi', rating: 4.7, usageCount: 145, isActive: 1 },
-    { id: 'venue_008', name: 'VIP会议室', location: '培训中心A栋3楼', capacity: 15, dailyRate: 1000, facilities: '投影仪、会议桌、茶水服务、空调、WiFi', rating: 4.9, usageCount: 89, isActive: 1 },
+    { id: 'venue_001', name: '学术报告厅', location: '培训中心A栋1楼', capacity: 200, hourlyRate: 250, facilities: '投影仪、音响系统、演讲台、空调、WiFi', rating: 4.8, usageCount: 156, isActive: 1 },
+    { id: 'venue_002', name: '多媒体教室1', location: '培训中心B栋2楼', capacity: 50, hourlyRate: 100, facilities: '投影仪、电脑、白板、空调、WiFi', rating: 4.6, usageCount: 234, isActive: 1 },
+    { id: 'venue_003', name: '多媒体教室2', location: '培训中心B栋2楼', capacity: 50, hourlyRate: 100, facilities: '投影仪、电脑、白板、空调、WiFi', rating: 4.5, usageCount: 189, isActive: 1 },
+    { id: 'venue_004', name: '研讨室A', location: '培训中心C栋3楼', capacity: 20, hourlyRate: 62.5, facilities: '投影仪、白板、空调、WiFi', rating: 4.7, usageCount: 312, isActive: 1 },
+    { id: 'venue_005', name: '研讨室B', location: '培训中心C栋3楼', capacity: 20, hourlyRate: 62.5, facilities: '投影仪、白板、空调、WiFi', rating: 4.6, usageCount: 287, isActive: 1 },
+    { id: 'venue_006', name: '计算机实训室', location: '培训中心D栋1楼', capacity: 40, hourlyRate: 187.5, facilities: '电脑40台、投影仪、空调、WiFi', rating: 4.9, usageCount: 178, isActive: 1 },
+    { id: 'venue_007', name: '多功能厅', location: '培训中心A栋2楼', capacity: 100, hourlyRate: 187.5, facilities: '投影仪、音响系统、舞台、空调、WiFi', rating: 4.7, usageCount: 145, isActive: 1 },
+    { id: 'venue_008', name: 'VIP会议室', location: '培训中心A栋3楼', capacity: 15, hourlyRate: 125, facilities: '投影仪、会议桌、茶水服务、空调、WiFi', rating: 4.9, usageCount: 89, isActive: 1 },
   ];
   
   for (const venue of venues) {
     sqlite.run(
-      `INSERT OR IGNORE INTO venues (id, name, location, capacity, daily_rate, facilities, rating, usage_count, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [venue.id, venue.name, venue.location, venue.capacity, venue.dailyRate, venue.facilities, venue.rating, venue.usageCount, venue.isActive, now]
+      `INSERT OR IGNORE INTO venues (id, name, location, capacity, hourly_rate, facilities, rating, usage_count, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [venue.id, venue.name, venue.location, venue.capacity, venue.hourlyRate, venue.facilities, venue.rating, venue.usageCount, venue.isActive, now]
     );
   }
   

@@ -176,7 +176,7 @@ const TABLES_CONFIG = [
       { key: 'name', label: '名称', type: 'text', editable: true, required: true },
       { key: 'location', label: '地址', type: 'text', editable: true },
       { key: 'capacity', label: '容纳人数', type: 'number', editable: true },
-      { key: 'dailyRate', label: '日租金(元)', type: 'number', editable: true },
+      { key: 'hourlyRate', label: '每课时租金(元)', type: 'number', editable: true },
       { key: 'facilities', label: '设施', type: 'text', editable: true },
       { key: 'rating', label: '评分', type: 'number', editable: true },
       { key: 'usageCount', label: '使用次数', type: 'number', editable: true },
@@ -840,7 +840,7 @@ export default function DataManagementPage() {
       is_active: 'isActive',
     },
     venues: {
-      daily_rate: 'dailyRate',
+      hourly_rate: 'hourlyRate',
       usage_count: 'usageCount',
       is_active: 'isActive',
     },

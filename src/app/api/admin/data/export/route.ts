@@ -55,7 +55,7 @@ const TABLE_CONFIG: Record<string, { label: string; columns: { key: string; labe
       { key: 'name', label: '名称' },
       { key: 'location', label: '地址' },
       { key: 'capacity', label: '容纳人数' },
-      { key: 'dailyRate', label: '日租金(元)' },
+      { key: 'hourlyRate', label: '每课时租金(元)' },
       { key: 'facilities', label: '设施' },
       { key: 'rating', label: '评分' },
       { key: 'usageCount', label: '使用次数' },

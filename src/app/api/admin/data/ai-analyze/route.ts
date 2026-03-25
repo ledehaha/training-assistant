@@ -237,7 +237,7 @@ const TABLE_PROMPTS: Record<string, { schema: string; prompt: string }> = {
     "name": "场地名称（必填）",
     "location": "地址",
     "capacity": 容纳人数（数字）,
-    "daily_rate": 日租金（数字，单位元）,
+    "hourly_rate": 每课时租金（数字，单位元）,
     "facilities": "设施描述（如：投影仪、音响、白板等）",
     "rating": 评分（1-5分，默认4.0）,
     "usage_count": 使用次数（默认0）,

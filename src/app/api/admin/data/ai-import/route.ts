@@ -83,7 +83,7 @@ const TABLE_SCHEMA: Record<string, string> = {
 - name (必填): 场地名称
 - location: 地址
 - capacity: 容纳人数
-- dailyRate: 日租金（元）
+- hourlyRate: 每课时租金（元）
 - facilities: 设施，多个用逗号分隔
 - rating: 评分（1-5）
 - usageCount: 使用次数

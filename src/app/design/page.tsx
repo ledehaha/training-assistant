@@ -90,7 +90,7 @@ interface Venue {
   name: string;
   location: string;
   capacity: number;
-  daily_rate: string;
+  hourly_rate: string;
   rating: string;
 }
 
@@ -2270,7 +2270,7 @@ export default function DesignPage() {
                           容纳人数：{venue.capacity}人
                         </p>
                         <p className="text-sm">
-                          日租金：¥{venue.daily_rate}
+                          每课时租金：¥{venue.hourly_rate}
                         </p>
                       </CardContent>
                     </Card>

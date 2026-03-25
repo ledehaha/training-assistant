@@ -23,7 +23,7 @@ const TABLES_CONFIG: Record<string, { label: string; columns: { key: string; lab
       { key: 'name', label: '名称', type: 'text', required: true },
       { key: 'location', label: '地址', type: 'text' },
       { key: 'capacity', label: '容纳人数', type: 'number' },
-      { key: 'daily_rate', label: '日租金(元)', type: 'number' },
+      { key: 'hourly_rate', label: '每课时租金(元)', type: 'number' },
       { key: 'facilities', label: '设施', type: 'text' },
       { key: 'rating', label: '评分(1-5)', type: 'number' },
       { key: 'usage_count', label: '使用次数', type: 'number' },
@@ -96,7 +96,7 @@ const SAMPLE_DATA: Record<string, Record<string, unknown>[]> = {
     { name: '李华', title: '副高', expertise: '安全生产', organization: '某安全研究院', bio: '安全生产专家', hourly_rate: 1500, rating: 4.8, teaching_count: 38, is_active: '是' },
   ],
   venues: [
-    { name: '阳光培训中心', location: '上海市浦东新区', capacity: 100, daily_rate: 5000, facilities: '投影仪、音响、白板', rating: 4.7, usage_count: 28, is_active: '是' },
+    { name: '阳光培训中心', location: '上海市浦东新区', capacity: 100, hourly_rate: 625, facilities: '投影仪、音响、白板', rating: 4.7, usage_count: 28, is_active: '是' },
   ],
   course_templates: [
     { name: '班组长管理技能提升', category: '管理技能', duration: 8, target_audience: '班组长', difficulty: '中级', description: '提升班组长的管理能力', usage_count: 45, avg_rating: 4.7 },

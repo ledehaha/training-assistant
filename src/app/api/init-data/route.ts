@@ -24,10 +24,10 @@ export async function POST(request: NextRequest) {
 
     // 初始化场地数据
     const venuesData = [
-      { name: '阳光培训中心', location: '上海市浦东新区张江路888号', capacity: 100, dailyRate: 5000, rating: 4.7, usageCount: 28, facilities: '投影仪、音响、白板、空调、茶歇区' },
-      { name: '城市会议厅', location: '上海市黄浦区人民广场', capacity: 80, dailyRate: 3500, rating: 4.6, usageCount: 22, facilities: 'LED大屏、音响系统、茶歇服务' },
-      { name: '科技园培训室', location: '上海市徐汇区漕河泾开发区', capacity: 60, dailyRate: 2500, rating: 4.5, usageCount: 18, facilities: '投影仪、白板、网络、空调' },
-      { name: '企业大学礼堂', location: '上海市闵行区莘庄', capacity: 200, dailyRate: 8000, rating: 4.4, usageCount: 12, facilities: '大型投影、专业音响、座椅、空调' },
+      { name: '阳光培训中心', location: '上海市浦东新区张江路888号', capacity: 100, hourlyRate: 625, rating: 4.7, usageCount: 28, facilities: '投影仪、音响、白板、空调、茶歇区' },
+      { name: '城市会议厅', location: '上海市黄浦区人民广场', capacity: 80, hourlyRate: 437.5, rating: 4.6, usageCount: 22, facilities: 'LED大屏、音响系统、茶歇服务' },
+      { name: '科技园培训室', location: '上海市徐汇区漕河泾开发区', capacity: 60, hourlyRate: 312.5, rating: 4.5, usageCount: 18, facilities: '投影仪、白板、网络、空调' },
+      { name: '企业大学礼堂', location: '上海市闵行区莘庄', capacity: 200, hourlyRate: 1000, rating: 4.4, usageCount: 12, facilities: '大型投影、专业音响、座椅、空调' },
     ];
 
     // 初始化课程模板数据（写入 courses 表，设置 isTemplate = true）
