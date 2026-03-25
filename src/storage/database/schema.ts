@@ -209,8 +209,7 @@ export const venues = sqliteTable(
     name: text('name').notNull(),
     location: text('location'),
     capacity: integer('capacity'),
-    unitRate: real('unit_rate'), // 每单元租金（按小时、半天、天等不同计费单位）
-    unitType: text('unit_type').default('day'), // 计费单位：hour(小时)/half_day(半天)/day(天)/session(场次)
+    dailyRate: real('daily_rate'),
     facilities: text('facilities'),
     rating: real('rating').default(4.0),
     usageCount: integer('usage_count').default(0),
@@ -689,8 +688,7 @@ export const insertVenueSchema = createInsertSchema(venues).pick({
   name: true,
   location: true,
   capacity: true,
-  unitRate: true,
-  unitType: true,
+  dailyRate: true,
   facilities: true,
 });
 

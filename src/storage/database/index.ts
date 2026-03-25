@@ -189,8 +189,7 @@ const createTablesSQL = `
     name TEXT NOT NULL,
     location TEXT,
     capacity INTEGER,
-    unit_rate REAL,
-    unit_type TEXT DEFAULT 'day',
+    daily_rate REAL,
     facilities TEXT,
     rating REAL DEFAULT 4.0,
     usage_count INTEGER DEFAULT 0,
@@ -579,8 +578,6 @@ const migrationSQL = `
   ALTER TABLE projects ADD COLUMN declaration_file_name_word TEXT;
   ALTER TABLE projects ADD COLUMN has_saved_courses INTEGER DEFAULT 0;
   ALTER TABLE normative_documents ADD COLUMN visibility TEXT DEFAULT 'public';
-  ALTER TABLE venues ADD COLUMN unit_rate REAL;
-  ALTER TABLE venues ADD COLUMN unit_type TEXT DEFAULT 'day';
 `;
 
 // 执行迁移（检查并添加缺失的列）
@@ -685,37 +682,6 @@ function runMigrations(db: SqlJsDatabase): void {
       }
     } catch (err) {
       console.warn('Migration: Failed to migrate course data:', err);
-    }
-    
-    // 迁移场地数据：将旧的 daily_rate 迁移到新的 unit_rate
-    try {
-      // 检查 venues 表是否有 daily_rate 列和 unit_rate 列
-      const tableInfo = db.exec("PRAGMA table_info(venues)");
-      if (tableInfo.length > 0) {
-        const columns = tableInfo[0].values.map((row) => row[1] as string);
-        
-        // 如果同时存在 daily_rate 和 unit_rate，说明数据已经迁移过了
-        if (columns.includes('daily_rate') && columns.includes('unit_rate')) {
-          // 检查是否有 unit_rate 为 NULL 但 daily_rate 不为 NULL 的数据
-          const needMigration = db.exec(`
-            SELECT COUNT(*) FROM venues 
-            WHERE unit_rate IS NULL AND daily_rate IS NOT NULL
-          `);
-          
-          if (needMigration.length > 0 && (needMigration[0].values[0][0] as number) > 0) {
-            // 迁移数据：将 daily_rate 复制到 unit_rate，设置 unit_type 为 'day'
-            db.run(`
-              UPDATE venues 
-              SET unit_rate = daily_rate, 
-                  unit_type = 'day' 
-              WHERE unit_rate IS NULL AND daily_rate IS NOT NULL
-            `);
-            console.log('Migration: Migrated daily_rate to unit_rate in venues table');
-          }
-        }
-      }
-    } catch (err) {
-      console.warn('Migration: Failed to migrate venue rate data:', err);
     }
   } catch (err) {
     console.warn('Migration check failed:', err);
