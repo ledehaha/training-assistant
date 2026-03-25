@@ -413,7 +413,7 @@ export default function DataManagementPage() {
   const getImportPlaceholder = () => {
     const placeholders: Record<string, string> = {
       teachers: '请输入讲师信息...\n\n例如：张三，正高职称，专业领域是管理培训，来自某大学商学院\n\n提示：可省略课时费，AI将根据职称自动填充（院士1500元、正高1000元、其他500元）',
-      venues: '请输入场地信息...\n\n例如：阳光培训中心，位于上海市浦东新区，可容纳100人，日租金5000元',
+      venues: '请输入场地信息...\n\n例如：阳光培训中心，位于上海市浦东新区，可容纳100人，每课时租金625元',
       course_templates: '请输入课程模板信息...\n\n例如：班组长管理技能提升，管理技能类，8课时，面向班组长',
       normative_documents: '请输入规范性文件信息...\n\n例如：培训费用管理办法，上海市人力资源和社会保障局，2024年1月颁布\n\n提示：上传文件后AI将自动提取摘要',
       projects: '请输入培训项目信息...\n\n例如：2024年班组长能力提升培训，目标人群班组长，参训人数50人，培训4天',
@@ -2280,13 +2280,13 @@ export default function DataManagementPage() {
                       />
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-700 w-24 shrink-0">日租金(元)：</span>
+                      <span className="font-medium text-gray-700 w-24 shrink-0">每课时租金(元)：</span>
                       <Input
                         type="number"
-                        value={String(aiImportPreview[currentIndex].daily_rate || '')}
+                        value={String(aiImportPreview[currentIndex].hourly_rate || '')}
                         onChange={(e) => {
                           const newData = [...aiImportPreview];
-                          newData[currentIndex] = { ...newData[currentIndex], daily_rate: parseFloat(e.target.value) || 0 };
+                          newData[currentIndex] = { ...newData[currentIndex], hourly_rate: parseFloat(e.target.value) || 0 };
                           setAiImportPreview(newData);
                         }}
                         placeholder="0"

@@ -58,7 +58,7 @@ export const venues = pgTable(
     name: varchar("name", { length: 200 }).notNull(),
     location: varchar("location", { length: 300 }), // 地址
     capacity: integer("capacity"), // 容量
-    dailyRate: numeric("daily_rate", { precision: 10, scale: 2 }), // 日租金
+    hourlyRate: numeric("hourly_rate", { precision: 10, scale: 2 }), // 每课时租金
     facilities: text("facilities"), // 设施说明
     rating: numeric("rating", { precision: 3, scale: 2 }).default("4.0"),
     usageCount: integer("usage_count").default(0), // 使用次数
@@ -311,7 +311,7 @@ export const insertVenueSchema = createCoercedInsertSchema(venues).pick({
   name: true,
   location: true,
   capacity: true,
-  dailyRate: true,
+  hourlyRate: true,
   facilities: true,
 });
 

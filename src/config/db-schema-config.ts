@@ -246,9 +246,9 @@ export const venuesSchema: TableSchemaConfig = {
       validation: { min: 1 },
     },
     {
-      name: 'dailyRate',
-      displayName: '日租金',
-      description: '场地每日租金，单位：元',
+      name: 'hourlyRate',
+      displayName: '每课时租金',
+      description: '场地每课时租金，单位：元',
       type: 'number',
       aiExtract: true,
       aiHint: '提取数字即可',
