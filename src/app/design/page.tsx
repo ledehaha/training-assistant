@@ -876,12 +876,14 @@ export default function DesignPage() {
           teacherId: c.teacherId as string,
           teacherTitle: c.teacherTitle as string,
           teacherName: c.teacherName as string,
+          location: c.location as string,
           isFromTemplate: c.isFromTemplate as boolean || false,
           templateId: c.templateId as string,
           // 参访相关字段
           type: (c.type as 'course' | 'visit' | 'break' | 'other') || 'course',
           visitSiteId: c.visitSiteId as string,
           visitSiteName: c.visitSiteName as string,
+          visitSiteAddress: c.visitSiteAddress as string,
           isFromVisitLibrary: c.isFromVisitLibrary as boolean || false,
         }));
         
@@ -966,12 +968,14 @@ export default function DesignPage() {
           teacherId: c.teacherId as string,
           teacherTitle: c.teacherTitle as string,
           teacherName: c.teacherName as string,
+          location: c.location as string,
           isFromTemplate: c.isFromTemplate as boolean || false,
           templateId: c.templateId as string,
           // 参访相关字段
           type: (c.type as 'course' | 'visit' | 'break' | 'other') || 'course',
           visitSiteId: c.visitSiteId as string,
           visitSiteName: c.visitSiteName as string,
+          visitSiteAddress: c.visitSiteAddress as string,
           isFromVisitLibrary: c.isFromVisitLibrary as boolean || false,
         }));
         

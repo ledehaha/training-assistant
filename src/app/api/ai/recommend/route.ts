@@ -434,11 +434,12 @@ ${templateContext}${visitSitesContext}${userProfileContext}
    - 总课时必须严格等于${totalHours}课时
    - 单门课程课时只能是：1、2、4（禁止其他数值）
 
-4. **讲师填写规则（重要）**
-   - 使用模板库课程：填模板关联的讲师（teacherName + teacherId）
-   - 使用模板库课程但无关联讲师：填建议职称（teacherTitle）
-   - AI自己生成的课程：只填建议职称（teacherTitle）
-   - 参访活动：不需要讲师信息
+4. **讲师信息（必须填写，不能留空）**
+   - 使用模板库课程：优先填模板关联的讲师（teacherName + teacherId）
+   - 使用模板库课程但无关联讲师：填建议讲师职称（teacherTitle），如"教授""副教授""高级工程师"等
+   - AI自己生成的课程：必须填建议讲师职称（teacherTitle），根据课程内容推荐合适的职称
+   - 参访活动：不需要讲师信息（teacherName、teacherId、teacherTitle 都可以为空或省略）
+   - **每门普通课程都必须有 teacherTitle 字段，确保显示建议讲师职称**
 
 返回JSON格式：
 {
