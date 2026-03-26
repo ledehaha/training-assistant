@@ -232,6 +232,10 @@ export default function DesignPage() {
   const [editingCourseIndex, setEditingCourseIndex] = useState<number | null>(null);
   const [showEditCourseDialog, setShowEditCourseDialog] = useState(false);
   
+  // 地点批量修改确认
+  const [showLocationConfirmDialog, setShowLocationConfirmDialog] = useState(false);
+  const [pendingLocationChange, setPendingLocationChange] = useState<{ location: string; applyToAll: boolean } | null>(null);
+  
   // 课程编辑 - AI调整和课程库选择
   const [aiAdjustText, setAiAdjustText] = useState('');
   const [aiAdjusting, setAiAdjusting] = useState(false);
@@ -2849,7 +2853,16 @@ export default function DesignPage() {
                       <select
                         value={editingCourse.location && venues && venues.find(v => v.name === editingCourse.location) ? editingCourse.location : 'custom'}
                         onChange={(e) => {
-                          setEditingCourse({ ...editingCourse, location: e.target.value === 'custom' ? '' : e.target.value });
+                          const newLocation = e.target.value === 'custom' ? '' : e.target.value;
+                          
+                          // 如果选择了一个具体的场地（不是自定义输入），询问是否应用到所有课程
+                          if (newLocation && newLocation !== 'custom' && courses.length > 1) {
+                            setShowLocationConfirmDialog(true);
+                            setPendingLocationChange({ location: newLocation, applyToAll: false });
+                          } else {
+                            // 自定义输入或只有一门课程，直接更新
+                            setEditingCourse({ ...editingCourse, location: newLocation });
+                          }
                         }}
                         className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                       >
@@ -2890,6 +2903,74 @@ export default function DesignPage() {
                 </div>
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* 地点批量修改确认对话框 */}
+        <Dialog open={showLocationConfirmDialog} onOpenChange={setShowLocationConfirmDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>是否修改所有课程的地点？</DialogTitle>
+              <DialogDescription>
+                您选择了将课程地点修改为：{pendingLocationChange?.location}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 py-4">
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => {
+                  if (pendingLocationChange) {
+                    // 应用到所有课程
+                    const updatedCourses = courses.map(course => ({
+                      ...course,
+                      location: pendingLocationChange.location
+                    }));
+                    setCourses(updatedCourses);
+                    
+                    // 同时更新当前编辑的课程
+                    setEditingCourse({
+                      ...editingCourse!,
+                      location: pendingLocationChange.location
+                    });
+                  }
+                  setShowLocationConfirmDialog(false);
+                  setPendingLocationChange(null);
+                  showToast('success', `已将所有课程地点修改为：${pendingLocationChange?.location}`);
+                }}
+              >
+                <Check className="w-4 h-4 mr-2" />
+                是，修改所有课程的地点
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => {
+                  if (pendingLocationChange) {
+                    // 只修改当前课程
+                    setEditingCourse({
+                      ...editingCourse!,
+                      location: pendingLocationChange.location
+                    });
+                  }
+                  setShowLocationConfirmDialog(false);
+                  setPendingLocationChange(null);
+                }}
+              >
+                <X className="w-4 h-4 mr-2" />
+                否，只修改当前课程
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full justify-start"
+                onClick={() => {
+                  setShowLocationConfirmDialog(false);
+                  setPendingLocationChange(null);
+                }}
+              >
+                取消
+              </Button>
+            </div>
           </DialogContent>
         </Dialog>
 
