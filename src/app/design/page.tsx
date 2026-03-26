@@ -324,6 +324,10 @@ export default function DesignPage() {
         selectedVenueId: currentSelectedVenue?.id,
       };
 
+      console.log('Saving data:', dataToSave);
+      console.log('Project ID:', currentProjectId);
+      console.log('Has courses:', currentCourses.length);
+
       // 获取session token
       const sessionToken = typeof window !== 'undefined' ? localStorage.getItem('session_token') : null;
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -332,18 +336,36 @@ export default function DesignPage() {
       }
       
       if (currentProjectId) {
-        await fetch(`/api/projects/${currentProjectId}`, {
+        // 更新现有项目
+        const res = await fetch(`/api/projects/${currentProjectId}`, {
           method: 'PUT',
           headers,
           body: JSON.stringify(dataToSave),
         });
+        
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.error || '保存失败');
+        }
+        
+        const data = await res.json();
+        console.log('Update project success:', data);
       } else {
+        // 创建新项目
         const res = await fetch('/api/projects', {
           method: 'POST',
           headers,
           body: JSON.stringify(dataToSave),
         });
+        
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.error || '保存失败');
+        }
+        
         const data = await res.json();
+        console.log('Create project success:', data);
+        
         if (data.data?.id) {
           setProjectId(data.data.id);
           projectIdRef.current = data.data.id; // 立即更新 ref
@@ -351,6 +373,7 @@ export default function DesignPage() {
           const url = new URL(window.location.href);
           url.searchParams.set('id', data.data.id);
           window.history.replaceState({}, '', url.toString());
+          console.log('URL updated:', url.toString());
         }
       }
       
@@ -358,15 +381,20 @@ export default function DesignPage() {
       lastSavedDataRef.current = currentData;
       setLastSaveTime(new Date());
       setSaveStatus('saved');
-      showToast('success', '项目已保存');
+      
+      const saveMessage = currentProjectId 
+        ? '项目已更新' 
+        : '项目已保存';
+      showToast('success', saveMessage);
       
       // 3秒后恢复 idle 状态
       setTimeout(() => setSaveStatus('idle'), 3000);
       
     } catch (error) {
-      console.error('Auto save error:', error);
+      console.error('Save error:', error);
       setSaveStatus('error');
-      showToast('error', '保存失败，请重试');
+      const errorMessage = error instanceof Error ? error.message : '保存失败，请重试';
+      showToast('error', errorMessage);
       setTimeout(() => setSaveStatus('idle'), 3000);
     }
   }, [noBudgetLimit, otherTrainingPeriod, showToast]);
