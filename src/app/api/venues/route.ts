@@ -84,26 +84,10 @@ export async function GET(request: NextRequest) {
       baseConditions.push(sql`${venues.location} LIKE ${'%' + location + '%'}`);
     }
     
-    // 根据权限过滤场地
-    // 管理员和教务处可以看到所有场地
-    // 学院负责人可以看到本学院创建的场地
-    // 普通用户只能看到自己创建的场地
-    let additionalCondition: SQLWrapper | undefined;
-    
-    if (!checkUserRole(role, ['admin', 'dean_office'])) {
-      if (checkUserRole(role, ['college_head', 'college_admin'])) {
-        // 学院负责人：可以看到本学院的场地
-        additionalCondition = sql`${venues.createdByDepartment} = ${user.departmentId}`;
-      } else {
-        // 普通用户：只能看到自己创建的场地
-        additionalCondition = sql`${venues.createdBy} = ${user.userId}`;
-      }
-    }
-    
     // 构建完整查询条件
-    const whereClause = additionalCondition
-      ? sql`${sql.join(baseConditions, sql` AND `)} AND ${additionalCondition}`
-      : sql`${sql.join(baseConditions, sql` AND `)}`;
+    // 场地信息对所有已登录用户开放，不进行权限过滤
+    // 因为场地是公共资源，所有用户都应该可以选择
+    const whereClause = sql`${sql.join(baseConditions, sql` AND `)}`;
     
     const results = db
       .select({

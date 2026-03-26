@@ -446,17 +446,33 @@ export default function DesignPage() {
   useEffect(() => {
     const loadResources = async () => {
       try {
+        // 获取session token
+        const sessionToken = typeof window !== 'undefined' ? localStorage.getItem('session_token') : null;
+        const headers: Record<string, string> = {};
+        if (sessionToken) {
+          headers['Authorization'] = `Bearer ${sessionToken}`;
+        }
+
         const [teachersRes, venuesRes, visitSitesRes] = await Promise.all([
-          fetch('/api/teachers'),
-          fetch('/api/venues'),
-          fetch('/api/admin/data?table=visit_sites'),
+          fetch('/api/teachers', { headers }),
+          fetch('/api/venues', { headers }),
+          fetch('/api/admin/data?table=visit_sites', { headers }),
         ]);
         const teachersData = await teachersRes.json();
         const venuesData = await venuesRes.json();
         const visitSitesData = await visitSitesRes.json();
         
+        console.log('Venues response:', venuesData); // 调试信息
+        
+        if (venuesData.error) {
+          console.error('Load venues error:', venuesData.error);
+          showToast('error', `场地数据加载失败: ${venuesData.error}`);
+        } else if (venuesData.data) {
+          setVenues(venuesData.data);
+          console.log('Loaded venues:', venuesData.data.length); // 调试信息
+        }
+        
         if (teachersData.data) setTeachers(teachersData.data);
-        if (venuesData.data) setVenues(venuesData.data);
         if (visitSitesData.data) setVisitSites(visitSitesData.data.filter((s: VisitSite) => s.isActive));
       } catch (error) {
         console.error('Load resources error:', error);
@@ -466,7 +482,7 @@ export default function DesignPage() {
     loadDraftProjects();
     // 检查 API Key 状态
     checkApiKeyConfigured().then(setApiKeyConfigured);
-  }, []);
+  }, [showToast]);
 
   // 加载草稿项目列表（只在初始化和用户手动操作时调用）
   const loadDraftProjects = async () => {
