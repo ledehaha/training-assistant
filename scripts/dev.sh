@@ -27,30 +27,50 @@ if [[ ! -f "node_modules/.bin/next" ]]; then
     
     # 检查 node_modules 目录
     if [[ ! -d "node_modules" ]]; then
-        echo -e "${YELLOW}✗ node_modules 不存在，自动运行 coze init...${NC}"
-        echo ""
+        echo -e "${YELLOW}✗ node_modules 不存在${NC}"
         
-        # 自动运行 coze init 恢复依赖
-        if coze init; then
-            echo -e "${GREEN}✓ coze init 执行成功${NC}"
+        # 检查是否是现有项目（有 package.json）
+        if [[ -f "package.json" ]]; then
+            echo "检测到现有项目，尝试安装依赖..."
+            echo ""
+            
+            # 直接运行 pnpm install
+            if pnpm install 2>&1 | tail -10; then
+                echo ""
+            else
+                echo -e "${RED}✗ pnpm install 执行失败${NC}"
+                exit 1
+            fi
         else
-            echo -e "${RED}✗ coze init 执行失败${NC}"
-            echo "请手动运行: coze init"
+            echo "检测到新项目，自动运行 coze init..."
+            echo ""
+            
+            # 使用 nextjs 模板初始化
+            if coze init "${PROJECT_ROOT}" --template nextjs; then
+                echo -e "${GREEN}✓ coze init 执行成功${NC}"
+            else
+                echo -e "${RED}✗ coze init 执行失败${NC}"
+                echo "请手动运行: coze init ${PROJECT_ROOT} --template nextjs"
+                exit 1
+            fi
+            echo ""
+        fi
+    fi
+    
+    # 再次检查 node_modules
+    if [[ ! -d "node_modules" ]]; then
+        echo -e "${YELLOW}✗ node_modules 仍不存在，尝试 pnpm install...${NC}"
+        
+        if pnpm install 2>&1 | tail -10; then
+            echo ""
+        else
+            echo -e "${RED}✗ pnpm install 执行失败${NC}"
+            echo "请运行: bash scripts/recover.sh"
             exit 1
         fi
-        echo ""
     fi
     
-    # 尝试重新安装
-    echo "运行 pnpm install 修复..."
-    if pnpm install --frozen-lockfile=false 2>&1 | tail -10; then
-        echo ""
-    else
-        echo -e "${RED}✗ 修复失败，请运行: bash scripts/recover.sh${NC}"
-        exit 1
-    fi
-    
-    # 再次检查
+    # 最终验证
     if [[ ! -f "node_modules/.bin/next" ]]; then
         echo -e "${RED}✗ 修复失败，node_modules/.bin/next 仍然不存在${NC}"
         echo ""
