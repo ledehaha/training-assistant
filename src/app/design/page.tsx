@@ -2538,7 +2538,7 @@ export default function DesignPage() {
         </Dialog>
 
         {/* 课程编辑对话框 */}
-        <Dialog open={showEditCourseDialog} onOpenChange={setShowEditCourseDialog}>
+        <Dialog open={showEditCourseDialog} onOpenChange={setShowEditCourseDialog} modal={false}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
