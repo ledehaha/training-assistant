@@ -44,6 +44,13 @@ show_store_status() {
 
 # 清理函数
 clean_pnpm_store() {
+    local auto_install=false
+    
+    # 检查是否启用自动安装
+    if [[ "${AUTO_INSTALL_DEPS:-false}" == "true" ]]; then
+        auto_install=true
+    fi
+    
     echo "========================================="
     echo "清理 .pnpm-store..."
     echo "========================================="
@@ -80,20 +87,28 @@ clean_pnpm_store() {
     echo "释放空间: $old_size"
     echo ""
     
-    # 可选：重新安装依赖
-    read -p "是否重新安装依赖? (y/N) [默认N]: " reinstall
-    reinstall=${reinstall:-n}
-    
-    if [[ $reinstall =~ ^[Yy]$ ]]; then
-        echo ""
+    # 重新安装依赖
+    if [[ "$auto_install" == "true" ]]; then
         echo "========================================="
-        echo "重新安装依赖..."
+        echo "自动重新安装依赖..."
         echo "========================================="
         pnpm install
     else
-        echo -e "${YELLOW}跳过依赖重新安装${NC}"
-        echo ""
-        echo -e "${BLUE}提示: 下次运行 prepare.sh 或 dev.sh 时会自动安装依赖${NC}"
+        # 可选：重新安装依赖
+        read -p "是否重新安装依赖? (y/N) [默认N]: " reinstall
+        reinstall=${reinstall:-n}
+        
+        if [[ $reinstall =~ ^[Yy]$ ]]; then
+            echo ""
+            echo "========================================="
+            echo "重新安装依赖..."
+            echo "========================================="
+            pnpm install
+        else
+            echo -e "${YELLOW}跳过依赖重新安装${NC}"
+            echo ""
+            echo -e "${BLUE}提示: 下次运行 prepare.sh 或 dev.sh 时会自动安装依赖${NC}"
+        fi
     fi
     
     return 0
@@ -101,6 +116,13 @@ clean_pnpm_store() {
 
 # 清理所有缓存
 clean_all_caches() {
+    local auto_install=false
+    
+    # 检查是否启用自动安装
+    if [[ "${AUTO_INSTALL_DEPS:-false}" == "true" ]]; then
+        auto_install=true
+    fi
+    
     echo "========================================="
     echo "清理所有缓存..."
     echo "========================================="
@@ -111,6 +133,7 @@ clean_all_caches() {
     sleep 2
     
     local total_saved=0
+    local cleaned_modules=false
     
     # 清理 .pnpm-store
     if [[ -d ".pnpm-store" ]]; then
@@ -130,17 +153,31 @@ clean_all_caches() {
         echo -e "${GREEN}✓ .next 已清理${NC}"
     fi
     
-    # 清理 node_modules（可选）
-    read -p "是否同时清理 node_modules? (y/N) [默认N]: " clean_modules
-    clean_modules=${clean_modules:-n}
-    
-    if [[ $clean_modules =~ ^[Yy]$ ]]; then
+    # 清理 node_modules
+    if [[ "$auto_install" == "true" ]]; then
+        # 自动模式：直接清理 node_modules
         if [[ -d "node_modules" ]]; then
             local size=$(du -sb node_modules 2>/dev/null | awk '{print $1}')
             echo "清理 node_modules..."
             rm -rf node_modules
             total_saved=$((total_saved + size))
             echo -e "${GREEN}✓ node_modules 已清理${NC}"
+            cleaned_modules=true
+        fi
+    else
+        # 交互模式：询问用户
+        read -p "是否同时清理 node_modules? (y/N) [默认N]: " clean_modules
+        clean_modules=${clean_modules:-n}
+        
+        if [[ $clean_modules =~ ^[Yy]$ ]]; then
+            if [[ -d "node_modules" ]]; then
+                local size=$(du -sb node_modules 2>/dev/null | awk '{print $1}')
+                echo "清理 node_modules..."
+                rm -rf node_modules
+                total_saved=$((total_saved + size))
+                echo -e "${GREEN}✓ node_modules 已清理${NC}"
+                cleaned_modules=true
+            fi
         fi
     fi
     
@@ -153,17 +190,22 @@ clean_all_caches() {
     echo "释放空间: ${total_saved_mb} MB"
     echo ""
     
-    # 提示重新安装
-    if [[ $clean_modules =~ ^[Yy]$ ]]; then
-        read -p "是否立即重新安装依赖? (y/N) [默认N]: " reinstall
-        reinstall=${reinstall:-n}
-        
-        if [[ $reinstall =~ ^[Yy]$ ]]; then
-            echo ""
-            echo "重新安装依赖..."
+    # 重新安装依赖
+    if [[ $cleaned_modules == "true" ]]; then
+        if [[ "$auto_install" == "true" ]]; then
+            echo "自动重新安装依赖..."
             pnpm install
         else
-            echo -e "${BLUE}提示: 运行 'bash scripts/prepare.sh' 来重新安装依赖${NC}"
+            read -p "是否立即重新安装依赖? (y/N) [默认N]: " reinstall
+            reinstall=${reinstall:-n}
+            
+            if [[ $reinstall =~ ^[Yy]$ ]]; then
+                echo ""
+                echo "重新安装依赖..."
+                pnpm install
+            else
+                echo -e "${BLUE}提示: 运行 'bash scripts/prepare.sh' 来重新安装依赖${NC}"
+            fi
         fi
     fi
 }
@@ -214,14 +256,42 @@ main() {
 
 # 命令行参数支持
 case "${1:-}" in
+    --help|-h)
+        echo "pnpm Store 清理工具 - 使用说明"
+        echo ""
+        echo "命令行选项:"
+        echo "  status          - 查看当前状态"
+        echo "  clean-store     - 清理 .pnpm-store"
+        echo "  clean-all       - 清理所有缓存"
+        echo "  --auto-install  - 自动重新安装依赖（与 clean-store 或 clean-all 一起使用）"
+        echo "  --help, -h      - 显示帮助信息"
+        echo ""
+        echo "环境变量:"
+        echo "  AUTO_INSTALL_DEPS=true  - 启用自动重新安装依赖"
+        echo ""
+        echo "示例:"
+        echo "  bash scripts/clean-store.sh clean-store"
+        echo "  bash scripts/clean-store.sh clean-store --auto-install"
+        echo "  bash scripts/clean-store.sh clean-all"
+        echo "  AUTO_INSTALL_DEPS=true bash scripts/clean-store.sh clean-store"
+        exit 0
+        ;;
     status)
         show_store_status
         ;;
     clean-store)
-        clean_pnpm_store
+        if [[ "${2:-}" == "--auto-install" ]]; then
+            AUTO_INSTALL_DEPS=true clean_pnpm_store
+        else
+            clean_pnpm_store
+        fi
         ;;
     clean-all)
-        clean_all_caches
+        if [[ "${2:-}" == "--auto-install" ]]; then
+            AUTO_INSTALL_DEPS=true clean_all_caches
+        else
+            clean_all_caches
+        fi
         ;;
     *)
         main

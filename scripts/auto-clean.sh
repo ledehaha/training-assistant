@@ -98,6 +98,7 @@ load_config() {
     local max_next_size_mb=1000
     local auto_clean_store=true
     local auto_clean_next=true
+    local auto_install_deps=true  # 清理后自动重新安装依赖
     
     if [[ -f "$AUTO_CLEAN_CONFIG" ]]; then
         source "$AUTO_CLEAN_CONFIG"
@@ -110,6 +111,7 @@ load_config() {
     echo "MAX_NEXT_SIZE_MB=${max_next_size_mb}"
     echo "AUTO_CLEAN_STORE=${auto_clean_store}"
     echo "AUTO_CLEAN_NEXT=${auto_clean_next}"
+    echo "AUTO_INSTALL_DEPS=${auto_install_deps}"
 }
 
 # 执行清理
@@ -188,6 +190,31 @@ do_clean() {
     pnpm store prune 2>&1 | grep -E "removing|removed|pruned" || true
     log SUCCESS "pnpm 全局缓存已清理"
     
+    # 4. 检查并重新安装依赖
+    if [[ "$AUTO_INSTALL_DEPS" == "true" ]]; then
+        if [[ ! -d "node_modules" ]] || [[ ! -f "node_modules/.bin/next" ]]; then
+            log WARNING "检测到 node_modules 不完整或不存在，开始重新安装依赖..."
+            
+            # 记录安装开始时间
+            local install_start_time=$(date +%s)
+            
+            if pnpm install; then
+                local install_end_time=$(date +%s)
+                local install_duration=$((install_end_time - install_start_time))
+                local install_minutes=$((install_duration / 60))
+                local install_seconds=$((install_duration % 60))
+                
+                log SUCCESS "依赖安装成功，耗时: ${install_minutes}分${install_seconds}秒"
+            else
+                log ERROR "依赖安装失败，请手动运行: pnpm install"
+            fi
+        else
+            log INFO "node_modules 完整，无需重新安装依赖"
+        fi
+    else
+        log INFO "AUTO_INSTALL_DEPS=false，跳过依赖安装"
+    fi
+    
     # 输出总结
     echo ""
     log SUCCESS "========================================="
@@ -225,6 +252,10 @@ AUTO_CLEAN_STORE=true
 
 # 是否自动清理 .next 缓存
 AUTO_CLEAN_NEXT=true
+
+# 清理后是否自动重新安装依赖（推荐设置为 true）
+# 设置为 true 可以避免 "node_modules/.bin/next 不存在" 的问题
+AUTO_INSTALL_DEPS=true
 EOF
     
     log SUCCESS "已生成默认配置文件: $AUTO_CLEAN_CONFIG"
