@@ -347,6 +347,10 @@ export default function DesignPage() {
         if (data.data?.id) {
           setProjectId(data.data.id);
           projectIdRef.current = data.data.id; // 立即更新 ref
+          // 更新 URL 添加项目 ID
+          const url = new URL(window.location.href);
+          url.searchParams.set('id', data.data.id);
+          window.history.replaceState({}, '', url.toString());
         }
       }
       
@@ -441,6 +445,64 @@ export default function DesignPage() {
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [formData.name, projectId]);
+
+  // 从 URL 参数加载项目数据
+  useEffect(() => {
+    const loadProjectFromUrl = async () => {
+      if (typeof window === 'undefined') return;
+      
+      const urlParams = new URLSearchParams(window.location.search);
+      const projectIdFromUrl = urlParams.get('id');
+      
+      if (projectIdFromUrl) {
+        try {
+          // 获取session token
+          const sessionToken = localStorage.getItem('session_token');
+          const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+          if (sessionToken) {
+            headers['Authorization'] = `Bearer ${sessionToken}`;
+          }
+
+          const res = await fetch(`/api/projects/${projectIdFromUrl}`, { headers });
+          const data = await res.json();
+          
+          if (data.data) {
+            const project = data.data;
+            
+            // 恢复表单数据
+            setFormData({
+              name: project.name || '',
+              trainingTarget: project.trainingTarget || '',
+              targetAudience: project.targetAudience || '',
+              participantCount: project.participantCount || 50,
+              trainingDays: project.trainingDays || 4,
+              trainingHours: project.trainingHours || 32,
+              trainingPeriod: project.trainingPeriod || '',
+              budgetMin: project.budgetMin || 8,
+              budgetMax: project.budgetMax || 12,
+              location: project.location || '',
+              specialRequirements: project.specialRequirements || '',
+            });
+            
+            // 恢复课程数据
+            if (project.courses && Array.isArray(project.courses)) {
+              setCourses(project.courses);
+            }
+            
+            // 设置项目 ID
+            setProjectId(projectIdFromUrl);
+            setOriginalProjectName(project.name || '');
+            
+            console.log('Loaded project from URL:', project.name);
+          }
+        } catch (error) {
+          console.error('Load project from URL error:', error);
+        }
+      }
+    };
+    
+    loadProjectFromUrl();
+  }, []); // 只在组件挂载时执行一次
 
   // 加载讲师和场地数据
   useEffect(() => {
