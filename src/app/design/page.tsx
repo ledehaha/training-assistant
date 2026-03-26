@@ -2855,12 +2855,12 @@ export default function DesignPage() {
                         onChange={(e) => {
                           const newLocation = e.target.value === 'custom' ? '' : e.target.value;
                           
-                          // 如果选择了一个具体的场地（不是自定义输入），询问是否应用到所有课程
-                          if (newLocation && newLocation !== 'custom' && courses.length > 1) {
+                          // 只有在编辑上课课程（type='course'）时才弹出批量修改确认对话框
+                          if (editingCourse.type === 'course' && newLocation && newLocation !== 'custom' && courses.length > 1) {
                             setShowLocationConfirmDialog(true);
                             setPendingLocationChange({ location: newLocation, applyToAll: false });
                           } else {
-                            // 自定义输入或只有一门课程，直接更新
+                            // 参访活动、自定义输入或只有一门课程，直接更新
                             setEditingCourse({ ...editingCourse, location: newLocation });
                           }
                         }}
@@ -2910,9 +2910,9 @@ export default function DesignPage() {
         <Dialog open={showLocationConfirmDialog} onOpenChange={setShowLocationConfirmDialog}>
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>是否修改所有课程的地点？</DialogTitle>
+              <DialogTitle>是否修改所有上课地点？</DialogTitle>
               <DialogDescription>
-                您选择了将课程地点修改为：{pendingLocationChange?.location}
+                您选择了将上课地点修改为：{pendingLocationChange?.location}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3 py-4">
@@ -2921,11 +2921,17 @@ export default function DesignPage() {
                 className="w-full justify-start"
                 onClick={() => {
                   if (pendingLocationChange) {
-                    // 应用到所有课程
-                    const updatedCourses = courses.map(course => ({
-                      ...course,
-                      location: pendingLocationChange.location
-                    }));
+                    // 应用到所有上课地点（type='course'），不修改参访地址（type='visit'）
+                    const updatedCourses = courses.map(course => {
+                      // 只修改上课地点，不修改参访地址
+                      if (course.type === 'course') {
+                        return {
+                          ...course,
+                          location: pendingLocationChange.location
+                        };
+                      }
+                      return course;
+                    });
                     setCourses(updatedCourses);
                     
                     // 同时更新当前编辑的课程
@@ -2936,11 +2942,11 @@ export default function DesignPage() {
                   }
                   setShowLocationConfirmDialog(false);
                   setPendingLocationChange(null);
-                  showToast('success', `已将所有课程地点修改为：${pendingLocationChange?.location}`);
+                  showToast('success', `已将所有上课地点修改为：${pendingLocationChange?.location}`);
                 }}
               >
                 <Check className="w-4 h-4 mr-2" />
-                是，修改所有课程的地点
+                是，修改所有上课地点
               </Button>
               <Button
                 variant="outline"
