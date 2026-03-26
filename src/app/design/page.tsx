@@ -2539,7 +2539,7 @@ export default function DesignPage() {
 
         {/* 课程编辑对话框 */}
         <Dialog open={showEditCourseDialog} onOpenChange={setShowEditCourseDialog}>
-          <DialogContent>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingCourseIndex !== null && editingCourseIndex >= courses.length 
@@ -2727,7 +2727,13 @@ export default function DesignPage() {
                         }}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="选择场地或自定义输入" />
+                          {editingCourse.location && venues && venues.find(v => v.name === editingCourse.location) ? (
+                            <SelectValue placeholder="选择场地或自定义输入" />
+                          ) : (
+                            <span className="text-muted-foreground">
+                              {venues && venues.length > 0 ? '自定义输入...' : '手动输入课程地点...'}
+                            </span>
+                          )}
                         </SelectTrigger>
                         <SelectContent>
                           {venues && venues.length > 0 && venues.map((venue) => (
