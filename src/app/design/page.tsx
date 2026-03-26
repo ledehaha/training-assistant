@@ -290,7 +290,7 @@ export default function DesignPage() {
   const [pendingAction, setPendingAction] = useState<'next' | 'save' | null>(null);
   
   // 实际执行保存的函数（必须在 handleManualSave 之前定义）
-  const performSave = useCallback(async () => {
+  const performSave = useCallback(async (force = false) => {
     // 使用 ref 获取最新数据，避免闭包问题
     const currentFormData = formDataRef.current;
     const currentCourses = coursesRef.current;
@@ -300,15 +300,15 @@ export default function DesignPage() {
     // 检查是否有内容需要保存
     if (!currentFormData.name?.trim() && !currentProjectId) return;
     
-    // 检查数据是否变化
+    // 检查数据是否变化（非强制保存时才检查）
     const currentData = JSON.stringify({
       formData: currentFormData,
       courses: currentCourses,
       selectedVenueId: currentSelectedVenue?.id,
     });
     
-    if (currentData === lastSavedDataRef.current) {
-      return; // 数据没变化，不保存
+    if (!force && currentData === lastSavedDataRef.current) {
+      return; // 数据没变化且不是强制保存，不保存
     }
     
     setSaveStatus('saving');
@@ -373,7 +373,7 @@ export default function DesignPage() {
 
   // 手动保存（用户点击保存按钮时立即保存）
   const handleManualSave = useCallback(async () => {
-    await performSave();
+    await performSave(true); // 强制保存，即使数据没有变化也保存
   }, [performSave]);
 
   // 优化后的自动保存：防抖 30 秒，且只在数据变化时保存
