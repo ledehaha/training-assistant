@@ -299,11 +299,13 @@ export const courses = sqliteTable(
     // === 项目课程专用字段（来自原 projectCourses） ===
     type: text('type').default('course'), // 'course'(课程) / 'visit'(参访) / 'break'(休息) / 'other'(其他)
     teacherId: text('teacher_id').references(() => teachers.id), // 授课教师
+    teacherTitle: text('teacher_title'), // 建议讲师职称（用于项目课程，未关联具体讲师时）
     visitSiteId: text('visit_site_id').references(() => visitSites.id), // 参访基地（参访环节用）
     day: integer('day'), // 培训第几天
     startTime: text('start_time'), // 开始时间
     endTime: text('end_time'), // 结束时间
     order: integer('order').default(0), // 排序序号
+    location: text('location'), // 课程地点
     
     // === 模板统计字段 ===
     usageCount: integer('usage_count').default(0), // 使用次数（模板专用）

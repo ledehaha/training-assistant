@@ -12,6 +12,23 @@ import {
   type UserInfo 
 } from '@/lib/access-control';
 
+// 确保courses表有teacherTitle和location字段（兼容性处理）
+function ensureCoursesTableSchema() {
+  try {
+    // 检查并添加 teacherTitle 字段
+    db.run(`ALTER TABLE courses ADD COLUMN teacherTitle TEXT`);
+  } catch (error) {
+    // 字段已存在，忽略错误
+  }
+  
+  try {
+    // 检查并添加 location 字段
+    db.run(`ALTER TABLE courses ADD COLUMN location TEXT`);
+  } catch (error) {
+    // 字段已存在，忽略错误
+  }
+}
+
 // 一次性数据清理标志
 let dataCleaned = false;
 
@@ -301,6 +318,7 @@ function queryProjectsForCollegeStaff(
 export async function POST(request: NextRequest) {
   try {
     await ensureDatabaseReady();
+    ensureCoursesTableSchema(); // 确保表结构包含teacherTitle和location字段
     
     const currentUser = await getCurrentUser(request);
     
@@ -355,6 +373,9 @@ export async function POST(request: NextRequest) {
             order: i,
             isActive: true,
             createdAt: now,
+            // 保存建议讲师和课程地点
+            teacherTitle: course.teacherTitle || null,
+            location: course.location || null,
           })
           .run();
       }
