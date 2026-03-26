@@ -2721,48 +2721,45 @@ export default function DesignPage() {
                   ) : (
                     <>
                       {venues && venues.length > 0 ? (
-                        <Select
-                          value={editingCourse.location || ''}
-                          onValueChange={(value) => {
-                            if (value === 'custom') {
-                              // 自定义输入
-                              setEditingCourse({ ...editingCourse, location: '' });
-                            } else {
-                              // 从场地信息中选择
-                              setEditingCourse({ ...editingCourse, location: value });
-                            }
-                          }}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="选择场地或自定义输入" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {venues.map((venue) => (
-                              <SelectItem key={venue.id} value={venue.name}>
-                                <div className="flex flex-col">
-                                  <span className="font-medium">{venue.name}</span>
-                                  <span className="text-xs text-muted-foreground">{venue.location}</span>
-                                </div>
+                        <>
+                          <Select
+                            value={editingCourse.location && venues.find(v => v.name === editingCourse.location) ? editingCourse.location : 'custom'}
+                            onValueChange={(value) => {
+                              setEditingCourse({ ...editingCourse, location: value === 'custom' ? '' : value });
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="选择场地或自定义输入" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {venues.map((venue) => (
+                                <SelectItem key={venue.id} value={venue.name}>
+                                  <div className="flex flex-col">
+                                    <span className="font-medium">{venue.name}</span>
+                                    <span className="text-xs text-muted-foreground">{venue.location}</span>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                              <SelectItem value="custom">
+                                <span className="text-muted-foreground">自定义输入...</span>
                               </SelectItem>
-                            ))}
-                            <SelectItem value="custom">
-                              <span className="text-muted-foreground">自定义输入...</span>
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
+                            </SelectContent>
+                          </Select>
+                          {/* 当选择自定义输入或地点不在场地列表中时，显示输入框 */}
+                          {(!editingCourse.location || !venues.find(v => v.name === editingCourse.location)) && (
+                            <Input
+                              value={editingCourse.location || ''}
+                              onChange={(e) => setEditingCourse({ ...editingCourse, location: e.target.value })}
+                              placeholder={editingCourse.type === 'visit' ? '参访地址' : '输入课程地点，如：101教室'}
+                              className="mt-2"
+                            />
+                          )}
+                        </>
                       ) : (
                         <Input
                           value={editingCourse.location || ''}
                           onChange={(e) => setEditingCourse({ ...editingCourse, location: e.target.value })}
                           placeholder={editingCourse.type === 'visit' ? '参访地址' : '输入课程地点，如：101教室'}
-                        />
-                      )}
-                      {(venues.length === 0 || (editingCourse.location && !venues.find(v => v.name === editingCourse.location))) && editingCourse.location !== 'custom' && (
-                        <Input
-                          value={editingCourse.location || ''}
-                          onChange={(e) => setEditingCourse({ ...editingCourse, location: e.target.value })}
-                          placeholder={editingCourse.type === 'visit' ? '参访地址' : '输入课程地点，如：101教室'}
-                          className="mt-2"
                         />
                       )}
                       {venues.length > 0 && (
