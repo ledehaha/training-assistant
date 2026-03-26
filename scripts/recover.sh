@@ -15,6 +15,55 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# 检查 pnpm 版本
+check_pnpm_version() {
+    echo "检查 pnpm 版本..."
+    
+    if ! command -v pnpm &> /dev/null; then
+        echo -e "${RED}✗ pnpm 未安装${NC}"
+        return 1
+    fi
+    
+    PNPM_VERSION=$(pnpm --version)
+    MIN_PNPM_VERSION="9.0.0"
+    
+    # 版本比较
+    version_compare() {
+        if [[ $1 == $2 ]]; then
+            return 0
+        fi
+        local IFS=.
+        local i ver1=($1) ver2=($2)
+        for ((i=${#ver1[@]}; i<${#ver2[@]}; i++)); do
+            ver1[i]=0
+        done
+        for ((i=0; i<${#ver1[@]}; i++)); do
+            if [[ -z ${ver2[i]} ]]; then
+                ver2[i]=0
+            fi
+            if ((10#${ver1[i]} > 10#${ver2[i]})); then
+                return 1
+            fi
+            if ((10#${ver1[i]} < 10#${ver2[i]})); then
+                return 2
+            fi
+        done
+        return 0
+    }
+    
+    version_compare "$PNPM_VERSION" "$MIN_PNPM_VERSION"
+    VERSION_COMPARE_RESULT=$?
+    
+    if [[ $VERSION_COMPARE_RESULT -eq 2 ]]; then
+        echo -e "${YELLOW}! pnpm 版本过低: $PNPM_VERSION (要求 >= $MIN_PNPM_VERSION)${NC}"
+        echo "  建议: npm install -g pnpm@latest"
+        return 1
+    fi
+    
+    echo -e "${GREEN}✓ pnpm 版本: $PNPM_VERSION${NC}"
+    return 0
+}
+
 # 检查函数
 check_node_modules() {
     echo "检查 node_modules..."
@@ -168,6 +217,7 @@ main() {
     
     local has_issues=0
     
+    check_pnpm_version || has_issues=1
     check_node_modules || has_issues=1
     check_next_binary || has_issues=1
     check_processes || has_issues=1
@@ -218,6 +268,7 @@ main() {
 # 如果有参数，执行对应操作
 case "${1:-}" in
     check)
+        check_pnpm_version
         check_node_modules
         check_next_binary
         check_processes
