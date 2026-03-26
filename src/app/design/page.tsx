@@ -2735,7 +2735,7 @@ export default function DesignPage() {
                             </span>
                           )}
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="z-[100]">
                           {venues && venues.length > 0 && venues.map((venue) => (
                             <SelectItem key={venue.id} value={venue.name}>
                               <div className="flex flex-col">
