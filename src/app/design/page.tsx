@@ -314,13 +314,31 @@ export default function DesignPage() {
     setSaveStatus('saving');
     
     try {
+      // 过滤课程数据，只保留数据库需要的字段
+      const filteredCourses = currentCourses.map(course => ({
+        id: course.id,
+        name: course.name,
+        day: course.day,
+        duration: course.duration,
+        description: course.description,
+        category: course.category,
+        teacherId: course.teacherId,
+        teacherTitle: course.teacherTitle,
+        location: course.location,
+        type: course.type || 'course',
+        visitSiteId: course.visitSiteId,
+        createdAt: course.createdAt,
+        updatedAt: course.updatedAt,
+        // 排除前端特有的字段：isFromTemplate, templateId, teacherName, visitSiteName, visitSiteAddress, isFromVisitLibrary 等
+      }));
+
       const dataToSave = {
         ...currentFormData,
         budgetMin: noBudgetLimit ? null : currentFormData.budgetMin,
         budgetMax: noBudgetLimit ? null : currentFormData.budgetMax,
         trainingPeriod: currentFormData.trainingPeriod === '其他' ? otherTrainingPeriod : currentFormData.trainingPeriod,
         status: 'draft',
-        courses: currentCourses,
+        courses: filteredCourses,
         selectedVenueId: currentSelectedVenue?.id,
       };
 
@@ -345,6 +363,7 @@ export default function DesignPage() {
         
         if (!res.ok) {
           const errorData = await res.json();
+          console.error('Update project error:', errorData);
           throw new Error(errorData.error || '保存失败');
         }
         
@@ -352,6 +371,7 @@ export default function DesignPage() {
         console.log('Update project success:', data);
       } else {
         // 创建新项目
+        console.log('Creating new project');
         const res = await fetch('/api/projects', {
           method: 'POST',
           headers,

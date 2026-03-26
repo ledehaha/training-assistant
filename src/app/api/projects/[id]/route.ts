@@ -184,6 +184,9 @@ export async function PUT(
     
     const body = await request.json();
     const now = getTimestamp();
+    
+    console.log('Update project body:', body);
+    console.log('Update project ID:', id);
 
     const updateData: Record<string, unknown> = { updatedAt: now };
 
@@ -242,13 +245,17 @@ export async function PUT(
 
     // 更新课程数据
     if (body.courses !== undefined) {
+      console.log('Updating courses, count:', body.courses.length);
       db.delete(courses).where(and(eq(courses.projectId, id), eq(courses.isTemplate, false))).run();
       
       if (Array.isArray(body.courses) && body.courses.length > 0) {
         for (let i = 0; i < body.courses.length; i++) {
           const course = body.courses[i];
+          const courseId = course.id || generateId();
+          console.log(`Inserting course ${i+1}/${body.courses.length}:`, course.name, 'ID:', courseId);
+          
           db.insert(courses).values({
-            id: course.id || generateId(),
+            id: courseId,
             isTemplate: false, projectId: id, name: course.name,
             day: course.day, duration: course.duration, description: course.description,
             teacherId: course.teacherId, visitSiteId: course.visitSiteId,
@@ -264,9 +271,11 @@ export async function PUT(
 
     saveDatabaseImmediate();
 
+    console.log('Update project success, ID:', id);
     return NextResponse.json({ data: result });
   } catch (error) {
     console.error('Update project error:', error);
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
     return NextResponse.json({ error: 'Failed to update project' }, { status: 500 });
   }
 }
