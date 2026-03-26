@@ -27,8 +27,18 @@ if [[ ! -f "node_modules/.bin/next" ]]; then
     
     # 检查 node_modules 目录
     if [[ ! -d "node_modules" ]]; then
-        echo -e "${RED}✗ node_modules 不存在，请先运行: coze init${NC}"
-        exit 1
+        echo -e "${YELLOW}✗ node_modules 不存在，自动运行 coze init...${NC}"
+        echo ""
+        
+        # 自动运行 coze init 恢复依赖
+        if coze init; then
+            echo -e "${GREEN}✓ coze init 执行成功${NC}"
+        else
+            echo -e "${RED}✗ coze init 执行失败${NC}"
+            echo "请手动运行: coze init"
+            exit 1
+        fi
+        echo ""
     fi
     
     # 尝试重新安装
