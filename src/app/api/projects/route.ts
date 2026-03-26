@@ -356,28 +356,36 @@ export async function POST(request: NextRequest) {
 
     // 保存课程数据
     if (body.courses && Array.isArray(body.courses) && body.courses.length > 0) {
-      for (let i = 0; i < body.courses.length; i++) {
-        const course = body.courses[i];
-        db.insert(courses)
-          .values({
-            id: generateId(),
-            isTemplate: false,
-            projectId: id,
-            name: course.name,
-            day: course.day,
-            duration: course.duration,
-            description: course.description,
-            teacherId: course.teacherId,
-            visitSiteId: course.visitSiteId,
-            type: course.type || 'course',
-            order: i,
-            isActive: true,
-            createdAt: now,
-            // 保存建议讲师和课程地点
-            teacherTitle: course.teacherTitle || null,
-            location: course.location || null,
-          })
-          .run();
+      const sqlite = getSqlite();
+      if (sqlite) {
+        for (let i = 0; i < body.courses.length; i++) {
+          const course = body.courses[i];
+          const courseId = generateId();
+          
+          // 直接使用 SQL 插入，避免 Drizzle ORM schema 问题
+          sqlite.run(
+            `INSERT INTO courses (id, is_template, project_id, name, day, duration, description, category, teacher_id, teacherTitle, location, type, visit_site_id, "order", is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              courseId,
+              0, // is_template
+              id, // project_id
+              course.name,
+              course.day,
+              course.duration,
+              course.description || null,
+              course.category || null,
+              course.teacherId || null,
+              course.teacherTitle || null,
+              course.location || null,
+              course.type || 'course',
+              course.visitSiteId || null,
+              i, // order
+              1, // is_active
+              now,
+              null
+            ]
+          );
+        }
       }
     }
 
