@@ -23,6 +23,10 @@ coverage/
 .env.development.local
 .env.test.local
 .env.production.local
+# 环境配置模板文件可以提交，但本地覆盖文件不应提交
+# .env.development
+# .env.test
+# .env.production
 
 # Logs
 logs/

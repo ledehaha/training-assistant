@@ -11,6 +11,12 @@ echo "========================================="
 echo "工作目录: ${PROJECT_ROOT}"
 echo ""
 
+# 加载环境配置
+if [[ -f "scripts/load-env.sh" ]]; then
+    source scripts/load-env.sh
+    echo ""
+fi
+
 # 颜色输出
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -122,15 +128,36 @@ if [[ $NEED_INSTALL -eq 1 ]]; then
         echo ""
     fi
     
+    # 性能监控：记录开始时间
+    local start_time=$(date +%s)
+    
     # 使用不带 --prefer-frozen-lockfile 的安装，更灵活
     echo "运行: pnpm install"
     echo ""
     
     if pnpm install; then
+        # 性能监控：计算安装时间
+        local end_time=$(date +%s)
+        local install_duration=$((end_time - start_time))
+        local install_minutes=$((install_duration / 60))
+        local install_seconds=$((install_duration % 60))
+        
         echo ""
         echo -e "${GREEN}=========================================${NC}"
         echo -e "${GREEN}✓ 依赖安装成功${NC}"
         echo -e "${GREEN}=========================================${NC}"
+        echo -e "${BLUE}安装耗时: ${install_minutes}分${install_seconds}秒${NC}"
+        
+        # 记录性能数据
+        mkdir -p logs
+        local perf_log="logs/performance.log"
+        {
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] 依赖安装"
+            echo "  耗时: ${install_duration}秒 (${install_minutes}分${install_seconds}秒)"
+            echo "  pnpm 版本: $PNPM_VERSION"
+            echo "  Node 版本: $(node --version)"
+            echo "---"
+        } >> "$perf_log"
     else
         echo ""
         echo -e "${RED}=========================================${NC}"
