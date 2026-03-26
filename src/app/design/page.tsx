@@ -2719,11 +2719,58 @@ export default function DesignPage() {
                       <span className="text-orange-700">{editingCourse.visitSiteAddress}</span>
                     </div>
                   ) : (
-                    <Input
-                      value={editingCourse.location || ''}
-                      onChange={(e) => setEditingCourse({ ...editingCourse, location: e.target.value })}
-                      placeholder={editingCourse.type === 'visit' ? '参访地址' : '输入课程地点，如：101教室'}
-                    />
+                    <>
+                      {venues && venues.length > 0 ? (
+                        <Select
+                          value={editingCourse.location || ''}
+                          onValueChange={(value) => {
+                            if (value === 'custom') {
+                              // 自定义输入
+                              setEditingCourse({ ...editingCourse, location: '' });
+                            } else {
+                              // 从场地信息中选择
+                              setEditingCourse({ ...editingCourse, location: value });
+                            }
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="选择场地或自定义输入" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {venues.map((venue) => (
+                              <SelectItem key={venue.id} value={venue.name}>
+                                <div className="flex flex-col">
+                                  <span className="font-medium">{venue.name}</span>
+                                  <span className="text-xs text-muted-foreground">{venue.location}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                            <SelectItem value="custom">
+                              <span className="text-muted-foreground">自定义输入...</span>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          value={editingCourse.location || ''}
+                          onChange={(e) => setEditingCourse({ ...editingCourse, location: e.target.value })}
+                          placeholder={editingCourse.type === 'visit' ? '参访地址' : '输入课程地点，如：101教室'}
+                        />
+                      )}
+                      {(venues.length === 0 || (editingCourse.location && !venues.find(v => v.name === editingCourse.location))) && editingCourse.location !== 'custom' && (
+                        <Input
+                          value={editingCourse.location || ''}
+                          onChange={(e) => setEditingCourse({ ...editingCourse, location: e.target.value })}
+                          placeholder={editingCourse.type === 'visit' ? '参访地址' : '输入课程地点，如：101教室'}
+                          className="mt-2"
+                        />
+                      )}
+                      {venues.length > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          可从场地信息中选择，或选择"自定义输入"手动填写
+                        </p>
+                      )}
+                    </>
                   )}
                 </div>
                 <div className="flex justify-end gap-2">
