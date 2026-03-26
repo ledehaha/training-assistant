@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, projects, courses, projectDocuments, eq, asc, desc, and, saveDatabaseImmediate, ensureDatabaseReady } from '@/storage/database';
+import { db, projects, courses, projectDocuments, eq, asc, desc, and, saveDatabaseImmediate, ensureDatabaseReady, getSqlite } from '@/storage/database';
 import { generateId, getTimestamp } from '@/storage/database';
 import { 
   getCurrentUser, 
@@ -246,6 +246,12 @@ export async function PUT(
     // 更新课程数据
     if (body.courses !== undefined) {
       console.log('Updating courses, count:', body.courses.length);
+      
+      const sqlite = getSqlite();
+      if (!sqlite) {
+        return NextResponse.json({ error: 'Database not available' }, { status: 500 });
+      }
+      
       db.delete(courses).where(and(eq(courses.projectId, id), eq(courses.isTemplate, false))).run();
       
       if (Array.isArray(body.courses) && body.courses.length > 0) {
