@@ -442,32 +442,56 @@ ${templateContext}${visitSitesContext}${userProfileContext}
    - 【强制】每门普通课程（type="course"）都必须有讲师信息
    - 【强制】模板课程优先显示关联讲师，AI生成的课程统一显示"待确认"
 
-返回JSON格式：
+返回JSON格式（请严格遵守，不要在值中包含注释）：
 {
   "courses": [
     {
       "day": 1, 
-      "name": "课程名", 
+      "name": "企业战略管理", 
       "duration": 4,
-      "description": "内容概述", 
-      "category": "类别", 
-      "type": "course或visit",
-      "location": "课程地点（如：101教室、线上会议室等）",
+      "description": "学习企业战略规划与执行", 
+      "category": "管理技能", 
+      "type": "course",
+      "location": "201教室",
       "isFromTemplate": true,
-      "templateId": "模板ID（使用模板时必填）",
-      "teacherName": "讲师姓名（使用模板有关联讲师时填）",
-      "teacherId": "讲师ID（使用模板有关联讲师时填）",
-      "teacherTitle": "待确认（无关联讲师或AI生成时填）",
-      "visitSiteId": "参访基地ID",
-      "visitSiteName": "参访基地名称",
-      "visitSiteAddress": "参访地址（参访时填写）",
-      "isFromVisitLibrary": true
+      "templateId": "course_tpl_001",
+      "teacherName": "张明远",
+      "teacherId": "teacher_001",
+      "teacherTitle": "",
+      "visitSiteId": "",
+      "visitSiteName": "",
+      "visitSiteAddress": "",
+      "isFromVisitLibrary": false
+    },
+    {
+      "day": 1, 
+      "name": "数字化转型实务", 
+      "duration": 4,
+      "description": "了解数字化转型的实践方法", 
+      "category": "专业技能", 
+      "type": "course",
+      "location": "201教室",
+      "isFromTemplate": true,
+      "templateId": "course_tpl_002",
+      "teacherName": "",
+      "teacherId": "",
+      "teacherTitle": "待确认",
+      "visitSiteId": "",
+      "visitSiteName": "",
+      "visitSiteAddress": "",
+      "isFromVisitLibrary": false
     }
   ],
   "totalDurationCheck": ${totalHours},
   "templateUsageCount": 5,
   "summary": "方案说明"
 }
+
+【字段说明】：
+- teacherName：使用模板有关联讲师时填写讲师姓名，否则留空字符串 ""
+- teacherId：使用模板有关联讲师时填写讲师ID，否则留空字符串 ""
+- teacherTitle：无关联讲师或AI生成时填写"待确认"，否则留空字符串 ""
+- 注意：不要在JSON值中包含任何注释或说明文字，只填写实际数据
 
 只返回JSON。`;
         break;
@@ -508,14 +532,41 @@ ${projectData.modifySuggestion}
    - 新增的课程：如果是模板课程且有关联讲师，填写 teacherName 和 teacherId；否则 teacherTitle 填写"待确认"
    - 参访课程不需要讲师信息
 
-返回JSON格式：
+返回JSON格式（请严格遵守，不要在值中包含注释）：
 {
   "courses": [
-    {"day": 1, "name": "课程名", "duration": 4, "description": "概述", "category": "类别", "teacherTitle": "职称", "location": "课程地点"}
+    {
+      "day": 1, 
+      "name": "企业战略管理", 
+      "duration": 4, 
+      "description": "学习企业战略规划与执行", 
+      "category": "管理技能",
+      "teacherName": "张明远",
+      "teacherId": "teacher_001",
+      "teacherTitle": "",
+      "location": "201教室"
+    },
+    {
+      "day": 1, 
+      "name": "数字化转型实务", 
+      "duration": 4, 
+      "description": "了解数字化转型的实践方法", 
+      "category": "专业技能",
+      "teacherName": "",
+      "teacherId": "",
+      "teacherTitle": "待确认",
+      "location": "201教室"
+    }
   ],
   "totalDurationCheck": ${projectData.trainingHours || 32},
   "summary": "调整说明"
 }
+
+【字段说明】：
+- teacherName：使用模板有关联讲师时填写讲师姓名，否则留空字符串 ""
+- teacherId：使用模板有关联讲师时填写讲师ID，否则留空字符串 ""
+- teacherTitle：无关联讲师或AI生成时填写"待确认"，否则留空字符串 ""
+- 注意：不要在JSON值中包含任何注释或说明文字，只填写实际数据
 
 注意：只返回JSON数据，不要包含任何解释或思考过程。`;
         break;
@@ -723,17 +774,25 @@ ${projectData.adjustRequirement}
    - 保持原有课程的讲师信息不变
    - 如果原课程没有讲师信息，teacherTitle填写"待确认"
 
-请返回调整后的课程信息，格式如下：
+请返回调整后的课程信息，格式如下（请严格遵守，不要在值中包含注释）：
 {
   "course": {
-    "name": "调整后的课程名称",
-    "description": "调整后的课程描述",
+    "name": "企业战略管理",
+    "description": "学习企业战略规划与执行的方法",
     "duration": 4,
-    "category": "课程类别",
+    "category": "管理技能",
     "teacherTitle": "待确认",
-    "location": "课程地点"
+    "location": "201教室"
   }
 }
+
+【字段说明】：
+- name：填写实际的课程名称
+- description：填写实际的课程描述
+- category：填写实际的课程类别（管理技能、专业技能、职业素养、综合提升）
+- teacherTitle：如果有讲师信息则填写讲师姓名，否则填写"待确认"
+- location：填写实际的课程地点
+- 注意：不要在JSON值中包含任何注释或说明文字，只填写实际数据
 
 注意：只返回JSON数据，不要包含任何解释或思考过程。`;
         break;
