@@ -466,7 +466,7 @@ export default function DesignPage() {
         
         if (venuesData.error) {
           console.error('Load venues error:', venuesData.error);
-          showToast('error', `场地数据加载失败: ${venuesData.error}`);
+          // 不在 useEffect 中调用 showToast，避免依赖问题
         } else if (venuesData.data) {
           setVenues(venuesData.data);
           console.log('Loaded venues:', venuesData.data.length); // 调试信息
@@ -482,7 +482,7 @@ export default function DesignPage() {
     loadDraftProjects();
     // 检查 API Key 状态
     checkApiKeyConfigured().then(setApiKeyConfigured);
-  }, [showToast]);
+  }, []); // 依赖数组保持为空，只在组件挂载时执行一次
 
   // 加载草稿项目列表（只在初始化和用户手动操作时调用）
   const loadDraftProjects = async () => {
