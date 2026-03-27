@@ -327,13 +327,14 @@ export default function DesignPage() {
         description: course.description,
         category: course.category,
         teacherId: course.teacherId,
+        teacherName: course.teacherName,
         teacherTitle: course.teacherTitle,
         location: course.location,
         type: course.type || 'course',
         visitSiteId: course.visitSiteId,
         createdAt: course.createdAt,
         updatedAt: course.updatedAt,
-        // 排除前端特有的字段：isFromTemplate, templateId, teacherName, visitSiteName, visitSiteAddress, isFromVisitLibrary 等
+        // 排除前端特有的字段：isFromTemplate, templateId, visitSiteName, visitSiteAddress, isFromVisitLibrary 等
       }));
 
       const dataToSave = {
