@@ -299,6 +299,7 @@ export const courses = sqliteTable(
     // === 项目课程专用字段（来自原 projectCourses） ===
     type: text('type').default('course'), // 'course'(课程) / 'visit'(参访) / 'break'(休息) / 'other'(其他)
     teacherId: text('teacher_id').references(() => teachers.id), // 授课教师
+    teacherName: text('teacher_name'), // 授课教师姓名（冗余字段，方便查询显示）
     teacherTitle: text('teacher_title'), // 建议讲师职称（用于项目课程，未关联具体讲师时）
     visitSiteId: text('visit_site_id').references(() => visitSites.id), // 参访基地（参访环节用）
     day: integer('day'), // 培训第几天
@@ -717,11 +718,13 @@ export const insertCourseSchema = createInsertSchema(courses).pick({
   difficulty: true,
   type: true,
   teacherId: true,
+  teacherName: true,
   visitSiteId: true,
   day: true,
   startTime: true,
   endTime: true,
   order: true,
+  location: true,
   usageCount: true,
   avgRating: true,
   isActive: true,

@@ -12,8 +12,15 @@ import {
   type UserInfo 
 } from '@/lib/access-control';
 
-// 确保courses表有teacherTitle和location字段（兼容性处理）
+// 确保courses表有teacherTitle、teacherName和location字段（兼容性处理）
 function ensureCoursesTableSchema() {
+  try {
+    // 检查并添加 teacherName 字段
+    db.run(`ALTER TABLE courses ADD COLUMN teacherName TEXT`);
+  } catch (error) {
+    // 字段已存在，忽略错误
+  }
+  
   try {
     // 检查并添加 teacherTitle 字段
     db.run(`ALTER TABLE courses ADD COLUMN teacherTitle TEXT`);
@@ -364,7 +371,7 @@ export async function POST(request: NextRequest) {
           
           // 直接使用 SQL 插入，避免 Drizzle ORM schema 问题
           sqlite.run(
-            `INSERT INTO courses (id, is_template, project_id, name, day, duration, description, category, teacher_id, teacherTitle, location, type, visit_site_id, "order", is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO courses (id, is_template, project_id, name, day, duration, description, category, teacher_id, teacherName, teacherTitle, location, type, visit_site_id, "order", is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               courseId,
               0, // is_template
@@ -375,6 +382,7 @@ export async function POST(request: NextRequest) {
               course.description || null,
               course.category || null,
               course.teacherId || null,
+              course.teacherName || null,
               course.teacherTitle || null,
               course.location || null,
               course.type || 'course',
