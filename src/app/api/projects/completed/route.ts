@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, projects, courses, teachers, eq, desc, sql, and, ensureDatabaseReady } from '@/storage/database';
+import { db, projects, courses, eq, desc, sql, and, ensureDatabaseReady } from '@/storage/database';
 import { cookies } from 'next/headers';
 import type { SQLWrapper } from 'drizzle-orm';
 
@@ -87,11 +87,10 @@ export async function GET(request: NextRequest) {
           duration: courses.duration,
           description: courses.description,
           teacherId: courses.teacherId,
-          teacherName: teachers.name,
-          teacherTitle: teachers.title,
+          teacherName: courses.teacherName,
+          teacherTitle: courses.teacherTitle,
         })
         .from(courses)
-        .leftJoin(teachers, eq(courses.teacherId, teachers.id))
         .where(and(eq(courses.projectId, project.id as string), eq(courses.isTemplate, false)))
         .all();
 
