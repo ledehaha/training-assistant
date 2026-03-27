@@ -122,6 +122,19 @@ interface VisitSite {
   isActive: boolean;
 }
 
+// 费用项类型
+interface BudgetItem {
+  id: string;
+  name: string;
+  category: string; // 师资费, 场地费, 餐饮费, 茶歇费, 资料费, 住宿费, 交通费, 其他费用, 管理费
+  unit: string; // 单位：人/天, 课时, 场次, 套, 间/晚, 辆/天 等
+  unitPrice: number; // 单价
+  quantity: number; // 数量
+  total: number; // 总额
+  description?: string; // 说明
+  isAutoCalculated: boolean; // 是否自动计算
+}
+
 const trainingTargets = [
   '企业内训',
   '技能培训',
@@ -198,6 +211,18 @@ export default function DesignPage() {
   const [selectedVisitSites, setSelectedVisitSites] = useState<VisitSite[]>([]);
   const [quotation, setQuotation] = useState<Record<string, unknown> | null>(null);
   
+  // 费用测算
+  const [budgetItems, setBudgetItems] = useState<BudgetItem[]>([]);
+  const [customBudgetItem, setCustomBudgetItem] = useState<Partial<BudgetItem>>({
+    name: '',
+    category: '其他费用',
+    unit: '',
+    unitPrice: 0,
+    quantity: 1,
+    total: 0,
+    isAutoCalculated: false
+  });
+  
   // 导入原有方案
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [completedProjects, setCompletedProjects] = useState<Array<{
@@ -262,6 +287,9 @@ export default function DesignPage() {
     progress?: string;
   }>>([]);
   const [showDraftList, setShowDraftList] = useState(false);
+  
+  // 自定义费用项对话框
+  const [showCustomBudgetDialog, setShowCustomBudgetDialog] = useState(false);
   
   // API Key 检查
   const [apiKeyCheckOpen, setApiKeyCheckOpen] = useState(false);
@@ -1669,6 +1697,240 @@ export default function DesignPage() {
     showToast('success', `已自动拆分并重新分配课程，共${fixedCourses.length}门课程`);
   };
 
+  // 初始化费用项
+  const initializeBudgetItems = () => {
+    const participantCount = formData.participantCount || 50;
+    const trainingDays = formData.trainingDays || 4;
+    const totalHours = courses.reduce((sum, c) => sum + (c.duration || 0), 0);
+    const courseCount = courses.length;
+    
+    // 预设常见费用项
+    const initialItems: BudgetItem[] = [
+      {
+        id: 'budget-teacher',
+        name: '师资费',
+        category: '师资费',
+        unit: '课时',
+        unitPrice: 1000, // 默认1000元/课时
+        quantity: totalHours,
+        total: totalHours * 1000,
+        description: '根据总课时自动计算',
+        isAutoCalculated: true
+      },
+      {
+        id: 'budget-venue',
+        name: '场地费',
+        category: '场地费',
+        unit: '天',
+        unitPrice: 2000, // 默认2000元/天
+        quantity: trainingDays,
+        total: trainingDays * 2000,
+        description: '根据培训天数自动计算',
+        isAutoCalculated: true
+      },
+      {
+        id: 'budget-catering',
+        name: '餐饮费（午餐）',
+        category: '餐饮费',
+        unit: '人/餐',
+        unitPrice: 80,
+        quantity: participantCount * trainingDays,
+        total: participantCount * trainingDays * 80,
+        description: '每人每天1餐，共N天',
+        isAutoCalculated: true
+      },
+      {
+        id: 'budget-tea-break',
+        name: '茶歇费',
+        category: '茶歇费',
+        unit: '人/天',
+        unitPrice: 30,
+        quantity: participantCount * trainingDays,
+        total: participantCount * trainingDays * 30,
+        description: '每人每天两次茶歇',
+        isAutoCalculated: true
+      },
+      {
+        id: 'budget-material',
+        name: '资料费',
+        category: '资料费',
+        unit: '套',
+        unitPrice: 150,
+        quantity: participantCount,
+        total: participantCount * 150,
+        description: '培训教材、笔记本等',
+        isAutoCalculated: true
+      },
+      {
+        id: 'budget-accommodation',
+        name: '住宿费',
+        category: '住宿费',
+        unit: '间/晚',
+        unitPrice: 400,
+        quantity: 0,
+        total: 0,
+        description: '如需住宿，请填写数量',
+        isAutoCalculated: false
+      },
+      {
+        id: 'budget-transport',
+        name: '交通费',
+        category: '交通费',
+        unit: '辆/天',
+        unitPrice: 500,
+        quantity: 0,
+        total: 0,
+        description: '如需用车，请填写数量',
+        isAutoCalculated: false
+      },
+      {
+        id: 'budget-management',
+        name: '管理费',
+        category: '管理费',
+        unit: '项',
+        unitPrice: 3000,
+        quantity: 1,
+        total: 3000,
+        description: '项目管理与服务费',
+        isAutoCalculated: false
+      }
+    ];
+    
+    setBudgetItems(initialItems);
+  };
+
+  // 当切换到费用预算标签页时，初始化费用项
+  useEffect(() => {
+    if (activeTab === 'quotation' && budgetItems.length === 0) {
+      initializeBudgetItems();
+    }
+  }, [activeTab, courses.length, formData.participantCount, formData.trainingDays]);
+
+  // 监听课程变化，自动更新相关费用项
+  useEffect(() => {
+    if (activeTab === 'quotation' && budgetItems.length > 0) {
+      const totalHours = courses.reduce((sum, c) => sum + (c.duration || 0), 0);
+      const participantCount = formData.participantCount || 50;
+      const trainingDays = formData.trainingDays || 4;
+      
+      setBudgetItems(prev => prev.map(item => {
+        if (item.id === 'budget-teacher' && item.isAutoCalculated) {
+          return {
+            ...item,
+            quantity: totalHours,
+            total: totalHours * item.unitPrice,
+            description: `根据总课时${totalHours}自动计算`
+          };
+        }
+        if (item.id === 'budget-venue' && item.isAutoCalculated) {
+          return {
+            ...item,
+            quantity: trainingDays,
+            total: trainingDays * item.unitPrice,
+            description: `根据培训天数${trainingDays}自动计算`
+          };
+        }
+        if (item.id === 'budget-catering' && item.isAutoCalculated) {
+          return {
+            ...item,
+            quantity: participantCount * trainingDays,
+            total: participantCount * trainingDays * item.unitPrice,
+            description: `每人每天1餐，共${trainingDays}天`
+          };
+        }
+        if (item.id === 'budget-tea-break' && item.isAutoCalculated) {
+          return {
+            ...item,
+            quantity: participantCount * trainingDays,
+            total: participantCount * trainingDays * item.unitPrice,
+            description: `每人每天两次茶歇`
+          };
+        }
+        if (item.id === 'budget-material' && item.isAutoCalculated) {
+          return {
+            ...item,
+            quantity: participantCount,
+            total: participantCount * item.unitPrice,
+            description: `培训教材、笔记本等`
+          };
+        }
+        return item;
+      }));
+    }
+  }, [courses, formData.participantCount, formData.trainingDays, activeTab, budgetItems.length]);
+
+  // 更新费用项
+  const updateBudgetItem = (id: string, field: keyof BudgetItem, value: number | string | boolean) => {
+    setBudgetItems(prev => prev.map(item => {
+      if (item.id === id) {
+        const updated = { ...item, [field]: value };
+        // 如果修改了单价或数量，重新计算总额
+        if (field === 'unitPrice' || field === 'quantity') {
+          updated.total = (updated.unitPrice || 0) * (updated.quantity || 0);
+        }
+        // 如果手动修改了数量，取消自动计算标记
+        if (field === 'quantity') {
+          updated.isAutoCalculated = false;
+        }
+        return updated;
+      }
+      return item;
+    }));
+  };
+
+  // 添加自定义费用项
+  const addCustomBudgetItem = () => {
+    if (!customBudgetItem.name?.trim()) {
+      showToast('error', '请输入费用项名称');
+      return;
+    }
+    
+    const newItem: BudgetItem = {
+      id: `budget-custom-${Date.now()}`,
+      name: customBudgetItem.name,
+      category: customBudgetItem.category || '其他费用',
+      unit: customBudgetItem.unit || '',
+      unitPrice: customBudgetItem.unitPrice || 0,
+      quantity: customBudgetItem.quantity || 1,
+      total: (customBudgetItem.unitPrice || 0) * (customBudgetItem.quantity || 1),
+      description: customBudgetItem.description,
+      isAutoCalculated: false
+    };
+    
+    setBudgetItems([...budgetItems, newItem]);
+    setCustomBudgetItem({
+      name: '',
+      category: '其他费用',
+      unit: '',
+      unitPrice: 0,
+      quantity: 1,
+      total: 0,
+      isAutoCalculated: false
+    });
+    showToast('success', '已添加自定义费用项');
+  };
+
+  // 删除费用项
+  const deleteBudgetItem = (id: string) => {
+    setBudgetItems(prev => prev.filter(item => item.id !== id));
+    showToast('success', '已删除费用项');
+  };
+
+  // 计算总费用
+  const totalBudget = useMemo(() => {
+    return budgetItems.reduce((sum, item) => sum + (item.total || 0), 0);
+  }, [budgetItems]);
+
+  // 按类别分组统计费用
+  const budgetByCategory = useMemo(() => {
+    const grouped: Record<string, number> = {};
+    budgetItems.forEach(item => {
+      const category = item.category || '其他费用';
+      grouped[category] = (grouped[category] || 0) + (item.total || 0);
+    });
+    return grouped;
+  }, [budgetItems]);
+
   // 处理"下一步：方案设计"按钮点击
   const handleNextToScheme = async () => {
     // 使用 ref 获取最新状态
@@ -2453,12 +2715,218 @@ export default function DesignPage() {
             {currentProjectBanner}
             <Card>
               <CardHeader>
-                <CardTitle>费用预算</CardTitle>
-                <CardDescription>培训项目费用明细</CardDescription>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <CardTitle>费用预算</CardTitle>
+                    <CardDescription>
+                      根据课程方案和参训人数自动计算各项费用，可手动调整
+                    </CardDescription>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={initializeBudgetItems}
+                    className="gap-2"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    重新计算
+                  </Button>
+                </div>
               </CardHeader>
-              <CardContent>
-                <div className="text-center py-8">
-                  <p className="text-muted-foreground">费用预算功能开发中...</p>
+              <CardContent className="space-y-6">
+                {/* 费用汇总卡片 */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <DollarSign className="h-5 w-5 text-blue-600" />
+                      <span className="text-sm font-medium text-blue-800">费用总计</span>
+                    </div>
+                    <p className="text-2xl font-bold text-blue-900">
+                      ¥{totalBudget.toLocaleString()}
+                    </p>
+                    <p className="text-xs text-blue-600 mt-1">
+                      人均费用：¥{(totalBudget / (formData.participantCount || 1)).toFixed(2)}
+                    </p>
+                  </div>
+                  
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <BookOpen className="h-5 w-5 text-green-600" />
+                      <span className="text-sm font-medium text-green-800">课程统计</span>
+                    </div>
+                    <p className="text-2xl font-bold text-green-900">
+                      {courses.length}门
+                    </p>
+                    <p className="text-xs text-green-600 mt-1">
+                      总课时：{courses.reduce((sum, c) => sum + (c.duration || 0), 0)}课时
+                    </p>
+                  </div>
+                  
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <User className="h-5 w-5 text-purple-600" />
+                      <span className="text-sm font-medium text-purple-800">参训人数</span>
+                    </div>
+                    <p className="text-2xl font-bold text-purple-900">
+                      {formData.participantCount}人
+                    </p>
+                    <p className="text-xs text-purple-600 mt-1">
+                      培训天数：{formData.trainingDays}天
+                    </p>
+                  </div>
+                </div>
+
+                {/* 费用分类统计 */}
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>费用类别</TableHead>
+                        <TableHead className="text-right">金额</TableHead>
+                        <TableHead className="text-right">占比</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {Object.entries(budgetByCategory).map(([category, amount]) => (
+                        <TableRow key={category}>
+                          <TableCell>{category}</TableCell>
+                          <TableCell className="text-right font-medium">
+                            ¥{amount.toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {totalBudget > 0 ? ((amount / totalBudget) * 100).toFixed(1) : 0}%
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* 费用明细表 */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-lg font-semibold">费用明细</h3>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowCustomBudgetDialog(true)}
+                      className="gap-2"
+                    >
+                      <Plus className="h-4 w-4" />
+                      添加费用项
+                    </Button>
+                  </div>
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>费用项</TableHead>
+                          <TableHead>单位</TableHead>
+                          <TableHead className="text-right">单价</TableHead>
+                          <TableHead className="text-right">数量</TableHead>
+                          <TableHead className="text-right">小计</TableHead>
+                          <TableHead className="text-center">说明</TableHead>
+                          <TableHead className="text-center">操作</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {budgetItems.map((item) => (
+                          <TableRow key={item.id}>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{item.name}</span>
+                                {item.isAutoCalculated && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    自动
+                                  </Badge>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>{item.unit}</TableCell>
+                            <TableCell className="text-right">
+                              <Input
+                                type="number"
+                                value={item.unitPrice}
+                                onChange={(e) => updateBudgetItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
+                                className="w-24 h-8 text-right"
+                                min="0"
+                                step="0.01"
+                              />
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Input
+                                type="number"
+                                value={item.quantity}
+                                onChange={(e) => updateBudgetItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
+                                className="w-24 h-8 text-right"
+                                min="0"
+                                step="0.1"
+                              />
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              ¥{item.total.toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <div className="text-xs text-muted-foreground max-w-xs truncate" title={item.description}>
+                                {item.description}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {!item.isAutoCalculated && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => deleteBudgetItem(item.id)}
+                                  className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+
+                {/* 预算对比 */}
+                {formData.budgetMin && formData.budgetMax && (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <h4 className="font-medium mb-3">预算对比</h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">预算范围：</span>
+                        <span>¥{formData.budgetMin.toLocaleString()} - ¥{formData.budgetMax.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">当前预算：</span>
+                        <span className={totalBudget > formData.budgetMax ? 'text-red-600 font-medium' : 'text-green-600 font-medium'}>
+                          ¥{totalBudget.toLocaleString()}
+                        </span>
+                      </div>
+                      {totalBudget > formData.budgetMax && (
+                        <div className="text-sm text-orange-600">
+                          ⚠️ 超出预算 ¥{(totalBudget - formData.budgetMax).toLocaleString()}，请调整费用项
+                        </div>
+                      )}
+                      {totalBudget < formData.budgetMin && (
+                        <div className="text-sm text-blue-600">
+                          💡 还有 ¥{(formData.budgetMin - totalBudget).toLocaleString()} 预算空间，可以增加培训内容
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* 提示信息 */}
+                <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <Info className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-blue-800 space-y-1">
+                    <p><strong>自动计算项：</strong>师资费、场地费、餐饮费、茶歇费、资料费会根据课程方案和参训人数自动计算。</p>
+                    <p><strong>手动调整：</strong>您可以直接修改单价和数量，系统会自动重新计算总额。修改数量后，该项将不再自动计算。</p>
+                    <p><strong>删除限制：</strong>只能删除手动添加的费用项，自动计算的项目不能删除。</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -2620,6 +3088,113 @@ export default function DesignPage() {
                 </Button>
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* 自定义费用项对话框 */}
+        <Dialog open={showCustomBudgetDialog} onOpenChange={setShowCustomBudgetDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>添加自定义费用项</DialogTitle>
+              <DialogDescription>
+                添加新的费用项到预算中
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="budget-name">费用项名称 *</Label>
+                <Input
+                  id="budget-name"
+                  placeholder="例如：其他费用、特殊费用等"
+                  value={customBudgetItem.name}
+                  onChange={(e) => setCustomBudgetItem({ ...customBudgetItem, name: e.target.value })}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="budget-category">费用类别</Label>
+                <Select
+                  value={customBudgetItem.category}
+                  onValueChange={(v) => setCustomBudgetItem({ ...customBudgetItem, category: v })}
+                >
+                  <SelectTrigger id="budget-category">
+                    <SelectValue placeholder="选择费用类别" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="师资费">师资费</SelectItem>
+                    <SelectItem value="场地费">场地费</SelectItem>
+                    <SelectItem value="餐饮费">餐饮费</SelectItem>
+                    <SelectItem value="茶歇费">茶歇费</SelectItem>
+                    <SelectItem value="资料费">资料费</SelectItem>
+                    <SelectItem value="住宿费">住宿费</SelectItem>
+                    <SelectItem value="交通费">交通费</SelectItem>
+                    <SelectItem value="管理费">管理费</SelectItem>
+                    <SelectItem value="其他费用">其他费用</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="budget-unit">单位</Label>
+                  <Input
+                    id="budget-unit"
+                    placeholder="例如：次、套、项"
+                    value={customBudgetItem.unit}
+                    onChange={(e) => setCustomBudgetItem({ ...customBudgetItem, unit: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="budget-unit-price">单价 (元)</Label>
+                  <Input
+                    id="budget-unit-price"
+                    type="number"
+                    placeholder="0"
+                    value={customBudgetItem.unitPrice}
+                    onChange={(e) => setCustomBudgetItem({ ...customBudgetItem, unitPrice: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="budget-quantity">数量</Label>
+                <Input
+                  id="budget-quantity"
+                  type="number"
+                  placeholder="1"
+                  value={customBudgetItem.quantity}
+                  onChange={(e) => setCustomBudgetItem({ ...customBudgetItem, quantity: parseFloat(e.target.value) || 1 })}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="budget-description">说明</Label>
+                <Textarea
+                  id="budget-description"
+                  placeholder="费用项的详细说明"
+                  rows={2}
+                  value={customBudgetItem.description}
+                  onChange={(e) => setCustomBudgetItem({ ...customBudgetItem, description: e.target.value })}
+                />
+              </div>
+              
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowCustomBudgetDialog(false)}
+                >
+                  取消
+                </Button>
+                <Button
+                  onClick={() => {
+                    addCustomBudgetItem();
+                    setShowCustomBudgetDialog(false);
+                  }}
+                >
+                  添加
+                </Button>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
 
