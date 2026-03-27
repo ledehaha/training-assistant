@@ -24,6 +24,8 @@ export async function POST(
         isTemplate: false, // 项目课程
         projectId: id,
         teacherId: (course.teacherId as string) || null,
+        teacherName: (course.teacherName as string) || null,
+        teacherTitle: (course.teacherTitle as string) || null,
         visitSiteId: (course.visitSiteId as string) || null,
         type: (course.type as string) || 'course',
         name: course.name as string,

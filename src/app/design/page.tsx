@@ -68,6 +68,8 @@ interface Course {
   teacherName?: string;
   teacherTitle?: string;
   location?: string;
+  createdAt?: string;
+  updatedAt?: string;
   // 是否来自课程模板
   isFromTemplate?: boolean;
   templateId?: string;

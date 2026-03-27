@@ -12,18 +12,19 @@ export async function GET() {
     }
 
     // 查询 courses 表结构
-    const columns = sqlite.prepare("PRAGMA table_info(courses)").all();
+    const result = sqlite.exec("PRAGMA table_info(courses)");
+    const columns = result.length > 0 ? result[0].values.map((row: any) => ({
+      cid: row[0],
+      name: row[1],
+      type: row[2],
+      notnull: row[3],
+      dflt_value: row[4],
+      pk: row[5]
+    })) : [];
     
     return NextResponse.json({ 
       success: true, 
-      columns: columns.map((col: any) => ({
-        cid: col.cid,
-        name: col.name,
-        type: col.type,
-        notnull: col.notnull,
-        dflt_value: col.dflt_value,
-        pk: col.pk
-      }))
+      columns
     });
   } catch (error) {
     console.error('Check courses schema error:', error);
