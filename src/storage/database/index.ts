@@ -631,6 +631,20 @@ function runMigrations(db: SqlJsDatabase): void {
       // 列可能不存在，忽略错误
     }
     
+    // 添加 budget_data 列
+    try {
+      const projectsColumns = db.exec(`PRAGMA table_info(projects)`);
+      if (projectsColumns.length > 0) {
+        const columns = projectsColumns[0].values.map((row) => row[1] as string);
+        if (!columns.includes('budget_data')) {
+          db.run(`ALTER TABLE projects ADD COLUMN budget_data TEXT`);
+          console.log('Migration: Added budget_data column to projects table');
+        }
+      }
+    } catch (err) {
+      console.warn('Migration: Failed to add budget_data column:', err);
+    }
+    
     // 重命名 venues 表的 daily_rate 列为 hourly_rate
     try {
       const venueColumns = db.exec(`PRAGMA table_info(venues)`);
