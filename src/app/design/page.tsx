@@ -310,13 +310,30 @@ function getTeacherLevel(title: string): 'academician' | 'professor' | 'other' {
   const normalizedTitle = title.trim();
   
   // 检查是否是院士级别
-  if (titleLevelMapping.academician.some(t => normalizedTitle.includes(t))) {
+  if (titleLevelMapping.academician.some(t => 
+    normalizedTitle === t || 
+    normalizedTitle.startsWith(t) ||
+    normalizedTitle.includes(t + '、')
+  )) {
     return 'academician';
   }
   
-  // 检查是否是教授级别
-  if (titleLevelMapping.professor.some(t => normalizedTitle.includes(t))) {
+  // 检查是否是教授级别（使用 startsWith 避免"副教授"被误判）
+  if (titleLevelMapping.professor.some(t => 
+    normalizedTitle === t || 
+    normalizedTitle.startsWith(t) ||
+    normalizedTitle.includes(t + '、')
+  )) {
     return 'professor';
+  }
+  
+  // 检查是否是副教授及以下级别
+  if (titleLevelMapping.other.some(t => 
+    normalizedTitle === t || 
+    normalizedTitle.startsWith(t) ||
+    normalizedTitle.includes(t + '、')
+  )) {
+    return 'other';
   }
   
   // 其他情况都按副教授及以下算
