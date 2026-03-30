@@ -1704,13 +1704,20 @@ export default function DesignPage() {
     const totalHours = courses.reduce((sum, c) => sum + (c.duration || 0), 0);
     const courseCount = courses.length;
     
-    // 统计师资费（按职称分档）
+    // 统计师资费（按职称分档，排除参访课程）
     const teacherHoursByTitle = courses.reduce((acc, course) => {
+      // 排除参访课程
+      if (course.type === 'visit') {
+        return acc;
+      }
+      
       const duration = course.duration || 0;
       const title = course.teacherTitle || '';
       
-      // 判断职称档位
-      if (title.includes('院士')) {
+      // 判断职称档位（待确认师资按教授算）
+      if (title.includes('待确认') || title === '') {
+        acc.professor += duration;
+      } else if (title.includes('院士')) {
         acc.academician += duration;
       } else if (title.includes('教授')) {
         acc.professor += duration;
@@ -1737,8 +1744,8 @@ export default function DesignPage() {
     
     // 预设常见费用项
     const initialItems: BudgetItem[] = [
-      // 师资费 - 按职称分档
-      ...(teacherHoursByTitle.academician > 0 ? [{
+      // 师资费 - 固定显示三类
+      {
         id: 'budget-teacher-academician',
         name: '师资费（院士）',
         category: '师资费',
@@ -1746,10 +1753,12 @@ export default function DesignPage() {
         unitPrice: 1500,
         quantity: teacherHoursByTitle.academician,
         total: teacherHoursByTitle.academician * 1500,
-        description: `院士授课，共${teacherHoursByTitle.academician}课时`,
+        description: teacherHoursByTitle.academician > 0 
+          ? `院士授课，共${teacherHoursByTitle.academician}课时` 
+          : '暂无院士授课',
         isAutoCalculated: true
-      }] : []),
-      ...(teacherHoursByTitle.professor > 0 ? [{
+      },
+      {
         id: 'budget-teacher-professor',
         name: '师资费（教授）',
         category: '师资费',
@@ -1757,10 +1766,12 @@ export default function DesignPage() {
         unitPrice: 1000,
         quantity: teacherHoursByTitle.professor,
         total: teacherHoursByTitle.professor * 1000,
-        description: `教授授课，共${teacherHoursByTitle.professor}课时`,
+        description: teacherHoursByTitle.professor > 0 
+          ? `教授授课，共${teacherHoursByTitle.professor}课时（含待确认师资）` 
+          : '暂无教授授课',
         isAutoCalculated: true
-      }] : []),
-      ...(teacherHoursByTitle.other > 0 ? [{
+      },
+      {
         id: 'budget-teacher-other',
         name: '师资费（副教授及以下）',
         category: '师资费',
@@ -1768,21 +1779,11 @@ export default function DesignPage() {
         unitPrice: 500,
         quantity: teacherHoursByTitle.other,
         total: teacherHoursByTitle.other * 500,
-        description: `副教授及以下授课，共${teacherHoursByTitle.other}课时`,
+        description: teacherHoursByTitle.other > 0 
+          ? `副教授及以下授课，共${teacherHoursByTitle.other}课时` 
+          : '暂无副教授及以下授课',
         isAutoCalculated: true
-      }] : []),
-      // 如果没有任何师资费，添加一个默认项
-      ...(teacherHoursByTitle.academician === 0 && teacherHoursByTitle.professor === 0 && teacherHoursByTitle.other === 0 ? [{
-        id: 'budget-teacher-default',
-        name: '师资费',
-        category: '师资费',
-        unit: '课时',
-        unitPrice: 1000,
-        quantity: totalHours,
-        total: totalHours * 1000,
-        description: '请根据课程实际情况调整',
-        isAutoCalculated: true
-      }] : []),
+      },
       // 场地费 - 按场地分组
       ...Object.entries(venueHoursByLocation).map(([location, hours], index) => ({
         id: `budget-venue-${index}`,
@@ -1881,10 +1882,18 @@ export default function DesignPage() {
       
       // 重新计算师资费和场地费
       const teacherHoursByTitle = courses.reduce((acc, course) => {
+        // 排除参访课程
+        if (course.type === 'visit') {
+          return acc;
+        }
+        
         const duration = course.duration || 0;
         const title = course.teacherTitle || '';
         
-        if (title.includes('院士')) {
+        // 待确认师资按教授算
+        if (title.includes('待确认') || title === '') {
+          acc.professor += duration;
+        } else if (title.includes('院士')) {
           acc.academician += duration;
         } else if (title.includes('教授')) {
           acc.professor += duration;
@@ -1901,11 +1910,9 @@ export default function DesignPage() {
         return acc;
       }, {} as Record<string, number>);
       
-      // 更新师资费
-      const updatedTeacherItems: BudgetItem[] = [];
-      
-      if (teacherHoursByTitle.academician > 0) {
-        updatedTeacherItems.push({
+      // 固定显示三类师资费
+      const updatedTeacherItems: BudgetItem[] = [
+        {
           id: 'budget-teacher-academician',
           name: '师资费（院士）',
           category: '师资费',
@@ -1913,13 +1920,12 @@ export default function DesignPage() {
           unitPrice: 1500,
           quantity: teacherHoursByTitle.academician,
           total: teacherHoursByTitle.academician * 1500,
-          description: `院士授课，共${teacherHoursByTitle.academician}课时`,
+          description: teacherHoursByTitle.academician > 0 
+            ? `院士授课，共${teacherHoursByTitle.academician}课时` 
+            : '暂无院士授课',
           isAutoCalculated: true
-        });
-      }
-      
-      if (teacherHoursByTitle.professor > 0) {
-        updatedTeacherItems.push({
+        },
+        {
           id: 'budget-teacher-professor',
           name: '师资费（教授）',
           category: '师资费',
@@ -1927,13 +1933,12 @@ export default function DesignPage() {
           unitPrice: 1000,
           quantity: teacherHoursByTitle.professor,
           total: teacherHoursByTitle.professor * 1000,
-          description: `教授授课，共${teacherHoursByTitle.professor}课时`,
+          description: teacherHoursByTitle.professor > 0 
+            ? `教授授课，共${teacherHoursByTitle.professor}课时（含待确认师资）` 
+            : '暂无教授授课',
           isAutoCalculated: true
-        });
-      }
-      
-      if (teacherHoursByTitle.other > 0) {
-        updatedTeacherItems.push({
+        },
+        {
           id: 'budget-teacher-other',
           name: '师资费（副教授及以下）',
           category: '师资费',
@@ -1941,30 +1946,12 @@ export default function DesignPage() {
           unitPrice: 500,
           quantity: teacherHoursByTitle.other,
           total: teacherHoursByTitle.other * 500,
-          description: `副教授及以下授课，共${teacherHoursByTitle.other}课时`,
+          description: teacherHoursByTitle.other > 0 
+            ? `副教授及以下授课，共${teacherHoursByTitle.other}课时` 
+            : '暂无副教授及以下授课',
           isAutoCalculated: true
-        });
-      }
-      
-      // 如果没有任何师资费，保持默认项
-      const hasTeacherBudget = budgetItems.some(item => 
-        item.category === '师资费' && (item.isAutoCalculated || !item.id.startsWith('budget-custom'))
-      );
-      
-      if (!hasTeacherBudget && teacherHoursByTitle.academician === 0 && teacherHoursByTitle.professor === 0 && teacherHoursByTitle.other === 0) {
-        const totalHours = courses.reduce((sum, c) => sum + (c.duration || 0), 0);
-        updatedTeacherItems.push({
-          id: 'budget-teacher-default',
-          name: '师资费',
-          category: '师资费',
-          unit: '课时',
-          unitPrice: 1000,
-          quantity: totalHours,
-          total: totalHours * 1000,
-          description: '请根据课程实际情况调整',
-          isAutoCalculated: true
-        });
-      }
+        }
+      ];
       
       // 更新场地费
       const updatedVenueItems: BudgetItem[] = Object.entries(venueHoursByLocation).map(([location, hours], index) => {
