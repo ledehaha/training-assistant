@@ -4207,7 +4207,9 @@ export default function DesignPage() {
                               )}
                               {site.visitFee !== undefined && site.visitFee > 0 && (
                                 <Badge variant="outline" className="text-xs text-orange-600">
-                                  ¥{site.visitFee}/人
+                                  {site.feeType === 'per_visit' 
+                                    ? `¥${site.visitFee}/次（固定费用）`
+                                    : `¥${site.visitFee}/人`}
                                 </Badge>
                               )}
                             </div>
