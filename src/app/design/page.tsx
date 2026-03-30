@@ -1729,14 +1729,15 @@ export default function DesignPage() {
       const duration = course.duration || 0;
       const title = course.teacherTitle || '';
       
-      // 判断职称档位（待确认师资按教授算）
-      if (title.includes('待确认') || title === '') {
+      // 判断职称档位（待确认师资按教授算，其他未填写的按副教授及以下算）
+      if (title.includes('待确认')) {
         acc.professor += duration;
       } else if (title.includes('院士')) {
         acc.academician += duration;
       } else if (title.includes('教授')) {
         acc.professor += duration;
       } else {
+        // 空字符串、"讲师"、"副教授"、"无职称"等都按副教授及以下计算
         acc.other += duration;
       }
       return acc;
@@ -1906,14 +1907,15 @@ export default function DesignPage() {
         const duration = course.duration || 0;
         const title = course.teacherTitle || '';
         
-        // 待确认师资按教授算
-        if (title.includes('待确认') || title === '') {
+        // 待确认师资按教授算，其他未填写的按副教授及以下算
+        if (title.includes('待确认')) {
           acc.professor += duration;
         } else if (title.includes('院士')) {
           acc.academician += duration;
         } else if (title.includes('教授')) {
           acc.professor += duration;
         } else {
+          // 空字符串、"讲师"、"副教授"、"无职称"等都按副教授及以下计算
           acc.other += duration;
         }
         return acc;
