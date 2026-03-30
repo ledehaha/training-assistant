@@ -135,6 +135,111 @@ interface BudgetItem {
   isAutoCalculated: boolean; // 是否自动计算
 }
 
+// 专业技术岗位等级对照表
+// 根据职称名称判断师资级别：院士、教授、副教授及以下
+const titleLevelMapping: {
+  academician: string[]; // 院士级别
+  professor: string[]; // 教授级别（正高级）
+  other: string[]; // 副教授及以下（副高级、中级、初级）
+} = {
+  academician: [
+    '中国科学院院士',
+    '中国工程院院士',
+    '院士',
+  ],
+  professor: [
+    // 教育系列正高级
+    '教授',
+    '教授级高级讲师',
+    '教授级高级政工师',
+    // 科研系列正高级
+    '研究员',
+    '教授级研究员',
+    // 工程系列正高级
+    '教授级高级工程师',
+    '教授级高级建筑师',
+    '教授级高级城市规划师',
+    '教授级高级农艺师',
+    '教授级高级畜牧师',
+    '教授级高级兽医师',
+    '教授级高级水产师',
+    // 卫生医疗系列正高级
+    '主任医师',
+    '教授级主任医师',
+    // 经济系列正高级
+    '教授级高级经济师',
+    // 会计系列正高级
+    '教授级高级会计师',
+    '教授级高级审计师',
+    // 统计系列正高级
+    '教授级高级统计师',
+    // 翻译系列正高级
+    '教授级高级翻译',
+    // 档案系列正高级
+    '教授级高级档案师',
+    // 新闻出版系列正高级
+    '教授级高级编辑',
+    '教授级高级记者',
+    '教授级高级播音指导',
+    // 其他正高级
+    '教授级高级',
+    '正高级',
+  ],
+  other: [
+    // 教育系列副高级、中级、初级
+    '副教授',
+    '讲师',
+    '助教',
+    // 科研系列副高级、中级、初级
+    '副研究员',
+    '助理研究员',
+    '研究实习员',
+    // 工程系列副高级、中级、初级
+    '高级工程师',
+    '工程师',
+    '助理工程师',
+    '技术员',
+    // 卫生医疗系列副高级、中级、初级
+    '副主任医师',
+    '主治医师',
+    '医师',
+    '医士',
+    // 经济系列副高级、中级、初级
+    '高级经济师',
+    '经济师',
+    '助理经济师',
+    // 会计系列副高级、中级、初级
+    '高级会计师',
+    '会计师',
+    '助理会计师',
+    // 其他职称
+    '讲师',
+    '高级讲师',
+    '无职称',
+    '待确认',
+  ],
+};
+
+// 根据职称名称判断师资级别
+function getTeacherLevel(title: string): 'academician' | 'professor' | 'other' {
+  if (!title) return 'other'; // 未填写职称，按副教授及以下算
+  
+  const normalizedTitle = title.trim();
+  
+  // 检查是否是院士级别
+  if (titleLevelMapping.academician.some(t => normalizedTitle.includes(t))) {
+    return 'academician';
+  }
+  
+  // 检查是否是教授级别
+  if (titleLevelMapping.professor.some(t => normalizedTitle.includes(t))) {
+    return 'professor';
+  }
+  
+  // 其他情况都按副教授及以下算
+  return 'other';
+}
+
 const trainingTargets = [
   '企业内训',
   '技能培训',
@@ -1727,17 +1832,23 @@ export default function DesignPage() {
       }
       
       const duration = course.duration || 0;
-      const title = course.teacherTitle || '';
+      let title = course.teacherTitle || '';
       
-      // 判断职称档位（待确认师资按教授算，其他未填写的按副教授及以下算）
-      if (title.includes('待确认')) {
-        acc.professor += duration;
-      } else if (title.includes('院士')) {
+      // 如果课程关联了讲师库中的讲师，从讲师库中获取实际职称
+      if (course.teacherId && teachers.length > 0) {
+        const teacher = teachers.find(t => t.id === course.teacherId);
+        if (teacher && teacher.title) {
+          title = teacher.title;
+        }
+      }
+      
+      // 使用职称等级对照表判断师资级别
+      const level = getTeacherLevel(title);
+      if (level === 'academician') {
         acc.academician += duration;
-      } else if (title.includes('教授')) {
+      } else if (level === 'professor') {
         acc.professor += duration;
       } else {
-        // 空字符串、"讲师"、"副教授"、"无职称"等都按副教授及以下计算
         acc.other += duration;
       }
       return acc;
@@ -1784,7 +1895,7 @@ export default function DesignPage() {
         quantity: teacherHoursByTitle.professor,
         total: teacherHoursByTitle.professor * 1000,
         description: teacherHoursByTitle.professor > 0 
-          ? `教授授课，共${teacherHoursByTitle.professor}课时（含待确认师资）` 
+          ? `教授授课，共${teacherHoursByTitle.professor}课时` 
           : '暂无教授授课',
         isAutoCalculated: true
       },
@@ -1904,21 +2015,27 @@ export default function DesignPage() {
           return acc;
         }
         
-        const duration = course.duration || 0;
-        const title = course.teacherTitle || '';
-        
-        // 待确认师资按教授算，其他未填写的按副教授及以下算
-        if (title.includes('待确认')) {
-          acc.professor += duration;
-        } else if (title.includes('院士')) {
-          acc.academician += duration;
-        } else if (title.includes('教授')) {
-          acc.professor += duration;
-        } else {
-          // 空字符串、"讲师"、"副教授"、"无职称"等都按副教授及以下计算
-          acc.other += duration;
+      const duration = course.duration || 0;
+      let title = course.teacherTitle || '';
+      
+      // 如果课程关联了讲师库中的讲师，从讲师库中获取实际职称
+      if (course.teacherId && teachers.length > 0) {
+        const teacher = teachers.find(t => t.id === course.teacherId);
+        if (teacher && teacher.title) {
+          title = teacher.title;
         }
-        return acc;
+      }
+      
+      // 使用职称等级对照表判断师资级别
+      const level = getTeacherLevel(title);
+      if (level === 'academician') {
+        acc.academician += duration;
+      } else if (level === 'professor') {
+        acc.professor += duration;
+      } else {
+        acc.other += duration;
+      }
+      return acc;
       }, { academician: 0, professor: 0, other: 0 });
       
       const venueHoursByLocation = courses.reduce((acc, course) => {
