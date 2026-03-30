@@ -152,9 +152,11 @@ const titleLevelMapping: {
     '教授',
     '教授级高级讲师',
     '教授级高级政工师',
+    '教授级高级实验师',
     // 科研系列正高级
     '研究员',
     '教授级研究员',
+    '教授级高级实验员',
     // 工程系列正高级
     '教授级高级工程师',
     '教授级高级建筑师',
@@ -163,9 +165,13 @@ const titleLevelMapping: {
     '教授级高级畜牧师',
     '教授级高级兽医师',
     '教授级高级水产师',
+    '教授级高级技师',
     // 卫生医疗系列正高级
     '主任医师',
     '教授级主任医师',
+    '药师',
+    '护师',
+    '技师',
     // 经济系列正高级
     '教授级高级经济师',
     // 会计系列正高级
@@ -181,9 +187,30 @@ const titleLevelMapping: {
     '教授级高级编辑',
     '教授级高级记者',
     '教授级高级播音指导',
+    // 图书资料系列正高级
+    '教授级高级馆员',
+    // 文博系列正高级
+    '教授级高级文博馆员',
+    // 律师系列正高级
+    '教授级高级律师',
+    // 公证系列正高级
+    '教授级高级公证员',
+    // 艺术系列正高级
+    '教授级高级工艺美术师',
+    '教授级高级编审',
+    '教授级高级一级导演',
+    '教授级高级一级指挥',
+    '教授级高级一级作曲',
+    '教授级高级一级演员',
+    // 体育系列正高级
+    '教授级高级教练',
     // 其他正高级
     '教授级高级',
     '正高级',
+    '教授',
+    '研究员',
+    '主任医师',
+    '高级工程师',
   ],
   other: [
     // 教育系列副高级、中级、初级
@@ -204,19 +231,80 @@ const titleLevelMapping: {
     '主治医师',
     '医师',
     '医士',
+    '副主任药师',
+    '药师',
+    '药剂师',
+    '副主任护师',
+    '主管护师',
+    '护师',
+    '护士',
+    '副主任技师',
+    '主管技师',
+    '技师',
     // 经济系列副高级、中级、初级
     '高级经济师',
     '经济师',
     '助理经济师',
+    '经济员',
     // 会计系列副高级、中级、初级
     '高级会计师',
     '会计师',
     '助理会计师',
+    '会计员',
+    // 统计系列副高级、中级、初级
+    '高级统计师',
+    '统计师',
+    '助理统计师',
+    // 翻译系列副高级、中级、初级
+    '高级翻译',
+    '翻译',
+    '助理翻译',
+    // 档案系列副高级、中级、初级
+    '高级档案师',
+    '档案师',
+    '助理档案师',
+    // 图书资料系列副高级、中级、初级
+    '高级馆员',
+    '馆员',
+    '助理馆员',
+    // 文博系列副高级、中级、初级
+    '高级文博馆员',
+    '文博馆员',
+    '助理文博馆员',
+    // 律师系列副高级、中级、初级
+    '高级律师',
+    '律师',
+    // 公证系列副高级、中级、初级
+    '高级公证员',
+    '公证员',
+    // 艺术系列副高级、中级、初级
+    '一级美术师',
+    '二级美术师',
+    '三级美术师',
+    '一级编剧',
+    '二级编剧',
+    '三级编剧',
+    '一级导演',
+    '二级导演',
+    '三级导演',
+    '一级指挥',
+    '二级指挥',
+    '三级指挥',
+    '一级作曲',
+    '二级作曲',
+    '三级作曲',
+    '一级演员',
+    '二级演员',
+    '三级演员',
+    // 体育系列副高级、中级、初级
+    '高级教练',
+    '教练',
     // 其他职称
-    '讲师',
     '高级讲师',
+    '讲师',
     '无职称',
     '待确认',
+    '未填写',
   ],
 };
 
@@ -2016,28 +2104,41 @@ export default function DesignPage() {
       const teacherHoursByTitle = courses.reduce((acc, course) => {
         // 排除参访课程
         if (course.type === 'visit') {
+          console.log(`[师资费计算] 跳过参访课程: ${course.name}`);
           return acc;
         }
         
       const duration = course.duration || 0;
       let title = course.teacherTitle || '';
       
+      console.log(`[师资费计算] 课程 "${course.name}": 初始职称="${title}"`);
+      
       // 如果课程关联了讲师库中的讲师，从讲师库中获取实际职称
       if (course.teacherId && teachers.length > 0) {
         const teacher = teachers.find(t => t.id === course.teacherId);
         if (teacher && teacher.title) {
           title = teacher.title;
+          console.log(`[师资费计算] 课程 "${course.name}": 从讲师库获取职称="${title}" (讲师ID: ${course.teacherId})`);
+        } else {
+          console.log(`[师资费计算] 课程 "${course.name}": 讲师库中未找到讲师或职称 (讲师ID: ${course.teacherId})`);
         }
+      } else {
+        console.log(`[师资费计算] 课程 "${course.name}": 未关联讲师库`);
       }
       
       // 使用职称等级对照表判断师资级别
       const level = getTeacherLevel(title);
+      console.log(`[师资费计算] 课程 "${course.name}": 职称="${title}" -> 级别="${level}"`);
+      
       if (level === 'academician') {
         acc.academician += duration;
+        console.log(`[师资费计算] 课程 "${course.name}": 累加院士课时 ${duration}`);
       } else if (level === 'professor') {
         acc.professor += duration;
+        console.log(`[师资费计算] 课程 "${course.name}": 累加教授课时 ${duration}`);
       } else {
         acc.other += duration;
+        console.log(`[师资费计算] 课程 "${course.name}": 累加其他课时 ${duration}`);
       }
       return acc;
       }, { academician: 0, professor: 0, other: 0 });
