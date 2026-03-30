@@ -115,6 +115,7 @@ interface VisitSite {
   visitDuration: number;
   maxVisitors: number;
   visitFee: number;
+  feeType: 'per_person' | 'per_visit'; // 收费方式：按人头 / 按次
   facilities: string;
   requirements: string;
   rating: number;
@@ -1967,6 +1968,58 @@ export default function DesignPage() {
       return acc;
     }, { academician: 0, professor: 0, other: 0 });
     
+    // 统计参访费用（按参访基地分组）
+    const visitFees: Array<{
+      siteId: string;
+      siteName: string;
+      feeType: 'per_person' | 'per_visit';
+      fee: number;
+      count: number; // 参访次数或参访人数
+      total: number;
+      unit: string;
+      description: string;
+    }> = [];
+    
+    courses.forEach(course => {
+      if (course.type === 'visit' && course.visitSiteId) {
+        const site = visitSites.find(s => s.id === course.visitSiteId);
+        if (site && site.visitFee) {
+          const fee = site.visitFee || 0;
+          const feeType = site.feeType || 'per_person';
+          
+          if (feeType === 'per_person') {
+            // 按人头收费：参访人数 × 单价
+            const total = fee * participantCount;
+            visitFees.push({
+              siteId: site.id,
+              siteName: site.name,
+              feeType,
+              fee,
+              count: participantCount,
+              total,
+              unit: '人',
+              description: `${site.name}参访，${participantCount}人 × ¥${fee}/人`
+            });
+          } else {
+            // 按次收费：固定费用
+            const total = fee;
+            visitFees.push({
+              siteId: site.id,
+              siteName: site.name,
+              feeType,
+              fee,
+              count: 1,
+              total,
+              unit: '次',
+              description: `${site.name}参访，¥${fee}/次（固定费用）`
+            });
+          }
+        }
+      }
+    });
+    
+    console.log('[参访费用统计]', visitFees);
+    
     // 统计场地费（按场地分组）
     const venueHoursByLocation = courses.reduce((acc, course) => {
       const location = course.location || '其他场地';
@@ -2035,6 +2088,18 @@ export default function DesignPage() {
         quantity: hours,
         total: hours * venueRates[location],
         description: `${location}使用${hours}课时，单价¥${venueRates[location]}/课时`,
+        isAutoCalculated: true
+      })),
+      // 参访费用 - 按参访基地分组
+      ...visitFees.map((vf, index) => ({
+        id: `budget-visit-${vf.siteId}-${index}`,
+        name: `参访费（${vf.siteName}）`,
+        category: '参访费',
+        unit: vf.unit,
+        unitPrice: vf.fee,
+        quantity: vf.count,
+        total: vf.total,
+        description: vf.description,
         isAutoCalculated: true
       })),
       {
@@ -2232,13 +2297,56 @@ export default function DesignPage() {
         };
       });
       
-      // 移除旧的师资费和场地费项，添加新的
+      // 更新参访费用
+      const updatedVisitItems: BudgetItem[] = [];
+      courses.forEach(course => {
+        if (course.type === 'visit' && course.visitSiteId) {
+          const site = visitSites.find(s => s.id === course.visitSiteId);
+          if (site && site.visitFee) {
+            const fee = site.visitFee || 0;
+            const feeType = site.feeType || 'per_person';
+            const index = updatedVisitItems.length;
+            
+            if (feeType === 'per_person') {
+              // 按人头收费：参访人数 × 单价
+              updatedVisitItems.push({
+                id: `budget-visit-${site.id}-${index}`,
+                name: `参访费（${site.name}）`,
+                category: '参访费',
+                unit: '人',
+                unitPrice: fee,
+                quantity: participantCount,
+                total: fee * participantCount,
+                description: `${site.name}参访，${participantCount}人 × ¥${fee}/人`,
+                isAutoCalculated: true
+              });
+            } else {
+              // 按次收费：固定费用
+              updatedVisitItems.push({
+                id: `budget-visit-${site.id}-${index}`,
+                name: `参访费（${site.name}）`,
+                category: '参访费',
+                unit: '次',
+                unitPrice: fee,
+                quantity: 1,
+                total: fee,
+                description: `${site.name}参访，¥${fee}/次（固定费用）`,
+                isAutoCalculated: true
+              });
+            }
+          }
+        }
+      });
+      
+      // 移除旧的师资费、场地费和参访费项，添加新的
       setBudgetItems(prev => [
         ...updatedTeacherItems,
         ...updatedVenueItems,
+        ...updatedVisitItems,
         ...prev.filter(item => 
           item.category !== '师资费' && 
           item.category !== '场地费' &&
+          item.category !== '参访费' &&
           item.category !== '餐饮费' &&
           item.category !== '茶歇费' &&
           item.category !== '资料费'

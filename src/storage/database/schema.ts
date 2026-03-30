@@ -243,7 +243,8 @@ export const visitSites = sqliteTable(
     visitContent: text('visit_content'), // 可参观学习内容
     visitDuration: integer('visit_duration'), // 建议参观时长（小时）
     maxVisitors: integer('max_visitors'), // 最大接待人数
-    visitFee: real('visit_fee'), // 参观费用（元/人）
+    visitFee: real('visit_fee'), // 参观费用（根据 feeType 决定单位）
+    feeType: text('fee_type').default('per_person'), // 收费方式：'per_person'(按人头) / 'per_visit'(按次)
     facilities: text('facilities'), // 配套设施（会议室、停车场等）
     requirements: text('requirements'), // 参观要求/注意事项
     rating: real('rating').default(4.0), // 评价评分

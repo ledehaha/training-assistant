@@ -113,6 +113,7 @@ export async function GET(request: NextRequest) {
         visitDuration: visitSites.visitDuration,
         maxVisitors: visitSites.maxVisitors,
         visitFee: visitSites.visitFee,
+        feeType: visitSites.feeType,
         facilities: visitSites.facilities,
         requirements: visitSites.requirements,
         rating: visitSites.rating,
