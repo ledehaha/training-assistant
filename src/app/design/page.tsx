@@ -2106,22 +2106,22 @@ export default function DesignPage() {
         id: 'budget-catering',
         name: '餐饮费（午餐）',
         category: '餐饮费',
-        unit: '人/餐',
+        unit: '人',
         unitPrice: 80,
-        quantity: participantCount * trainingDays,
-        total: participantCount * trainingDays * 80,
-        description: '每人每天1餐，共N天',
+        quantity: participantCount * trainingDays * 1, // 人数 × 天数 × 餐数/天
+        total: participantCount * trainingDays * 1 * 80,
+        description: `${participantCount}人 × ${trainingDays}天 × 1餐/天 × ¥80/餐`,
         isAutoCalculated: true
       },
       {
         id: 'budget-tea-break',
         name: '茶歇费',
         category: '茶歇费',
-        unit: '人/天',
+        unit: '人',
         unitPrice: 30,
-        quantity: participantCount * trainingDays,
-        total: participantCount * trainingDays * 30,
-        description: '每人每天两次茶歇',
+        quantity: participantCount * trainingDays * 2, // 人数 × 天数 × 次数/天
+        total: participantCount * trainingDays * 2 * 30,
+        description: `${participantCount}人 × ${trainingDays}天 × 2次/天 × ¥30/次`,
         isAutoCalculated: true
       },
       {
@@ -2355,22 +2355,22 @@ export default function DesignPage() {
           id: 'budget-catering',
           name: '餐饮费（午餐）',
           category: '餐饮费',
-          unit: '人/餐',
+          unit: '人',
           unitPrice: 80,
-          quantity: participantCount * trainingDays,
-          total: participantCount * trainingDays * 80,
-          description: '每人每天1餐，共N天',
+          quantity: participantCount * trainingDays * 1, // 人数 × 天数 × 餐数/天
+          total: participantCount * trainingDays * 1 * 80,
+          description: `${participantCount}人 × ${trainingDays}天 × 1餐/天 × ¥80/餐`,
           isAutoCalculated: true
         },
         {
           id: 'budget-tea-break',
           name: '茶歇费',
           category: '茶歇费',
-          unit: '人/天',
+          unit: '人',
           unitPrice: 30,
-          quantity: participantCount * trainingDays,
-          total: participantCount * trainingDays * 30,
-          description: '每人每天两次茶歇',
+          quantity: participantCount * trainingDays * 2, // 人数 × 天数 × 次数/天
+          total: participantCount * trainingDays * 2 * 30,
+          description: `${participantCount}人 × ${trainingDays}天 × 2次/天 × ¥30/次`,
           isAutoCalculated: true
         },
         {
