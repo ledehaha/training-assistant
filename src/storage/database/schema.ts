@@ -470,6 +470,8 @@ export const projects = sqliteTable(
     summaryReport: text('summary_report'),
     // 课程是否已保存
     hasSavedCourses: integer('has_saved_courses', { mode: 'boolean' }).default(false),
+    // 费用预算数据（JSON格式）
+    budgetData: text('budget_data'),
     // 时间戳
     createdAt: text('created_at').default(sql`datetime('now')`).notNull(),
     updatedAt: text('updated_at'),

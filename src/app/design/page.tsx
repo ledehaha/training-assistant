@@ -339,6 +339,7 @@ export default function DesignPage() {
       formData: currentFormData,
       courses: currentCourses,
       selectedVenueId: currentSelectedVenue?.id,
+      budgetData: JSON.stringify(budgetItems),
     });
     
     if (!force && currentData === lastSavedDataRef.current) {
@@ -375,6 +376,7 @@ export default function DesignPage() {
         status: 'draft',
         courses: filteredCourses,
         selectedVenueId: currentSelectedVenue?.id,
+        budgetData: JSON.stringify(budgetItems), // 保存费用预算数据
       };
 
       console.log('Saving data:', dataToSave);
@@ -759,6 +761,7 @@ export default function DesignPage() {
     setOtherTrainingPeriod('');
     setNoBudgetLimit(true);
     setModifySuggestion('');
+    setBudgetItems([]);
     lastSavedDataRef.current = '';
     setSaveStatus('idle');
     setLastSaveTime(null);
@@ -800,11 +803,22 @@ export default function DesignPage() {
         const venueId = project.venueId || project.selected_venue_id || project.venue_id;
         const venue = venueId ? venues.find(v => v.id === venueId) : null;
         
+        // 恢复费用预算数据
+        let restoredBudgetItems: BudgetItem[] = [];
+        if (project.budgetData) {
+          try {
+            restoredBudgetItems = JSON.parse(project.budgetData);
+          } catch (error) {
+            console.error('Failed to parse budgetData:', error);
+          }
+        }
+        
         // 更新已保存数据引用（用于后续比较是否需要保存）
         lastSavedDataRef.current = JSON.stringify({
           formData: newFormData,
           courses: newCourses,
           selectedVenueId: venueId,
+          budgetData: project.budgetData,
         });
         
         // 批量更新所有状态（React 18 会自动批量处理）
@@ -817,6 +831,7 @@ export default function DesignPage() {
         coursesRef.current = newCourses;
         setSelectedVenue(venue || null);
         selectedVenueRef.current = venue || null;
+        setBudgetItems(restoredBudgetItems);
         setQuotation(null);
         setModifySuggestion('');
         setCheckResult(null);

@@ -222,6 +222,7 @@ export async function PUT(
       satisfactionSurveyFile: 'satisfactionSurveyFile', satisfactionSurveyFileName: 'satisfactionSurveyFileName',
       countersignFile: 'countersignFile', countersignFileName: 'countersignFileName',
       otherMaterials: 'otherMaterials',
+      budgetData: 'budgetData', // 费用预算数据
     };
 
     Object.entries(fieldMapping).forEach(([bodyKey, dbKey]) => {
