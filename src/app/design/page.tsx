@@ -1704,30 +1704,97 @@ export default function DesignPage() {
     const totalHours = courses.reduce((sum, c) => sum + (c.duration || 0), 0);
     const courseCount = courses.length;
     
+    // 统计师资费（按职称分档）
+    const teacherHoursByTitle = courses.reduce((acc, course) => {
+      const duration = course.duration || 0;
+      const title = course.teacherTitle || '';
+      
+      // 判断职称档位
+      if (title.includes('院士')) {
+        acc.academician += duration;
+      } else if (title.includes('教授')) {
+        acc.professor += duration;
+      } else {
+        acc.other += duration;
+      }
+      return acc;
+    }, { academician: 0, professor: 0, other: 0 });
+    
+    // 统计场地费（按场地分组）
+    const venueHoursByLocation = courses.reduce((acc, course) => {
+      const location = course.location || '其他场地';
+      const duration = course.duration || 0;
+      acc[location] = (acc[location] || 0) + duration;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    // 根据场地数据库查找单价
+    const venueRates: Record<string, number> = {};
+    Object.keys(venueHoursByLocation).forEach(location => {
+      const matchedVenue = venues.find(v => v.name === location || v.location === location);
+      venueRates[location] = matchedVenue ? parseFloat(matchedVenue.hourly_rate) : 2000;
+    });
+    
     // 预设常见费用项
     const initialItems: BudgetItem[] = [
-      {
-        id: 'budget-teacher',
+      // 师资费 - 按职称分档
+      ...(teacherHoursByTitle.academician > 0 ? [{
+        id: 'budget-teacher-academician',
+        name: '师资费（院士）',
+        category: '师资费',
+        unit: '课时',
+        unitPrice: 1500,
+        quantity: teacherHoursByTitle.academician,
+        total: teacherHoursByTitle.academician * 1500,
+        description: `院士授课，共${teacherHoursByTitle.academician}课时`,
+        isAutoCalculated: true
+      }] : []),
+      ...(teacherHoursByTitle.professor > 0 ? [{
+        id: 'budget-teacher-professor',
+        name: '师资费（教授）',
+        category: '师资费',
+        unit: '课时',
+        unitPrice: 1000,
+        quantity: teacherHoursByTitle.professor,
+        total: teacherHoursByTitle.professor * 1000,
+        description: `教授授课，共${teacherHoursByTitle.professor}课时`,
+        isAutoCalculated: true
+      }] : []),
+      ...(teacherHoursByTitle.other > 0 ? [{
+        id: 'budget-teacher-other',
+        name: '师资费（副教授及以下）',
+        category: '师资费',
+        unit: '课时',
+        unitPrice: 500,
+        quantity: teacherHoursByTitle.other,
+        total: teacherHoursByTitle.other * 500,
+        description: `副教授及以下授课，共${teacherHoursByTitle.other}课时`,
+        isAutoCalculated: true
+      }] : []),
+      // 如果没有任何师资费，添加一个默认项
+      ...(teacherHoursByTitle.academician === 0 && teacherHoursByTitle.professor === 0 && teacherHoursByTitle.other === 0 ? [{
+        id: 'budget-teacher-default',
         name: '师资费',
         category: '师资费',
         unit: '课时',
-        unitPrice: 1000, // 默认1000元/课时
+        unitPrice: 1000,
         quantity: totalHours,
         total: totalHours * 1000,
-        description: '根据总课时自动计算',
+        description: '请根据课程实际情况调整',
         isAutoCalculated: true
-      },
-      {
-        id: 'budget-venue',
-        name: '场地费',
+      }] : []),
+      // 场地费 - 按场地分组
+      ...Object.entries(venueHoursByLocation).map(([location, hours], index) => ({
+        id: `budget-venue-${index}`,
+        name: `场地费（${location}）`,
         category: '场地费',
-        unit: '天',
-        unitPrice: 2000, // 默认2000元/天
-        quantity: trainingDays,
-        total: trainingDays * 2000,
-        description: '根据培训天数自动计算，可根据实际场地费用调整',
+        unit: '课时',
+        unitPrice: venueRates[location],
+        quantity: hours,
+        total: hours * venueRates[location],
+        description: `${location}使用${hours}课时，单价¥${venueRates[location]}/课时`,
         isAutoCalculated: true
-      },
+      })),
       {
         id: 'budget-catering',
         name: '餐饮费（午餐）',
@@ -1809,55 +1876,160 @@ export default function DesignPage() {
   // 监听课程变化，自动更新相关费用项
   useEffect(() => {
     if (activeTab === 'quotation' && budgetItems.length > 0) {
-      const totalHours = courses.reduce((sum, c) => sum + (c.duration || 0), 0);
       const participantCount = formData.participantCount || 50;
       const trainingDays = formData.trainingDays || 4;
       
-      setBudgetItems(prev => prev.map(item => {
-        if (item.id === 'budget-teacher' && item.isAutoCalculated) {
-          return {
-            ...item,
-            quantity: totalHours,
-            total: totalHours * item.unitPrice,
-            description: `根据总课时${totalHours}自动计算`
-          };
+      // 重新计算师资费和场地费
+      const teacherHoursByTitle = courses.reduce((acc, course) => {
+        const duration = course.duration || 0;
+        const title = course.teacherTitle || '';
+        
+        if (title.includes('院士')) {
+          acc.academician += duration;
+        } else if (title.includes('教授')) {
+          acc.professor += duration;
+        } else {
+          acc.other += duration;
         }
-        if (item.id === 'budget-venue' && item.isAutoCalculated) {
-          return {
-            ...item,
-            quantity: trainingDays,
-            total: trainingDays * item.unitPrice,
-            description: `根据培训天数${trainingDays}自动计算`
-          };
+        return acc;
+      }, { academician: 0, professor: 0, other: 0 });
+      
+      const venueHoursByLocation = courses.reduce((acc, course) => {
+        const location = course.location || '其他场地';
+        const duration = course.duration || 0;
+        acc[location] = (acc[location] || 0) + duration;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      // 更新师资费
+      const updatedTeacherItems: BudgetItem[] = [];
+      
+      if (teacherHoursByTitle.academician > 0) {
+        updatedTeacherItems.push({
+          id: 'budget-teacher-academician',
+          name: '师资费（院士）',
+          category: '师资费',
+          unit: '课时',
+          unitPrice: 1500,
+          quantity: teacherHoursByTitle.academician,
+          total: teacherHoursByTitle.academician * 1500,
+          description: `院士授课，共${teacherHoursByTitle.academician}课时`,
+          isAutoCalculated: true
+        });
+      }
+      
+      if (teacherHoursByTitle.professor > 0) {
+        updatedTeacherItems.push({
+          id: 'budget-teacher-professor',
+          name: '师资费（教授）',
+          category: '师资费',
+          unit: '课时',
+          unitPrice: 1000,
+          quantity: teacherHoursByTitle.professor,
+          total: teacherHoursByTitle.professor * 1000,
+          description: `教授授课，共${teacherHoursByTitle.professor}课时`,
+          isAutoCalculated: true
+        });
+      }
+      
+      if (teacherHoursByTitle.other > 0) {
+        updatedTeacherItems.push({
+          id: 'budget-teacher-other',
+          name: '师资费（副教授及以下）',
+          category: '师资费',
+          unit: '课时',
+          unitPrice: 500,
+          quantity: teacherHoursByTitle.other,
+          total: teacherHoursByTitle.other * 500,
+          description: `副教授及以下授课，共${teacherHoursByTitle.other}课时`,
+          isAutoCalculated: true
+        });
+      }
+      
+      // 如果没有任何师资费，保持默认项
+      const hasTeacherBudget = budgetItems.some(item => 
+        item.category === '师资费' && (item.isAutoCalculated || !item.id.startsWith('budget-custom'))
+      );
+      
+      if (!hasTeacherBudget && teacherHoursByTitle.academician === 0 && teacherHoursByTitle.professor === 0 && teacherHoursByTitle.other === 0) {
+        const totalHours = courses.reduce((sum, c) => sum + (c.duration || 0), 0);
+        updatedTeacherItems.push({
+          id: 'budget-teacher-default',
+          name: '师资费',
+          category: '师资费',
+          unit: '课时',
+          unitPrice: 1000,
+          quantity: totalHours,
+          total: totalHours * 1000,
+          description: '请根据课程实际情况调整',
+          isAutoCalculated: true
+        });
+      }
+      
+      // 更新场地费
+      const updatedVenueItems: BudgetItem[] = Object.entries(venueHoursByLocation).map(([location, hours], index) => {
+        const matchedVenue = venues.find(v => v.name === location || v.location === location);
+        const rate = matchedVenue ? parseFloat(matchedVenue.hourly_rate) : 2000;
+        return {
+          id: `budget-venue-${index}`,
+          name: `场地费（${location}）`,
+          category: '场地费',
+          unit: '课时',
+          unitPrice: rate,
+          quantity: hours,
+          total: hours * rate,
+          description: `${location}使用${hours}课时，单价¥${rate}/课时`,
+          isAutoCalculated: true
+        };
+      });
+      
+      // 移除旧的师资费和场地费项，添加新的
+      setBudgetItems(prev => [
+        ...updatedTeacherItems,
+        ...updatedVenueItems,
+        ...prev.filter(item => 
+          item.category !== '师资费' && 
+          item.category !== '场地费' &&
+          item.category !== '餐饮费' &&
+          item.category !== '茶歇费' &&
+          item.category !== '资料费'
+        ),
+        {
+          id: 'budget-catering',
+          name: '餐饮费（午餐）',
+          category: '餐饮费',
+          unit: '人/餐',
+          unitPrice: 80,
+          quantity: participantCount * trainingDays,
+          total: participantCount * trainingDays * 80,
+          description: '每人每天1餐，共N天',
+          isAutoCalculated: true
+        },
+        {
+          id: 'budget-tea-break',
+          name: '茶歇费',
+          category: '茶歇费',
+          unit: '人/天',
+          unitPrice: 30,
+          quantity: participantCount * trainingDays,
+          total: participantCount * trainingDays * 30,
+          description: '每人每天两次茶歇',
+          isAutoCalculated: true
+        },
+        {
+          id: 'budget-material',
+          name: '资料费',
+          category: '资料费',
+          unit: '套',
+          unitPrice: 150,
+          quantity: participantCount,
+          total: participantCount * 150,
+          description: '培训教材、笔记本等',
+          isAutoCalculated: true
         }
-        if (item.id === 'budget-catering' && item.isAutoCalculated) {
-          return {
-            ...item,
-            quantity: participantCount * trainingDays,
-            total: participantCount * trainingDays * item.unitPrice,
-            description: `每人每天1餐，共${trainingDays}天`
-          };
-        }
-        if (item.id === 'budget-tea-break' && item.isAutoCalculated) {
-          return {
-            ...item,
-            quantity: participantCount * trainingDays,
-            total: participantCount * trainingDays * item.unitPrice,
-            description: `每人每天两次茶歇`
-          };
-        }
-        if (item.id === 'budget-material' && item.isAutoCalculated) {
-          return {
-            ...item,
-            quantity: participantCount,
-            total: participantCount * item.unitPrice,
-            description: `培训教材、笔记本等`
-          };
-        }
-        return item;
-      }));
+      ]);
     }
-  }, [courses, formData.participantCount, formData.trainingDays, activeTab, budgetItems.length]);
+  }, [courses, formData.participantCount, formData.trainingDays, activeTab, venues]);
 
   // 更新费用项
   const updateBudgetItem = (id: string, field: keyof BudgetItem, value: number | string | boolean) => {
