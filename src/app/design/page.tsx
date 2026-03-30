@@ -1721,11 +1721,11 @@ export default function DesignPage() {
         id: 'budget-venue',
         name: '场地费',
         category: '场地费',
-        unit: '课时',
-        unitPrice: selectedVenue?.hourly_rate ? parseFloat(selectedVenue.hourly_rate) : 2000, // 根据选择的场地单价，默认2000元/课时
-        quantity: totalHours,
-        total: totalHours * (selectedVenue?.hourly_rate ? parseFloat(selectedVenue.hourly_rate) : 2000),
-        description: selectedVenue ? `使用场地：${selectedVenue.name}（¥${selectedVenue.hourly_rate}/课时）` : '根据培训天数自动计算',
+        unit: '天',
+        unitPrice: 2000, // 默认2000元/天
+        quantity: trainingDays,
+        total: trainingDays * 2000,
+        description: '根据培训天数自动计算，可根据实际场地费用调整',
         isAutoCalculated: true
       },
       {
@@ -1858,27 +1858,6 @@ export default function DesignPage() {
       }));
     }
   }, [courses, formData.participantCount, formData.trainingDays, activeTab, budgetItems.length]);
-
-  // 监听场地选择变化，更新场地费
-  useEffect(() => {
-    if (activeTab === 'quotation' && budgetItems.length > 0 && selectedVenue) {
-      const totalHours = courses.reduce((sum, c) => sum + (c.duration || 0), 0);
-      const venueRate = parseFloat(selectedVenue.hourly_rate) || 2000;
-      
-      setBudgetItems(prev => prev.map(item => {
-        if (item.id === 'budget-venue' && item.isAutoCalculated) {
-          return {
-            ...item,
-            unitPrice: venueRate,
-            quantity: totalHours,
-            total: totalHours * venueRate,
-            description: `使用场地：${selectedVenue.name}（¥${venueRate}/课时）`
-          };
-        }
-        return item;
-      }));
-    }
-  }, [selectedVenue, activeTab, budgetItems.length]);
 
   // 更新费用项
   const updateBudgetItem = (id: string, field: keyof BudgetItem, value: number | string | boolean) => {
@@ -2669,57 +2648,6 @@ export default function DesignPage() {
                     </div>
                   </div>
                 )}
-                
-                {/* 场地选择区域 */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold flex items-center gap-2">
-                      <MapPin className="h-5 w-5" />
-                      培训场地
-                    </h3>
-                    <div className="text-sm text-muted-foreground">
-                      {selectedVenue ? (
-                        <span className="text-green-600">已选择：{selectedVenue.name}</span>
-                      ) : (
-                        <span className="text-orange-600">请选择培训场地</span>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {venues.map((venue) => (
-                      <Card 
-                        key={venue.id}
-                        className={`cursor-pointer transition-all ${
-                          selectedVenue?.id === venue.id 
-                            ? 'ring-2 ring-primary' 
-                            : 'hover:shadow-md'
-                        }`}
-                        onClick={() => setSelectedVenue(venue)}
-                      >
-                        <CardContent className="p-4">
-                          <h4 className="font-medium">{venue.name}</h4>
-                          <p className="text-sm text-muted-foreground">
-                            <MapPin className="h-4 w-4 inline mr-1" />
-                            {venue.location}
-                          </p>
-                          <p className="text-sm">
-                            容纳人数：{venue.capacity}人
-                          </p>
-                          <p className="text-sm">
-                            费用：¥{venue.hourly_rate}/课时
-                          </p>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                  
-                  {venues.length === 0 && (
-                    <div className="text-center py-8 text-muted-foreground">
-                      暂无可用场地，请联系管理员添加
-                    </div>
-                  )}
-                </div>
                 
                 {/* 下一步按钮 */}
                 {courses.length > 0 && (
