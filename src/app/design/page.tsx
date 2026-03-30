@@ -398,6 +398,7 @@ export default function DesignPage() {
 
   const [courses, setCourses] = useState<Course[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [teacherTitles, setTeacherTitles] = useState<Array<{id: string; name: string; title: string | null}>>([]);
   const [venues, setVenues] = useState<Venue[]>([]);
   const [visitSites, setVisitSites] = useState<VisitSite[]>([]);
   const [selectedVenue, setSelectedVenue] = useState<Venue | null>(null);
@@ -793,16 +794,20 @@ export default function DesignPage() {
           headers['Authorization'] = `Bearer ${sessionToken}`;
         }
 
-        const [teachersRes, venuesRes, visitSitesRes] = await Promise.all([
+        // 分别加载讲师数据（用于选择）和讲师职称信息（用于计算）
+        const [teachersRes, teachersTitlesRes, venuesRes, visitSitesRes] = await Promise.all([
           fetch('/api/teachers', { headers }),
+          fetch('/api/teachers/titles', { headers }),
           fetch('/api/venues', { headers }),
           fetch('/api/admin/data?table=visit_sites', { headers }),
         ]);
         const teachersData = await teachersRes.json();
+        const teachersTitlesData = await teachersTitlesRes.json();
         const venuesData = await venuesRes.json();
         const visitSitesData = await visitSitesRes.json();
         
         console.log('Venues response:', venuesData); // 调试信息
+        console.log('Teacher titles response:', teachersTitlesData); // 调试日志
         
         if (venuesData.error) {
           console.error('Load venues error:', venuesData.error);
@@ -813,6 +818,10 @@ export default function DesignPage() {
         }
         
         if (teachersData.data) setTeachers(teachersData.data);
+        if (teachersTitlesData.data) {
+          setTeacherTitles(teachersTitlesData.data);
+          console.log('Loaded teacher titles:', teachersTitlesData.data.length); // 调试日志
+        }
         if (visitSitesData.data) setVisitSites(visitSitesData.data.filter((s: VisitSite) => s.isActive));
       } catch (error) {
         console.error('Load resources error:', error);
@@ -1922,11 +1931,11 @@ export default function DesignPage() {
       const duration = course.duration || 0;
       let title = course.teacherTitle || '';
       
-      // 如果课程关联了讲师库中的讲师，从讲师库中获取实际职称
-      if (course.teacherId && teachers.length > 0) {
-        const teacher = teachers.find(t => t.id === course.teacherId);
-        if (teacher && teacher.title) {
-          title = teacher.title;
+      // 如果课程关联了讲师库中的讲师，从讲师职称信息中获取实际职称
+      if (course.teacherId && teacherTitles.length > 0) {
+        const teacherTitleInfo = teacherTitles.find(t => t.id === course.teacherId);
+        if (teacherTitleInfo && teacherTitleInfo.title) {
+          title = teacherTitleInfo.title;
         }
       }
       
@@ -2113,14 +2122,14 @@ export default function DesignPage() {
       
       console.log(`[师资费计算] 课程 "${course.name}": 初始职称="${title}"`);
       
-      // 如果课程关联了讲师库中的讲师，从讲师库中获取实际职称
-      if (course.teacherId && teachers.length > 0) {
-        const teacher = teachers.find(t => t.id === course.teacherId);
-        if (teacher && teacher.title) {
-          title = teacher.title;
-          console.log(`[师资费计算] 课程 "${course.name}": 从讲师库获取职称="${title}" (讲师ID: ${course.teacherId})`);
+      // 如果课程关联了讲师库中的讲师，从讲师职称信息中获取实际职称
+      if (course.teacherId && teacherTitles.length > 0) {
+        const teacherTitleInfo = teacherTitles.find(t => t.id === course.teacherId);
+        if (teacherTitleInfo && teacherTitleInfo.title) {
+          title = teacherTitleInfo.title;
+          console.log(`[师资费计算] 课程 "${course.name}": 从讲师职称信息中获取职称="${title}" (讲师ID: ${course.teacherId})`);
         } else {
-          console.log(`[师资费计算] 课程 "${course.name}": 讲师库中未找到讲师或职称 (讲师ID: ${course.teacherId})`);
+          console.log(`[师资费计算] 课程 "${course.name}": 讲师职称信息中未找到讲师或职称 (讲师ID: ${course.teacherId})`);
         }
       } else {
         console.log(`[师资费计算] 课程 "${course.name}": 未关联讲师库`);
