@@ -1842,8 +1842,12 @@ export default function DesignPage() {
         }
       }
       
+      // 调试日志：输出每个课程的讲师和职称信息
+      console.log(`课程: ${course.name}, 讲师: ${course.teacherName}, 职称: ${title}, 课时: ${duration}`);
+      
       // 使用职称等级对照表判断师资级别
       const level = getTeacherLevel(title);
+      console.log(`  -> 级别: ${level}`);
       if (level === 'academician') {
         acc.academician += duration;
       } else if (level === 'professor') {
