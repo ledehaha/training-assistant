@@ -1754,7 +1754,8 @@ export default function DesignPage() {
     const venueRates: Record<string, number> = {};
     Object.keys(venueHoursByLocation).forEach(location => {
       const matchedVenue = venues.find(v => v.name === location || v.location === location);
-      venueRates[location] = matchedVenue ? parseFloat(matchedVenue.hourly_rate) : 2000;
+      const rate = matchedVenue?.hourly_rate;
+      venueRates[location] = (rate && !isNaN(parseFloat(rate))) ? parseFloat(rate) : 2000;
     });
     
     // 预设常见费用项
@@ -1971,16 +1972,17 @@ export default function DesignPage() {
       // 更新场地费
       const updatedVenueItems: BudgetItem[] = Object.entries(venueHoursByLocation).map(([location, hours], index) => {
         const matchedVenue = venues.find(v => v.name === location || v.location === location);
-        const rate = matchedVenue ? parseFloat(matchedVenue.hourly_rate) : 2000;
+        const rate = matchedVenue?.hourly_rate;
+        const finalRate = (rate && !isNaN(parseFloat(rate))) ? parseFloat(rate) : 2000;
         return {
           id: `budget-venue-${index}`,
           name: `场地费（${location}）`,
           category: '场地费',
           unit: '课时',
-          unitPrice: rate,
+          unitPrice: finalRate,
           quantity: hours,
-          total: hours * rate,
-          description: `${location}使用${hours}课时，单价¥${rate}/课时`,
+          total: hours * finalRate,
+          description: `${location}使用${hours}课时，单价¥${finalRate}/课时`,
           isAutoCalculated: true
         };
       });
@@ -2998,7 +3000,7 @@ export default function DesignPage() {
                               />
                             </TableCell>
                             <TableCell className="text-right font-medium">
-                              ¥{item.total.toLocaleString()}
+                              ¥{(item.total || 0).toLocaleString()}
                             </TableCell>
                             <TableCell className="text-center">
                               <div className="text-xs text-muted-foreground max-w-xs truncate" title={item.description}>
