@@ -3359,7 +3359,7 @@ export default function DesignPage() {
                           className="grid grid-cols-12 gap-3 items-center p-3 bg-background border rounded-lg hover:bg-muted/50 transition-colors"
                         >
                           {/* 第一列：名称 */}
-                          <div className="col-span-4 flex items-center gap-2">
+                          <div className="col-span-3 flex items-center gap-2">
                             <span className="font-medium">{item.name}</span>
                             {item.isAutoCalculated && (
                               <Badge variant="secondary" className="text-xs">
@@ -3369,7 +3369,7 @@ export default function DesignPage() {
                           </div>
 
                           {/* 第二列：单价、人数和次数（餐饮费和茶歇费）或单价和数量（其他） */}
-                          <div className="col-span-4 flex items-center gap-1 flex-wrap">
+                          <div className="col-span-6 flex items-center gap-1 flex-wrap">
                             <Input
                               type="number"
                               value={item.unitPrice}
@@ -3418,7 +3418,7 @@ export default function DesignPage() {
                           </div>
 
                           {/* 第三列：等号和总额 */}
-                          <div className="col-span-3 flex items-center gap-1">
+                          <div className="col-span-2 flex items-center gap-1">
                             <span className="text-muted-foreground">=</span>
                             <span className="font-semibold">¥{(item.total || 0).toLocaleString()}</span>
                             <span className="text-muted-foreground text-sm whitespace-nowrap">元</span>
