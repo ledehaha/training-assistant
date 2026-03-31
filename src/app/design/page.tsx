@@ -3311,7 +3311,7 @@ export default function DesignPage() {
                         key={item.id}
                         className="grid grid-cols-12 gap-3 items-center p-3 bg-background border rounded-lg hover:bg-muted/50 transition-colors"
                       >
-                        {/* 第一列：名称和单位 */}
+                        {/* 第一列：名称 */}
                         <div className="col-span-4 flex items-center gap-2">
                           <span className="font-medium">{item.name}</span>
                           {item.isAutoCalculated && (
@@ -3319,7 +3319,6 @@ export default function DesignPage() {
                               自动
                             </Badge>
                           )}
-                          <span className="text-muted-foreground text-sm">（{item.unit}）</span>
                         </div>
 
                         {/* 第二列：单价和数量 */}
@@ -3332,6 +3331,7 @@ export default function DesignPage() {
                             min="0"
                             step="0.01"
                           />
+                          <span className="text-muted-foreground text-sm whitespace-nowrap">元/{item.unit}</span>
                           <span className="text-muted-foreground">×</span>
                           <Input
                             type="number"
@@ -3347,7 +3347,7 @@ export default function DesignPage() {
                         <div className="col-span-3 flex items-center gap-1">
                           <span className="text-muted-foreground">=</span>
                           <span className="font-semibold">¥{(item.total || 0).toLocaleString()}</span>
-                          <span className="text-muted-foreground text-sm">元</span>
+                          <span className="text-muted-foreground text-sm whitespace-nowrap">元</span>
                         </div>
 
                         {/* 第四列：说明和操作 */}
