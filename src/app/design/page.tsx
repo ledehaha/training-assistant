@@ -3311,7 +3311,7 @@ export default function DesignPage() {
                         key={item.id}
                         className="flex items-center gap-3 p-3 bg-background border rounded-lg hover:bg-muted/50 transition-colors"
                       >
-                        <div className="flex-1 flex items-center gap-2">
+                        <div className="flex-1 flex items-center gap-2 flex-wrap">
                           <span className="font-medium">{item.name}</span>
                           {item.isAutoCalculated && (
                             <Badge variant="secondary" className="text-xs">
@@ -3327,6 +3327,7 @@ export default function DesignPage() {
                             min="0"
                             step="0.01"
                           />
+                          <span className="text-muted-foreground text-sm whitespace-nowrap">元/{item.unit}</span>
                           <span className="text-muted-foreground">×</span>
                           <Input
                             type="number"
@@ -3336,8 +3337,9 @@ export default function DesignPage() {
                             min="0"
                             step="0.1"
                           />
+                          <span className="text-muted-foreground text-sm whitespace-nowrap">{item.unit}</span>
                           <span className="text-muted-foreground">=</span>
-                          <span className="font-semibold">¥{(item.total || 0).toLocaleString()}</span>
+                          <span className="font-semibold">¥{(item.total || 0).toLocaleString()}元</span>
                           {item.description && (
                             <span className="text-xs text-muted-foreground ml-2" title={item.description}>
                               ({item.description})
