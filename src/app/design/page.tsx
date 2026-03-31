@@ -2033,7 +2033,12 @@ export default function DesignPage() {
     // 根据场地数据库查找单价
     const venueRates: Record<string, number> = {};
     Object.keys(venueHoursByLocation).forEach(location => {
-      const matchedVenue = venues.find(v => v.name === location || v.location === location);
+      const locationNormalized = location.replace(/\s+/g, ''); // 去除所有空格
+      const matchedVenue = venues.find(v => {
+        const venueNameNormalized = v.name.replace(/\s+/g, '');
+        const venueLocationNormalized = v.location.replace(/\s+/g, '');
+        return venueNameNormalized === locationNormalized || venueLocationNormalized === locationNormalized;
+      });
       const rate = matchedVenue?.hourly_rate;
       venueRates[location] = (rate && !isNaN(parseFloat(rate))) ? parseFloat(rate) : 2000;
     });
@@ -2287,7 +2292,12 @@ export default function DesignPage() {
       
       // 更新场地费
       const updatedVenueItems: BudgetItem[] = Object.entries(venueHoursByLocation).map(([location, hours], index) => {
-        const matchedVenue = venues.find(v => v.name === location || v.location === location);
+        const locationNormalized = location.replace(/\s+/g, ''); // 去除所有空格
+        const matchedVenue = venues.find(v => {
+          const venueNameNormalized = v.name.replace(/\s+/g, '');
+          const venueLocationNormalized = v.location.replace(/\s+/g, '');
+          return venueNameNormalized === locationNormalized || venueLocationNormalized === locationNormalized;
+        });
         const rate = matchedVenue?.hourly_rate;
         const finalRate = (rate && !isNaN(parseFloat(rate))) ? parseFloat(rate) : 2000;
         return {
