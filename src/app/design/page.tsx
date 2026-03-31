@@ -2106,22 +2106,22 @@ export default function DesignPage() {
         id: 'budget-catering',
         name: '餐饮费（午餐）',
         category: '餐饮费',
-        unit: '人',
+        unit: '人次',
         unitPrice: 80,
         quantity: participantCount * trainingDays * 1, // 人数 × 天数 × 餐数/天
         total: participantCount * trainingDays * 1 * 80,
-        description: `${participantCount}人 × ${trainingDays}天 × 1餐/天 × ¥80/餐`,
+        description: `${participantCount}人 × ${trainingDays}天 × 1餐/天 × ¥80/人次`,
         isAutoCalculated: true
       },
       {
         id: 'budget-tea-break',
         name: '茶歇费',
         category: '茶歇费',
-        unit: '人',
+        unit: '人次',
         unitPrice: 30,
         quantity: participantCount * trainingDays * 2, // 人数 × 天数 × 次数/天
         total: participantCount * trainingDays * 2 * 30,
-        description: `${participantCount}人 × ${trainingDays}天 × 2次/天 × ¥30/次`,
+        description: `${participantCount}人 × ${trainingDays}天 × 2次/天 × ¥30/人次`,
         isAutoCalculated: true
       },
       {
@@ -2355,22 +2355,22 @@ export default function DesignPage() {
           id: 'budget-catering',
           name: '餐饮费（午餐）',
           category: '餐饮费',
-          unit: '人',
+          unit: '人次',
           unitPrice: 80,
           quantity: participantCount * trainingDays * 1, // 人数 × 天数 × 餐数/天
           total: participantCount * trainingDays * 1 * 80,
-          description: `${participantCount}人 × ${trainingDays}天 × 1餐/天 × ¥80/餐`,
+          description: `${participantCount}人 × ${trainingDays}天 × 1餐/天 × ¥80/人次`,
           isAutoCalculated: true
         },
         {
           id: 'budget-tea-break',
           name: '茶歇费',
           category: '茶歇费',
-          unit: '人',
+          unit: '人次',
           unitPrice: 30,
           quantity: participantCount * trainingDays * 2, // 人数 × 天数 × 次数/天
           total: participantCount * trainingDays * 2 * 30,
-          description: `${participantCount}人 × ${trainingDays}天 × 2次/天 × ¥30/次`,
+          description: `${participantCount}人 × ${trainingDays}天 × 2次/天 × ¥30/人次`,
           isAutoCalculated: true
         },
         {
