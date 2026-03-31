@@ -2032,14 +2032,19 @@ export default function DesignPage() {
     
     // 根据场地数据库查找单价
     const venueRates: Record<string, number> = {};
+    console.log('[场地费计算] 开始匹配场地，可用场地列表：', venues.map(v => ({ name: v.name, location: v.location, rate: v.hourly_rate })));
     Object.keys(venueHoursByLocation).forEach(location => {
       const locationNormalized = location.replace(/\s+/g, ''); // 去除所有空格
+      console.log(`[场地费计算] 匹配课程场地: "${location}" -> normalized: "${locationNormalized}"`);
       const matchedVenue = venues.find(v => {
         const venueNameNormalized = v.name.replace(/\s+/g, '');
         const venueLocationNormalized = v.location.replace(/\s+/g, '');
-        return venueNameNormalized === locationNormalized || venueLocationNormalized === locationNormalized;
+        const isMatch = venueNameNormalized === locationNormalized || venueLocationNormalized === locationNormalized;
+        console.log(`  - 检查场地: name="${v.name}" (${venueNameNormalized}), location="${v.location}" (${venueLocationNormalized}), 匹配=${isMatch}`);
+        return isMatch;
       });
       const rate = matchedVenue?.hourly_rate;
+      console.log(`  - 匹配结果: ${matchedVenue ? '找到场地' : '未找到'}, rate=${rate}, 最终使用: ${venueRates[location]}`);
       venueRates[location] = (rate && !isNaN(parseFloat(rate))) ? parseFloat(rate) : 2000;
     });
     
@@ -2291,15 +2296,20 @@ export default function DesignPage() {
       ];
       
       // 更新场地费
+      console.log('[重新计算场地费] 开始匹配场地，可用场地列表：', venues.map(v => ({ name: v.name, location: v.location, rate: v.hourly_rate })));
       const updatedVenueItems: BudgetItem[] = Object.entries(venueHoursByLocation).map(([location, hours], index) => {
         const locationNormalized = location.replace(/\s+/g, ''); // 去除所有空格
+        console.log(`[重新计算场地费] 匹配课程场地: "${location}" -> normalized: "${locationNormalized}"`);
         const matchedVenue = venues.find(v => {
           const venueNameNormalized = v.name.replace(/\s+/g, '');
           const venueLocationNormalized = v.location.replace(/\s+/g, '');
-          return venueNameNormalized === locationNormalized || venueLocationNormalized === locationNormalized;
+          const isMatch = venueNameNormalized === locationNormalized || venueLocationNormalized === locationNormalized;
+          console.log(`  - 检查场地: name="${v.name}" (${venueNameNormalized}), location="${v.location}" (${venueLocationNormalized}), 匹配=${isMatch}`);
+          return isMatch;
         });
         const rate = matchedVenue?.hourly_rate;
         const finalRate = (rate && !isNaN(parseFloat(rate))) ? parseFloat(rate) : 2000;
+        console.log(`  - 匹配结果: ${matchedVenue ? '找到场地' : '未找到'}, rate=${rate}, 最终使用: ${finalRate}`);
         return {
           id: `budget-venue-${index}`,
           name: `场地费（${location}）`,
