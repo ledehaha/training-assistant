@@ -3488,22 +3488,22 @@ export default function DesignPage() {
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">预算范围：</span>
-                        <span>¥{formData.budgetMin.toLocaleString()} - ¥{formData.budgetMax.toLocaleString()}</span>
+                        <span>¥{(formData.budgetMin * 10000).toLocaleString()} - ¥{(formData.budgetMax * 10000).toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">当前预算：</span>
-                        <span className={totalBudget > formData.budgetMax ? 'text-red-600 font-medium' : 'text-green-600 font-medium'}>
+                        <span className={totalBudget > formData.budgetMax * 10000 ? 'text-red-600 font-medium' : 'text-green-600 font-medium'}>
                           ¥{totalBudget.toLocaleString()}
                         </span>
                       </div>
-                      {totalBudget > formData.budgetMax && (
+                      {totalBudget > formData.budgetMax * 10000 && (
                         <div className="text-sm text-orange-600">
-                          ⚠️ 超出预算 ¥{(totalBudget - formData.budgetMax).toLocaleString()}，请调整费用项
+                          ⚠️ 超出预算 ¥{(totalBudget - formData.budgetMax * 10000).toLocaleString()}，请调整费用项
                         </div>
                       )}
-                      {totalBudget < formData.budgetMin && (
+                      {totalBudget < formData.budgetMin * 10000 && (
                         <div className="text-sm text-blue-600">
-                          💡 还有 ¥{(formData.budgetMin - totalBudget).toLocaleString()} 预算空间，可以增加培训内容
+                          💡 还有 ¥{(formData.budgetMin * 10000 - totalBudget).toLocaleString()} 预算空间，可以增加培训内容
                         </div>
                       )}
                     </div>
