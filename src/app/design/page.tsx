@@ -131,6 +131,8 @@ interface BudgetItem {
   unit: string; // 单位：人/天, 课时, 场次, 套, 间/晚, 辆/天 等
   unitPrice: number; // 单价
   quantity: number; // 数量
+  peopleCount?: number; // 人数（仅餐饮费和茶歇费使用）
+  timesCount?: number; // 次数（仅餐饮费和茶歇费使用）
   total: number; // 总额
   description?: string; // 说明
   isAutoCalculated: boolean; // 是否自动计算
@@ -2109,6 +2111,8 @@ export default function DesignPage() {
         unit: '人次',
         unitPrice: 80,
         quantity: participantCount * trainingDays * 1, // 人数 × 天数 × 餐数/天
+        peopleCount: participantCount,
+        timesCount: trainingDays * 1,
         total: participantCount * trainingDays * 1 * 80,
         description: `${participantCount}人 × ${trainingDays}天 × 1餐/天 × ¥80/人次`,
         isAutoCalculated: true
@@ -2120,6 +2124,8 @@ export default function DesignPage() {
         unit: '人次',
         unitPrice: 30,
         quantity: participantCount * trainingDays * 2, // 人数 × 天数 × 次数/天
+        peopleCount: participantCount,
+        timesCount: trainingDays * 2,
         total: participantCount * trainingDays * 2 * 30,
         description: `${participantCount}人 × ${trainingDays}天 × 2次/天 × ¥30/人次`,
         isAutoCalculated: true
@@ -2358,6 +2364,8 @@ export default function DesignPage() {
           unit: '人次',
           unitPrice: 80,
           quantity: participantCount * trainingDays * 1, // 人数 × 天数 × 餐数/天
+          peopleCount: participantCount,
+          timesCount: trainingDays * 1,
           total: participantCount * trainingDays * 1 * 80,
           description: `${participantCount}人 × ${trainingDays}天 × 1餐/天 × ¥80/人次`,
           isAutoCalculated: true
@@ -2369,6 +2377,8 @@ export default function DesignPage() {
           unit: '人次',
           unitPrice: 30,
           quantity: participantCount * trainingDays * 2, // 人数 × 天数 × 次数/天
+          peopleCount: participantCount,
+          timesCount: trainingDays * 2,
           total: participantCount * trainingDays * 2 * 30,
           description: `${participantCount}人 × ${trainingDays}天 × 2次/天 × ¥30/人次`,
           isAutoCalculated: true
@@ -2393,14 +2403,50 @@ export default function DesignPage() {
     setBudgetItems(prev => prev.map(item => {
       if (item.id === id) {
         const updated = { ...item, [field]: value };
-        // 如果修改了单价或数量，重新计算总额
-        if (field === 'unitPrice' || field === 'quantity') {
-          updated.total = (updated.unitPrice || 0) * (updated.quantity || 0);
+        // 如果修改了单价，重新计算总额
+        if (field === 'unitPrice') {
+          if (item.category === '餐饮费' || item.category === '茶歇费') {
+            updated.total = (updated.unitPrice || 0) * (updated.peopleCount || 0) * (updated.timesCount || 0);
+          } else {
+            updated.total = (updated.unitPrice || 0) * (updated.quantity || 0);
+          }
         }
-        // 如果手动修改了数量，取消自动计算标记
+        // 如果修改了数量，重新计算总额（非餐饮费和茶歇费）
         if (field === 'quantity') {
+          if (item.category !== '餐饮费' && item.category !== '茶歇费') {
+            updated.total = (updated.unitPrice || 0) * (updated.quantity || 0);
+          }
+          // 如果手动修改了数量，取消自动计算标记
           updated.isAutoCalculated = false;
         }
+        return updated;
+      }
+      return item;
+    }));
+  };
+
+  // 更新费用项人数（餐饮费和茶歇费专用）
+  const updateBudgetItemPeopleCount = (id: string, value: number) => {
+    setBudgetItems(prev => prev.map(item => {
+      if (item.id === id && (item.category === '餐饮费' || item.category === '茶歇费')) {
+        const updated = { ...item, peopleCount: value };
+        // 重新计算总额：单价 × 人数 × 次数
+        updated.total = (updated.unitPrice || 0) * (value || 0) * (updated.timesCount || 0);
+        updated.quantity = (value || 0) * (updated.timesCount || 0); // 同步更新 quantity
+        return updated;
+      }
+      return item;
+    }));
+  };
+
+  // 更新费用项次数（餐饮费和茶歇费专用）
+  const updateBudgetItemTimesCount = (id: string, value: number) => {
+    setBudgetItems(prev => prev.map(item => {
+      if (item.id === id && (item.category === '餐饮费' || item.category === '茶歇费')) {
+        const updated = { ...item, timesCount: value };
+        // 重新计算总额：单价 × 人数 × 次数
+        updated.total = (updated.unitPrice || 0) * (updated.peopleCount || 0) * (value || 0);
+        updated.quantity = (updated.peopleCount || 0) * (value || 0); // 同步更新 quantity
         return updated;
       }
       return item;
@@ -3322,27 +3368,53 @@ export default function DesignPage() {
                             )}
                           </div>
 
-                          {/* 第二列：单价和数量 */}
-                          <div className="col-span-4 flex items-center gap-1">
+                          {/* 第二列：单价、人数和次数（餐饮费和茶歇费）或单价和数量（其他） */}
+                          <div className="col-span-4 flex items-center gap-1 flex-wrap">
                             <Input
                               type="number"
                               value={item.unitPrice}
                               onChange={(e) => updateBudgetItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
-                              className="w-20 h-8 text-right"
+                              className="w-16 h-8 text-right"
                               min="0"
                               step="0.01"
                             />
                             <span className="text-muted-foreground text-sm whitespace-nowrap">元</span>
                             <span className="text-muted-foreground">×</span>
-                            <Input
-                              type="number"
-                              value={item.quantity}
-                              onChange={(e) => updateBudgetItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
-                              className="w-20 h-8 text-right"
-                              min="0"
-                              step="0.1"
-                            />
-                            <span className="text-muted-foreground text-sm whitespace-nowrap">{item.unit}</span>
+                            {item.category === '餐饮费' || item.category === '茶歇费' ? (
+                              <>
+                                <Input
+                                  type="number"
+                                  value={item.peopleCount || 0}
+                                  onChange={(e) => updateBudgetItemPeopleCount(item.id, parseFloat(e.target.value) || 0)}
+                                  className="w-16 h-8 text-right"
+                                  min="0"
+                                  step="1"
+                                />
+                                <span className="text-muted-foreground text-sm whitespace-nowrap">人</span>
+                                <span className="text-muted-foreground">×</span>
+                                <Input
+                                  type="number"
+                                  value={item.timesCount || 0}
+                                  onChange={(e) => updateBudgetItemTimesCount(item.id, parseFloat(e.target.value) || 0)}
+                                  className="w-16 h-8 text-right"
+                                  min="0"
+                                  step="1"
+                                />
+                                <span className="text-muted-foreground text-sm whitespace-nowrap">次</span>
+                              </>
+                            ) : (
+                              <>
+                                <Input
+                                  type="number"
+                                  value={item.quantity}
+                                  onChange={(e) => updateBudgetItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
+                                  className="w-20 h-8 text-right"
+                                  min="0"
+                                  step="0.1"
+                                />
+                                <span className="text-muted-foreground text-sm whitespace-nowrap">{item.unit}</span>
+                              </>
+                            )}
                           </div>
 
                           {/* 第三列：等号和总额 */}
