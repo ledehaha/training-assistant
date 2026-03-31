@@ -2507,6 +2507,14 @@ export default function DesignPage() {
 
   // 删除费用项
   const deleteBudgetItem = (id: string) => {
+    const itemToDelete = budgetItems.find(item => item.id === id);
+    
+    // 不允许删除自动计算的费用项
+    if (itemToDelete?.isAutoCalculated) {
+      showToast('error', '不能删除自动计算的费用项');
+      return;
+    }
+    
     setBudgetItems(prev => prev.filter(item => item.id !== id));
     showToast('success', '已删除费用项');
   };
