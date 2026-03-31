@@ -3305,68 +3305,80 @@ export default function DesignPage() {
                       添加费用项
                     </Button>
                   </div>
-                  <div className="space-y-2">
-                    {budgetItems.map((item) => (
-                      <div
-                        key={item.id}
-                        className="grid grid-cols-12 gap-3 items-center p-3 bg-background border rounded-lg hover:bg-muted/50 transition-colors"
-                      >
-                        {/* 第一列：名称 */}
-                        <div className="col-span-4 flex items-center gap-2">
-                          <span className="font-medium">{item.name}</span>
-                          {item.isAutoCalculated && (
-                            <Badge variant="secondary" className="text-xs">
-                              自动
-                            </Badge>
-                          )}
-                        </div>
+                  <TooltipProvider>
+                    <div className="space-y-2">
+                      {budgetItems.map((item) => (
+                        <div
+                          key={item.id}
+                          className="grid grid-cols-12 gap-3 items-center p-3 bg-background border rounded-lg hover:bg-muted/50 transition-colors"
+                        >
+                          {/* 第一列：名称 */}
+                          <div className="col-span-4 flex items-center gap-2">
+                            <span className="font-medium">{item.name}</span>
+                            {item.isAutoCalculated && (
+                              <Badge variant="secondary" className="text-xs">
+                                自动
+                              </Badge>
+                            )}
+                          </div>
 
-                        {/* 第二列：单价和数量 */}
-                        <div className="col-span-4 flex items-center gap-1">
-                          <Input
-                            type="number"
-                            value={item.unitPrice}
-                            onChange={(e) => updateBudgetItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
-                            className="w-20 h-8 text-right"
-                            min="0"
-                            step="0.01"
-                          />
-                          <span className="text-muted-foreground text-sm whitespace-nowrap">元</span>
-                          <span className="text-muted-foreground">×</span>
-                          <Input
-                            type="number"
-                            value={item.quantity}
-                            onChange={(e) => updateBudgetItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
-                            className="w-20 h-8 text-right"
-                            min="0"
-                            step="0.1"
-                          />
-                          <span className="text-muted-foreground text-sm whitespace-nowrap">{item.unit}</span>
-                        </div>
+                          {/* 第二列：单价和数量 */}
+                          <div className="col-span-4 flex items-center gap-1">
+                            <Input
+                              type="number"
+                              value={item.unitPrice}
+                              onChange={(e) => updateBudgetItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
+                              className="w-20 h-8 text-right"
+                              min="0"
+                              step="0.01"
+                            />
+                            <span className="text-muted-foreground text-sm whitespace-nowrap">元</span>
+                            <span className="text-muted-foreground">×</span>
+                            <Input
+                              type="number"
+                              value={item.quantity}
+                              onChange={(e) => updateBudgetItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
+                              className="w-20 h-8 text-right"
+                              min="0"
+                              step="0.1"
+                            />
+                            <span className="text-muted-foreground text-sm whitespace-nowrap">{item.unit}</span>
+                          </div>
 
-                        {/* 第三列：等号和总额 */}
-                        <div className="col-span-3 flex items-center gap-1">
-                          <span className="text-muted-foreground">=</span>
-                          <span className="font-semibold">¥{(item.total || 0).toLocaleString()}</span>
-                          <span className="text-muted-foreground text-sm whitespace-nowrap">元</span>
-                        </div>
+                          {/* 第三列：等号和总额 */}
+                          <div className="col-span-3 flex items-center gap-1">
+                            <span className="text-muted-foreground">=</span>
+                            <span className="font-semibold">¥{(item.total || 0).toLocaleString()}</span>
+                            <span className="text-muted-foreground text-sm whitespace-nowrap">元</span>
+                            {item.description && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Info className="h-4 w-4 text-muted-foreground cursor-help flex-shrink-0" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="max-w-xs">{item.description}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                          </div>
 
-                        {/* 第四列：说明和操作 */}
-                        <div className="col-span-1 flex items-center justify-end gap-2">
-                          {!item.isAutoCalculated && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => deleteBudgetItem(item.id)}
-                              className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          )}
+                          {/* 第四列：操作 */}
+                          <div className="col-span-1 flex items-center justify-end">
+                            {!item.isAutoCalculated && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => deleteBudgetItem(item.id)}
+                                className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  </TooltipProvider>
                 </div>
 
                 {/* 预算对比 */}
