@@ -127,7 +127,7 @@ interface VisitSite {
 interface BudgetItem {
   id: string;
   name: string;
-  category: string; // 师资费, 场地费, 餐饮费, 茶歇费, 资料费, 住宿费, 交通费, 其他费用, 管理费
+  category: string; // 师资费, 场地费, 餐饮费, 茶歇费, 资料费, 住宿费, 交通费, 其他费用, 管理费, 税费
   unit: string; // 单位：人/天, 课时, 场次, 套, 间/晚, 辆/天 等
   unitPrice: number; // 单价
   quantity: number; // 数量
@@ -136,6 +136,9 @@ interface BudgetItem {
   total: number; // 总额
   description?: string; // 说明
   isAutoCalculated: boolean; // 是否自动计算
+  cannotDelete?: boolean; // 是否不可删除（管理费和税费）
+  managementRate?: number; // 管理费比例（仅管理费使用）
+  taxRate?: number; // 税费比例（仅税费使用）
 }
 
 // 专业技术岗位等级对照表
@@ -2024,6 +2027,10 @@ export default function DesignPage() {
     
     // 统计场地费（按场地分组）
     const venueHoursByLocation = courses.reduce((acc, course) => {
+      // 排除参访课程
+      if (course.type === 'visit') {
+        return acc;
+      }
       const location = course.location || '其他场地';
       const duration = course.duration || 0;
       acc[location] = (acc[location] || 0) + duration;
@@ -2033,7 +2040,7 @@ export default function DesignPage() {
     // 根据场地数据库查找单价
     const venueRates: Record<string, number> = {};
     console.log('[场地费计算] 开始匹配场地，可用场地列表：', venues.map(v => ({ name: v.name, location: v.location, rate: v.hourlyRate })));
-    Object.keys(venueHoursByLocation).forEach(location => {
+    Object.keys(venueHoursByLocation).forEach((location: string) => {
       const locationNormalized = location.replace(/\s+/g, ''); // 去除所有空格
       console.log(`[场地费计算] 匹配课程场地: "${location}" -> normalized: "${locationNormalized}"`);
       const matchedVenue = venues.find(v => {
@@ -2043,9 +2050,9 @@ export default function DesignPage() {
         console.log(`  - 检查场地: name="${v.name}" (${venueNameNormalized}), location="${v.location}" (${venueLocationNormalized}), 匹配=${isMatch}`);
         return isMatch;
       });
-      const rate = matchedVenue?.hourlyRate;  // 修改：hourly_rate -> hourlyRate
+      const rate = matchedVenue?.hourlyRate;
       console.log(`  - 匹配结果: ${matchedVenue ? '找到场地' : '未找到'}, rate=${rate}, 最终使用: ${venueRates[location]}`);
-      venueRates[location] = (rate && !isNaN(parseFloat(rate))) ? parseFloat(rate) : 2000;
+      venueRates[location] = (typeof rate === 'number' && !isNaN(rate)) ? rate : 2000;
     });
     
     // 预设常见费用项
@@ -2172,19 +2179,45 @@ export default function DesignPage() {
         total: 0,
         description: '如需用车，请填写数量',
         isAutoCalculated: false
-      },
+      }
+    ];
+    
+    // 计算管理费和税费
+    const baseTotal = initialItems.reduce((sum, item) => sum + (item.total || 0), 0);
+    const managementRate = 15; // 默认15%
+    const managementFee = Math.round(baseTotal / (1 - managementRate / 100) * (managementRate / 100));
+    const taxRate = 3; // 默认3%
+    const taxFee = Math.round((baseTotal + managementFee) * (taxRate / 100));
+    
+    // 添加管理费和税费
+    initialItems.push(
       {
         id: 'budget-management',
         name: '管理费',
-        category: '管理费',
-        unit: '项',
-        unitPrice: 3000,
-        quantity: 1,
-        total: 3000,
-        description: '项目管理与服务费',
-        isAutoCalculated: false
-      }
-    ];
+          category: '管理费',
+          unit: '项',
+          unitPrice: managementRate,
+          quantity: baseTotal,
+          managementRate,
+          total: managementFee,
+          description: `${managementRate}%，基数¥${baseTotal.toLocaleString()}`,
+          isAutoCalculated: true,
+          cannotDelete: true
+        },
+        {
+          id: 'budget-tax',
+          name: '税费',
+          category: '税费',
+          unit: '项',
+          unitPrice: taxRate,
+          quantity: baseTotal + managementFee,
+          taxRate,
+          total: taxFee,
+          description: `${taxRate}%，基数¥${(baseTotal + managementFee).toLocaleString()}`,
+          isAutoCalculated: true,
+          cannotDelete: true
+        }
+      );
     
     setBudgetItems(initialItems);
   };
@@ -2246,6 +2279,11 @@ export default function DesignPage() {
       }, { academician: 0, professor: 0, other: 0 });
       
       const venueHoursByLocation = courses.reduce((acc, course) => {
+        // 排除参访课程
+        if (course.type === 'visit') {
+          return acc;
+        }
+        
         const location = course.location || '其他场地';
         const duration = course.duration || 0;
         acc[location] = (acc[location] || 0) + duration;
@@ -2297,7 +2335,7 @@ export default function DesignPage() {
       
       // 更新场地费
       console.log('[重新计算场地费] 开始匹配场地，可用场地列表：', venues.map(v => ({ name: v.name, location: v.location, rate: v.hourlyRate })));
-      const updatedVenueItems: BudgetItem[] = Object.entries(venueHoursByLocation).map(([location, hours], index) => {
+      const updatedVenueItems: BudgetItem[] = Object.entries(venueHoursByLocation).map(([location, hours]: [string, number], index) => {
         const locationNormalized = location.replace(/\s+/g, ''); // 去除所有空格
         console.log(`[重新计算场地费] 匹配课程场地: "${location}" -> normalized: "${locationNormalized}"`);
         const matchedVenue = venues.find(v => {
@@ -2307,8 +2345,8 @@ export default function DesignPage() {
           console.log(`  - 检查场地: name="${v.name}" (${venueNameNormalized}), location="${v.location}" (${venueLocationNormalized}), 匹配=${isMatch}`);
           return isMatch;
         });
-        const rate = matchedVenue?.hourlyRate;  // 修改：hourly_rate -> hourlyRate
-        const finalRate = (rate && !isNaN(parseFloat(rate))) ? parseFloat(rate) : 2000;
+        const rate = matchedVenue?.hourlyRate;
+        const finalRate = (typeof rate === 'number' && !isNaN(rate)) ? rate : 2000;
         console.log(`  - 匹配结果: ${matchedVenue ? '找到场地' : '未找到'}, rate=${rate}, 最终使用: ${finalRate}`);
         return {
           id: `budget-venue-${index}`,
@@ -2375,7 +2413,9 @@ export default function DesignPage() {
           item.category !== '参访费' &&
           item.category !== '餐饮费' &&
           item.category !== '茶歇费' &&
-          item.category !== '资料费'
+          item.category !== '资料费' &&
+          item.id !== 'budget-management' &&
+          item.id !== 'budget-tax'
         ),
         {
           id: 'budget-catering',
@@ -2415,6 +2455,51 @@ export default function DesignPage() {
           isAutoCalculated: true
         }
       ]);
+      
+      // 重新计算管理费和税费
+      setTimeout(() => {
+        setBudgetItems(prevItems => {
+          // 计算基础费用（排除管理费和税费）
+          const baseTotal = prevItems
+            .filter(item => item.id !== 'budget-management' && item.id !== 'budget-tax')
+            .reduce((sum, item) => sum + (item.total || 0), 0);
+          
+          const managementRate = 15;
+          const managementFee = Math.round(baseTotal / (1 - managementRate / 100) * (managementRate / 100));
+          const taxRate = 3;
+          const taxFee = Math.round((baseTotal + managementFee) * (taxRate / 100));
+          
+          return [
+            ...prevItems.filter(item => item.id !== 'budget-management' && item.id !== 'budget-tax'),
+            {
+              id: 'budget-management',
+              name: '管理费',
+              category: '管理费',
+              unit: '项',
+              unitPrice: managementRate,
+              quantity: baseTotal,
+              managementRate,
+              total: managementFee,
+              description: `${managementRate}%，基数¥${baseTotal.toLocaleString()}`,
+              isAutoCalculated: true,
+              cannotDelete: true
+            },
+            {
+              id: 'budget-tax',
+              name: '税费',
+              category: '税费',
+              unit: '项',
+              unitPrice: taxRate,
+              quantity: baseTotal + managementFee,
+              taxRate,
+              total: taxFee,
+              description: `${taxRate}%，基数¥${(baseTotal + managementFee).toLocaleString()}`,
+              isAutoCalculated: true,
+              cannotDelete: true
+            }
+          ];
+        });
+      }, 0);
     }
   }, [courses, formData.participantCount, formData.trainingDays, activeTab, venues]);
 
@@ -2509,9 +2594,9 @@ export default function DesignPage() {
   const deleteBudgetItem = (id: string) => {
     const itemToDelete = budgetItems.find(item => item.id === id);
     
-    // 不允许删除自动计算的费用项
-    if (itemToDelete?.isAutoCalculated) {
-      showToast('error', '不能删除自动计算的费用项');
+    // 不允许删除自动计算的费用项和不可删除的费用项（管理费、税费）
+    if (itemToDelete?.isAutoCalculated || itemToDelete?.cannotDelete) {
+      showToast('error', '不能删除自动计算的费用项或管理费、税费');
       return;
     }
     
@@ -3464,7 +3549,7 @@ export default function DesignPage() {
 
                           {/* 第四列：操作 */}
                           <div className="col-span-1 flex items-center justify-end">
-                            {!item.isAutoCalculated && (
+                            {!item.isAutoCalculated && !item.cannotDelete && (
                               <Button
                                 variant="ghost"
                                 size="sm"
