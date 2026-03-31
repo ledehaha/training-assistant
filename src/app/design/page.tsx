@@ -3482,7 +3482,7 @@ export default function DesignPage() {
                 </div>
 
                 {/* 预算对比 */}
-                {formData.budgetMin && formData.budgetMax && (
+                {!noBudgetLimit && formData.budgetMin && formData.budgetMax && (
                   <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                     <h4 className="font-medium mb-3">预算对比</h4>
                     <div className="space-y-2">
