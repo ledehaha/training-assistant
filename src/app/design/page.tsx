@@ -3322,25 +3322,26 @@ export default function DesignPage() {
                         </div>
 
                         {/* 第二列：单价和数量 */}
-                        <div className="col-span-3 flex items-center gap-1">
+                        <div className="col-span-4 flex items-center gap-1">
                           <Input
                             type="number"
                             value={item.unitPrice}
                             onChange={(e) => updateBudgetItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
-                            className="w-16 h-8 text-right"
+                            className="w-20 h-8 text-right"
                             min="0"
                             step="0.01"
                           />
-                          <span className="text-muted-foreground text-sm whitespace-nowrap">元/{item.unit}</span>
+                          <span className="text-muted-foreground text-sm whitespace-nowrap">元</span>
                           <span className="text-muted-foreground">×</span>
                           <Input
                             type="number"
                             value={item.quantity}
                             onChange={(e) => updateBudgetItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
-                            className="w-16 h-8 text-right"
+                            className="w-20 h-8 text-right"
                             min="0"
                             step="0.1"
                           />
+                          <span className="text-muted-foreground text-sm whitespace-nowrap">{item.unit}</span>
                         </div>
 
                         {/* 第三列：等号和总额 */}
@@ -3351,12 +3352,7 @@ export default function DesignPage() {
                         </div>
 
                         {/* 第四列：说明和操作 */}
-                        <div className="col-span-2 flex items-center justify-between gap-2">
-                          {item.description && (
-                            <span className="text-xs text-muted-foreground truncate" title={item.description}>
-                              {item.description}
-                            </span>
-                          )}
+                        <div className="col-span-1 flex items-center justify-end gap-2">
                           {!item.isAutoCalculated && (
                             <Button
                               variant="ghost"
