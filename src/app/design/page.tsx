@@ -98,8 +98,8 @@ interface Venue {
   name: string;
   location: string;
   capacity: number;
-  hourly_rate: string;
-  rating: string;
+  hourlyRate: number;  // 修改：hourly_rate -> hourlyRate，类型从 string 改为 number
+  rating: number;
 }
 
 interface VisitSite {
@@ -2032,7 +2032,7 @@ export default function DesignPage() {
     
     // 根据场地数据库查找单价
     const venueRates: Record<string, number> = {};
-    console.log('[场地费计算] 开始匹配场地，可用场地列表：', venues.map(v => ({ name: v.name, location: v.location, rate: v.hourly_rate })));
+    console.log('[场地费计算] 开始匹配场地，可用场地列表：', venues.map(v => ({ name: v.name, location: v.location, rate: v.hourlyRate })));
     Object.keys(venueHoursByLocation).forEach(location => {
       const locationNormalized = location.replace(/\s+/g, ''); // 去除所有空格
       console.log(`[场地费计算] 匹配课程场地: "${location}" -> normalized: "${locationNormalized}"`);
@@ -2043,7 +2043,7 @@ export default function DesignPage() {
         console.log(`  - 检查场地: name="${v.name}" (${venueNameNormalized}), location="${v.location}" (${venueLocationNormalized}), 匹配=${isMatch}`);
         return isMatch;
       });
-      const rate = matchedVenue?.hourly_rate;
+      const rate = matchedVenue?.hourlyRate;  // 修改：hourly_rate -> hourlyRate
       console.log(`  - 匹配结果: ${matchedVenue ? '找到场地' : '未找到'}, rate=${rate}, 最终使用: ${venueRates[location]}`);
       venueRates[location] = (rate && !isNaN(parseFloat(rate))) ? parseFloat(rate) : 2000;
     });
@@ -2296,7 +2296,7 @@ export default function DesignPage() {
       ];
       
       // 更新场地费
-      console.log('[重新计算场地费] 开始匹配场地，可用场地列表：', venues.map(v => ({ name: v.name, location: v.location, rate: v.hourly_rate })));
+      console.log('[重新计算场地费] 开始匹配场地，可用场地列表：', venues.map(v => ({ name: v.name, location: v.location, rate: v.hourlyRate })));
       const updatedVenueItems: BudgetItem[] = Object.entries(venueHoursByLocation).map(([location, hours], index) => {
         const locationNormalized = location.replace(/\s+/g, ''); // 去除所有空格
         console.log(`[重新计算场地费] 匹配课程场地: "${location}" -> normalized: "${locationNormalized}"`);
@@ -2307,7 +2307,7 @@ export default function DesignPage() {
           console.log(`  - 检查场地: name="${v.name}" (${venueNameNormalized}), location="${v.location}" (${venueLocationNormalized}), 匹配=${isMatch}`);
           return isMatch;
         });
-        const rate = matchedVenue?.hourly_rate;
+        const rate = matchedVenue?.hourlyRate;  // 修改：hourly_rate -> hourlyRate
         const finalRate = (rate && !isNaN(parseFloat(rate))) ? parseFloat(rate) : 2000;
         console.log(`  - 匹配结果: ${matchedVenue ? '找到场地' : '未找到'}, rate=${rate}, 最终使用: ${finalRate}`);
         return {
