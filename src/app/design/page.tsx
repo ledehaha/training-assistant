@@ -3309,53 +3309,65 @@ export default function DesignPage() {
                     {budgetItems.map((item) => (
                       <div
                         key={item.id}
-                        className="flex items-center gap-3 p-3 bg-background border rounded-lg hover:bg-muted/50 transition-colors"
+                        className="grid grid-cols-12 gap-3 items-center p-3 bg-background border rounded-lg hover:bg-muted/50 transition-colors"
                       >
-                        <div className="flex-1 flex items-center gap-2 flex-wrap">
+                        {/* 第一列：名称和单位 */}
+                        <div className="col-span-4 flex items-center gap-2">
                           <span className="font-medium">{item.name}</span>
                           {item.isAutoCalculated && (
                             <Badge variant="secondary" className="text-xs">
                               自动
                             </Badge>
                           )}
-                          <span className="text-muted-foreground">：</span>
+                          <span className="text-muted-foreground text-sm">（{item.unit}）</span>
+                        </div>
+
+                        {/* 第二列：单价和数量 */}
+                        <div className="col-span-3 flex items-center gap-1">
                           <Input
                             type="number"
                             value={item.unitPrice}
                             onChange={(e) => updateBudgetItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
-                            className="w-20 h-7 text-center"
+                            className="w-16 h-8 text-right"
                             min="0"
                             step="0.01"
                           />
-                          <span className="text-muted-foreground text-sm whitespace-nowrap">元/{item.unit}</span>
                           <span className="text-muted-foreground">×</span>
                           <Input
                             type="number"
                             value={item.quantity}
                             onChange={(e) => updateBudgetItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
-                            className="w-20 h-7 text-center"
+                            className="w-16 h-8 text-right"
                             min="0"
                             step="0.1"
                           />
-                          <span className="text-muted-foreground text-sm whitespace-nowrap">{item.unit}</span>
+                        </div>
+
+                        {/* 第三列：等号和总额 */}
+                        <div className="col-span-3 flex items-center gap-1">
                           <span className="text-muted-foreground">=</span>
-                          <span className="font-semibold">¥{(item.total || 0).toLocaleString()}元</span>
+                          <span className="font-semibold">¥{(item.total || 0).toLocaleString()}</span>
+                          <span className="text-muted-foreground text-sm">元</span>
+                        </div>
+
+                        {/* 第四列：说明和操作 */}
+                        <div className="col-span-2 flex items-center justify-between gap-2">
                           {item.description && (
-                            <span className="text-xs text-muted-foreground ml-2" title={item.description}>
-                              ({item.description})
+                            <span className="text-xs text-muted-foreground truncate" title={item.description}>
+                              {item.description}
                             </span>
                           )}
+                          {!item.isAutoCalculated && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => deleteBudgetItem(item.id)}
+                              className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
-                        {!item.isAutoCalculated && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => deleteBudgetItem(item.id)}
-                            className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        )}
                       </div>
                     ))}
                   </div>
