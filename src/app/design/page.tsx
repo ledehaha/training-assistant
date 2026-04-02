@@ -2505,29 +2505,131 @@ export default function DesignPage() {
 
   // 更新费用项
   const updateBudgetItem = (id: string, field: keyof BudgetItem, value: number | string | boolean) => {
-    setBudgetItems(prev => prev.map(item => {
-      if (item.id === id) {
-        const updated = { ...item, [field]: value };
-        // 如果修改了单价，重新计算总额
-        if (field === 'unitPrice') {
-          if (item.category === '餐饮费' || item.category === '茶歇费') {
-            updated.total = (updated.unitPrice || 0) * (updated.peopleCount || 0) * (updated.timesCount || 0);
-          } else {
-            updated.total = (updated.unitPrice || 0) * (updated.quantity || 0);
+    setBudgetItems(prev => {
+      const newItems = prev.map(item => {
+        if (item.id === id) {
+          const updated = { ...item, [field]: value };
+          // 如果修改了单价，重新计算总额
+          if (field === 'unitPrice') {
+            if (item.category === '餐饮费' || item.category === '茶歇费') {
+              updated.total = (updated.unitPrice || 0) * (updated.peopleCount || 0) * (updated.timesCount || 0);
+            } else if (item.category !== '管理费' && item.category !== '税费') {
+              updated.total = (updated.unitPrice || 0) * (updated.quantity || 0);
+            }
           }
-        }
-        // 如果修改了数量，重新计算总额（非餐饮费和茶歇费）
-        if (field === 'quantity') {
-          if (item.category !== '餐饮费' && item.category !== '茶歇费') {
-            updated.total = (updated.unitPrice || 0) * (updated.quantity || 0);
+          // 如果修改了数量，重新计算总额（非餐饮费和茶歇费）
+          if (field === 'quantity') {
+            if (item.category !== '餐饮费' && item.category !== '茶歇费' && item.category !== '管理费' && item.category !== '税费') {
+              updated.total = (updated.unitPrice || 0) * (updated.quantity || 0);
+            }
+            // 如果手动修改了数量，取消自动计算标记
+            if (item.category !== '管理费' && item.category !== '税费') {
+              updated.isAutoCalculated = false;
+            }
           }
-          // 如果手动修改了数量，取消自动计算标记
-          updated.isAutoCalculated = false;
+          return updated;
         }
-        return updated;
+        return item;
+      });
+
+      // 如果修改了非管理费、非税费的项目，需要重新计算管理费和税费
+      const modifiedItem = prev.find(item => item.id === id);
+      if (modifiedItem && modifiedItem.category !== '管理费' && modifiedItem.category !== '税费') {
+        // 计算基础费用（排除管理费和税费）
+        const baseTotal = newItems
+          .filter(item => item.id !== 'budget-management' && item.id !== 'budget-tax')
+          .reduce((sum, item) => sum + (item.total || 0), 0);
+
+        // 更新管理费和税费
+        const managementItem = newItems.find(item => item.id === 'budget-management');
+        const taxItem = newItems.find(item => item.id === 'budget-tax');
+
+        if (managementItem && taxItem) {
+          const managementRate = managementItem.managementRate || 15;
+          const taxRate = taxItem.taxRate || 3;
+
+          const managementFee = Math.round(baseTotal / (1 - managementRate / 100) * (managementRate / 100));
+          const taxFee = Math.round((baseTotal + managementFee) * (taxRate / 100));
+
+          managementItem.quantity = baseTotal;
+          managementItem.total = managementFee;
+          managementItem.description = `${managementRate}%，基数¥${baseTotal.toLocaleString()}`;
+
+          taxItem.quantity = baseTotal + managementFee;
+          taxItem.total = taxFee;
+          taxItem.description = `${taxRate}%，基数¥${(baseTotal + managementFee).toLocaleString()}`;
+        }
       }
-      return item;
-    }));
+
+      return newItems;
+    });
+  };
+
+  // 更新管理费比例
+  const updateManagementRate = (rate: number) => {
+    setBudgetItems(prev => {
+      const newItems = [...prev];
+      // 计算基础费用（排除管理费和税费）
+      const baseTotal = newItems
+        .filter(item => item.id !== 'budget-management' && item.id !== 'budget-tax')
+        .reduce((sum, item) => sum + (item.total || 0), 0);
+
+      // 更新管理费
+      const managementIndex = newItems.findIndex(item => item.id === 'budget-management');
+      if (managementIndex >= 0) {
+        const managementFee = Math.round(baseTotal / (1 - rate / 100) * (rate / 100));
+        newItems[managementIndex] = {
+          ...newItems[managementIndex],
+          managementRate: rate,
+          quantity: baseTotal,
+          total: managementFee,
+          description: `${rate}%，基数¥${baseTotal.toLocaleString()}`
+        };
+
+        // 更新税费
+        const taxIndex = newItems.findIndex(item => item.id === 'budget-tax');
+        if (taxIndex >= 0) {
+          const taxRate = newItems[taxIndex].taxRate || 3;
+          const taxFee = Math.round((baseTotal + managementFee) * (taxRate / 100));
+          newItems[taxIndex] = {
+            ...newItems[taxIndex],
+            quantity: baseTotal + managementFee,
+            total: taxFee,
+            description: `${taxRate}%，基数¥${(baseTotal + managementFee).toLocaleString()}`
+          };
+        }
+      }
+
+      return newItems;
+    });
+  };
+
+  // 更新税费比例
+  const updateTaxRate = (rate: number) => {
+    setBudgetItems(prev => {
+      const newItems = [...prev];
+      // 计算基础费用和管理费
+      const managementItem = newItems.find(item => item.id === 'budget-management');
+      const baseTotal = newItems
+        .filter(item => item.id !== 'budget-management' && item.id !== 'budget-tax')
+        .reduce((sum, item) => sum + (item.total || 0), 0);
+      const managementFee = managementItem?.total || 0;
+
+      // 更新税费
+      const taxIndex = newItems.findIndex(item => item.id === 'budget-tax');
+      if (taxIndex >= 0) {
+        const taxFee = Math.round((baseTotal + managementFee) * (rate / 100));
+        newItems[taxIndex] = {
+          ...newItems[taxIndex],
+          taxRate: rate,
+          quantity: baseTotal + managementFee,
+          total: taxFee,
+          description: `${rate}%，基数¥${(baseTotal + managementFee).toLocaleString()}`
+        };
+      }
+
+      return newItems;
+    });
   };
 
   // 更新费用项人数（餐饮费和茶歇费专用）
@@ -3481,51 +3583,87 @@ export default function DesignPage() {
                             )}
                           </div>
 
-                          {/* 第二列：单价、人数和次数（餐饮费和茶歇费）或单价和数量（其他） */}
+                          {/* 第二列：单价、人数和次数（餐饮费和茶歇费）或单价和数量（其他）或百分比（管理费和税费） */}
                           <div className="col-span-6 flex items-center gap-1 flex-wrap">
-                            <Input
-                              type="number"
-                              value={item.unitPrice}
-                              onChange={(e) => updateBudgetItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
-                              className="w-20 h-8 text-right"
-                              min="0"
-                              step="0.01"
-                            />
-                            <span className="text-muted-foreground text-sm whitespace-nowrap">元</span>
-                            <span className="text-muted-foreground">×</span>
-                            {item.category === '餐饮费' || item.category === '茶歇费' ? (
+                            {item.category === '管理费' ? (
                               <>
                                 <Input
                                   type="number"
-                                  value={item.peopleCount || 0}
-                                  onChange={(e) => updateBudgetItemPeopleCount(item.id, parseFloat(e.target.value) || 0)}
-                                  className="w-18 h-8 text-right"
+                                  value={item.managementRate || 15}
+                                  onChange={(e) => updateManagementRate(parseFloat(e.target.value) || 15)}
+                                  className="w-16 h-8 text-right"
                                   min="0"
-                                  step="1"
+                                  max="100"
+                                  step="0.1"
                                 />
-                                <span className="text-muted-foreground text-sm whitespace-nowrap">人</span>
-                                <span className="text-muted-foreground">×</span>
+                                <span className="text-muted-foreground text-sm whitespace-nowrap">%</span>
+                                <span className="text-muted-foreground text-sm ml-2">
+                                  基数¥{item.quantity?.toLocaleString()}
+                                </span>
+                              </>
+                            ) : item.category === '税费' ? (
+                              <>
                                 <Input
                                   type="number"
-                                  value={item.timesCount || 0}
-                                  onChange={(e) => updateBudgetItemTimesCount(item.id, parseFloat(e.target.value) || 0)}
-                                  className="w-18 h-8 text-right"
+                                  value={item.taxRate || 3}
+                                  onChange={(e) => updateTaxRate(parseFloat(e.target.value) || 3)}
+                                  className="w-16 h-8 text-right"
                                   min="0"
-                                  step="1"
+                                  max="100"
+                                  step="0.1"
                                 />
-                                <span className="text-muted-foreground text-sm whitespace-nowrap">次</span>
+                                <span className="text-muted-foreground text-sm whitespace-nowrap">%</span>
+                                <span className="text-muted-foreground text-sm ml-2">
+                                  基数¥{item.quantity?.toLocaleString()}
+                                </span>
                               </>
                             ) : (
                               <>
                                 <Input
                                   type="number"
-                                  value={item.quantity}
-                                  onChange={(e) => updateBudgetItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
-                                  className="w-24 h-8 text-right"
+                                  value={item.unitPrice}
+                                  onChange={(e) => updateBudgetItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
+                                  className="w-20 h-8 text-right"
                                   min="0"
-                                  step="0.1"
+                                  step="0.01"
                                 />
-                                <span className="text-muted-foreground text-sm whitespace-nowrap">{item.unit}</span>
+                                <span className="text-muted-foreground text-sm whitespace-nowrap">元</span>
+                                <span className="text-muted-foreground">×</span>
+                                {item.category === '餐饮费' || item.category === '茶歇费' ? (
+                                  <>
+                                    <Input
+                                      type="number"
+                                      value={item.peopleCount || 0}
+                                      onChange={(e) => updateBudgetItemPeopleCount(item.id, parseFloat(e.target.value) || 0)}
+                                      className="w-18 h-8 text-right"
+                                      min="0"
+                                      step="1"
+                                    />
+                                    <span className="text-muted-foreground text-sm whitespace-nowrap">人</span>
+                                    <span className="text-muted-foreground">×</span>
+                                    <Input
+                                      type="number"
+                                      value={item.timesCount || 0}
+                                      onChange={(e) => updateBudgetItemTimesCount(item.id, parseFloat(e.target.value) || 0)}
+                                      className="w-18 h-8 text-right"
+                                      min="0"
+                                      step="1"
+                                    />
+                                    <span className="text-muted-foreground text-sm whitespace-nowrap">次</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Input
+                                      type="number"
+                                      value={item.quantity}
+                                      onChange={(e) => updateBudgetItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
+                                      className="w-24 h-8 text-right"
+                                      min="0"
+                                      step="0.1"
+                                    />
+                                    <span className="text-muted-foreground text-sm whitespace-nowrap">{item.unit}</span>
+                                  </>
+                                )}
                               </>
                             )}
                           </div>
