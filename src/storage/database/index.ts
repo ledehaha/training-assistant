@@ -8,12 +8,12 @@ import * as path from 'path';
 
 // 数据库文件路径
 const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data');
-const DB_PATH = path.join(DATA_DIR, 'training.db');
+const DB_PATH = process.env.DATABASE_PATH || path.join(DATA_DIR, 'training.db');
 
 // 确保数据目录存在
 try {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+  if (!fs.existsSync(path.dirname(DB_PATH))) {
+    fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
   }
 } catch {
   // 忽略错误
