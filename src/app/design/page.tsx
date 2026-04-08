@@ -2767,11 +2767,6 @@ export default function DesignPage() {
       return newItems;
     });
   };
-        return updated;
-      }
-      return item;
-    }));
-  };
 
   // 添加自定义费用项
   const addCustomBudgetItem = () => {
