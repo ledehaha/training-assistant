@@ -30,11 +30,6 @@ mkdir -p "${DATA_DIR}" "${FILE_STORAGE_PATH}"
 # 设置 NODE_ENV
 export NODE_ENV=${COZE_PROJECT_ENV:-development}
 
-# 使用 node 运行 Next.js
+# 使用 next start 启动生产服务器
 echo "Starting service on port ${PORT}..."
-# standalone 模式下，server.js 在 .next/standalone/workspace/projects/server.js
-if [ -f ".next/standalone/workspace/projects/server.js" ]; then
-  node .next/standalone/workspace/projects/server.js
-else
-  node .next/standalone/server.js
-fi
+NODE_ENV=${NODE_ENV} PORT=${PORT} npx next start -p ${PORT}
