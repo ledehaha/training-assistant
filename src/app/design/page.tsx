@@ -2122,7 +2122,7 @@ export default function DesignPage() {
         isAutoCalculated: true
       })),
       {
-        id: 'budget-catering',
+        id: 'budget-catering-lunch',
         name: '餐饮费（午餐）',
         category: '餐饮费',
         unit: '人次',
@@ -2132,6 +2132,32 @@ export default function DesignPage() {
         timesCount: trainingDays * 1,
         total: participantCount * trainingDays * 1 * 80,
         description: `${participantCount}人 × ${trainingDays}天 × 1餐/天 × ¥80/人次`,
+        isAutoCalculated: true
+      },
+      {
+        id: 'budget-catering-breakfast',
+        name: '餐饮费（早餐）',
+        category: '餐饮费',
+        unit: '人次',
+        unitPrice: 30,
+        quantity: participantCount * trainingDays * 1, // 人数 × 天数 × 餐数/天
+        peopleCount: participantCount,
+        timesCount: trainingDays * 1,
+        total: participantCount * trainingDays * 1 * 30,
+        description: `${participantCount}人 × ${trainingDays}天 × 1餐/天 × ¥30/人次`,
+        isAutoCalculated: true
+      },
+      {
+        id: 'budget-catering-dinner',
+        name: '餐饮费（晚餐）',
+        category: '餐饮费',
+        unit: '人次',
+        unitPrice: 50,
+        quantity: participantCount * trainingDays * 1, // 人数 × 天数 × 餐数/天
+        peopleCount: participantCount,
+        timesCount: trainingDays * 1,
+        total: participantCount * trainingDays * 1 * 50,
+        description: `${participantCount}人 × ${trainingDays}天 × 1餐/天 × ¥50/人次`,
         isAutoCalculated: true
       },
       {
@@ -2407,8 +2433,8 @@ export default function DesignPage() {
         ...updatedTeacherItems,
         ...updatedVenueItems,
         ...updatedVisitItems,
-        ...prev.filter(item => 
-          item.category !== '师资费' && 
+        ...prev.filter(item =>
+          item.category !== '师资费' &&
           item.category !== '场地费' &&
           item.category !== '参访费' &&
           item.category !== '餐饮费' &&
@@ -2418,7 +2444,7 @@ export default function DesignPage() {
           item.id !== 'budget-tax'
         ),
         {
-          id: 'budget-catering',
+          id: 'budget-catering-lunch',
           name: '餐饮费（午餐）',
           category: '餐饮费',
           unit: '人次',
@@ -2428,6 +2454,32 @@ export default function DesignPage() {
           timesCount: trainingDays * 1,
           total: participantCount * trainingDays * 1 * 80,
           description: `${participantCount}人 × ${trainingDays}天 × 1餐/天 × ¥80/人次`,
+          isAutoCalculated: true
+        },
+        {
+          id: 'budget-catering-breakfast',
+          name: '餐饮费（早餐）',
+          category: '餐饮费',
+          unit: '人次',
+          unitPrice: 30,
+          quantity: participantCount * trainingDays * 1, // 人数 × 天数 × 餐数/天
+          peopleCount: participantCount,
+          timesCount: trainingDays * 1,
+          total: participantCount * trainingDays * 1 * 30,
+          description: `${participantCount}人 × ${trainingDays}天 × 1餐/天 × ¥30/人次`,
+          isAutoCalculated: true
+        },
+        {
+          id: 'budget-catering-dinner',
+          name: '餐饮费（晚餐）',
+          category: '餐饮费',
+          unit: '人次',
+          unitPrice: 50,
+          quantity: participantCount * trainingDays * 1, // 人数 × 天数 × 餐数/天
+          peopleCount: participantCount,
+          timesCount: trainingDays * 1,
+          total: participantCount * trainingDays * 1 * 50,
+          description: `${participantCount}人 × ${trainingDays}天 × 1餐/天 × ¥50/人次`,
           isAutoCalculated: true
         },
         {
@@ -3576,11 +3628,6 @@ export default function DesignPage() {
                           {/* 第一列：名称 */}
                           <div className="col-span-3 flex items-center gap-2">
                             <span className="font-medium">{item.name}</span>
-                            {item.isAutoCalculated && (
-                              <Badge variant="secondary" className="text-xs">
-                                自动
-                              </Badge>
-                            )}
                           </div>
 
                           {/* 第二列：单价、人数和次数（餐饮费和茶歇费）或单价和数量（其他）或百分比（管理费和税费） */}
@@ -3687,7 +3734,7 @@ export default function DesignPage() {
 
                           {/* 第四列：操作 */}
                           <div className="col-span-1 flex items-center justify-end">
-                            {!item.isAutoCalculated && !item.cannotDelete && (
+                            {!item.cannotDelete && (
                               <Button
                                 variant="ghost"
                                 size="sm"
