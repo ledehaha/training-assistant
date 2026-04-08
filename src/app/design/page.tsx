@@ -2122,19 +2122,6 @@ export default function DesignPage() {
         isAutoCalculated: true
       })),
       {
-        id: 'budget-catering-lunch',
-        name: '餐饮费（午餐）',
-        category: '餐饮费',
-        unit: '人次',
-        unitPrice: 80,
-        quantity: participantCount * trainingDays * 1, // 人数 × 天数 × 餐数/天
-        peopleCount: participantCount,
-        timesCount: trainingDays * 1,
-        total: participantCount * trainingDays * 1 * 80,
-        description: `${participantCount}人 × ${trainingDays}天 × 1餐/天 × ¥80/人次`,
-        isAutoCalculated: true
-      },
-      {
         id: 'budget-catering-breakfast',
         name: '餐饮费（早餐）',
         category: '餐饮费',
@@ -2145,6 +2132,19 @@ export default function DesignPage() {
         timesCount: trainingDays * 1,
         total: participantCount * trainingDays * 1 * 30,
         description: `${participantCount}人 × ${trainingDays}天 × 1餐/天 × ¥30/人次`,
+        isAutoCalculated: true
+      },
+      {
+        id: 'budget-catering-lunch',
+        name: '餐饮费（午餐）',
+        category: '餐饮费',
+        unit: '人次',
+        unitPrice: 80,
+        quantity: participantCount * trainingDays * 1, // 人数 × 天数 × 餐数/天
+        peopleCount: participantCount,
+        timesCount: trainingDays * 1,
+        total: participantCount * trainingDays * 1 * 80,
+        description: `${participantCount}人 × ${trainingDays}天 × 1餐/天 × ¥80/人次`,
         isAutoCalculated: true
       },
       {
@@ -2686,26 +2686,87 @@ export default function DesignPage() {
 
   // 更新费用项人数（餐饮费和茶歇费专用）
   const updateBudgetItemPeopleCount = (id: string, value: number) => {
-    setBudgetItems(prev => prev.map(item => {
-      if (item.id === id && (item.category === '餐饮费' || item.category === '茶歇费')) {
-        const updated = { ...item, peopleCount: value };
-        // 重新计算总额：单价 × 人数 × 次数
-        updated.total = (updated.unitPrice || 0) * (value || 0) * (updated.timesCount || 0);
-        updated.quantity = (value || 0) * (updated.timesCount || 0); // 同步更新 quantity
-        return updated;
+    setBudgetItems(prev => {
+      const newItems = prev.map(item => {
+        if (item.id === id && (item.category === '餐饮费' || item.category === '茶歇费')) {
+          const updated = { ...item, peopleCount: value };
+          // 重新计算总额：单价 × 人数 × 次数
+          updated.total = (updated.unitPrice || 0) * (value || 0) * (updated.timesCount || 0);
+          updated.quantity = (value || 0) * (updated.timesCount || 0); // 同步更新 quantity
+          return updated;
+        }
+        return item;
+      });
+
+      // 重新计算管理费和税费
+      const baseTotal = newItems
+        .filter(item => item.id !== 'budget-management' && item.id !== 'budget-tax')
+        .reduce((sum, item) => sum + (item.total || 0), 0);
+
+      const managementItem = newItems.find(item => item.id === 'budget-management');
+      const taxItem = newItems.find(item => item.id === 'budget-tax');
+
+      if (managementItem && taxItem) {
+        const managementRate = managementItem.managementRate || 15;
+        const taxRate = taxItem.taxRate || 3;
+
+        const managementFee = Math.round(baseTotal / (1 - managementRate / 100) * (managementRate / 100));
+        const taxFee = Math.round((baseTotal + managementFee) * (taxRate / 100));
+
+        managementItem.quantity = baseTotal;
+        managementItem.total = managementFee;
+        managementItem.description = `${managementRate}%，基数¥${baseTotal.toLocaleString()}`;
+
+        taxItem.quantity = baseTotal + managementFee;
+        taxItem.total = taxFee;
+        taxItem.description = `${taxRate}%，基数¥${(baseTotal + managementFee).toLocaleString()}`;
       }
-      return item;
-    }));
+
+      return newItems;
+    });
   };
 
   // 更新费用项次数（餐饮费和茶歇费专用）
   const updateBudgetItemTimesCount = (id: string, value: number) => {
-    setBudgetItems(prev => prev.map(item => {
-      if (item.id === id && (item.category === '餐饮费' || item.category === '茶歇费')) {
-        const updated = { ...item, timesCount: value };
-        // 重新计算总额：单价 × 人数 × 次数
-        updated.total = (updated.unitPrice || 0) * (updated.peopleCount || 0) * (value || 0);
-        updated.quantity = (updated.peopleCount || 0) * (value || 0); // 同步更新 quantity
+    setBudgetItems(prev => {
+      const newItems = prev.map(item => {
+        if (item.id === id && (item.category === '餐饮费' || item.category === '茶歇费')) {
+          const updated = { ...item, timesCount: value };
+          // 重新计算总额：单价 × 人数 × 次数
+          updated.total = (updated.unitPrice || 0) * (updated.peopleCount || 0) * (value || 0);
+          updated.quantity = (updated.peopleCount || 0) * (value || 0); // 同步更新 quantity
+          return updated;
+        }
+        return item;
+      });
+
+      // 重新计算管理费和税费
+      const baseTotal = newItems
+        .filter(item => item.id !== 'budget-management' && item.id !== 'budget-tax')
+        .reduce((sum, item) => sum + (item.total || 0), 0);
+
+      const managementItem = newItems.find(item => item.id === 'budget-management');
+      const taxItem = newItems.find(item => item.id === 'budget-tax');
+
+      if (managementItem && taxItem) {
+        const managementRate = managementItem.managementRate || 15;
+        const taxRate = taxItem.taxRate || 3;
+
+        const managementFee = Math.round(baseTotal / (1 - managementRate / 100) * (managementRate / 100));
+        const taxFee = Math.round((baseTotal + managementFee) * (taxRate / 100));
+
+        managementItem.quantity = baseTotal;
+        managementItem.total = managementFee;
+        managementItem.description = `${managementRate}%，基数¥${baseTotal.toLocaleString()}`;
+
+        taxItem.quantity = baseTotal + managementFee;
+        taxItem.total = taxFee;
+        taxItem.description = `${taxRate}%，基数¥${(baseTotal + managementFee).toLocaleString()}`;
+      }
+
+      return newItems;
+    });
+  };
         return updated;
       }
       return item;
