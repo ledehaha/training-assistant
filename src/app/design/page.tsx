@@ -132,7 +132,11 @@ interface BudgetItem {
   unitPrice: number; // 单价
   quantity: number; // 数量
   peopleCount?: number; // 人数（仅餐饮费和茶歇费使用）
-  timesCount?: number; // 次数（仅餐饮费和茶歇费使用）
+  timesCount?: number; // 次数（仅餐饮费和茶歇费、交通费使用）
+  roomCount?: number; // 间数（仅住宿费使用）
+  nightCount?: number; // 晚数（仅住宿费使用）
+  vehicleCount?: number; // 辆数（仅交通费使用）
+  tripCount?: number; // 次数（仅交通费使用，与timesCount共用）
   total: number; // 总额
   description?: string; // 说明
   isAutoCalculated: boolean; // 是否自动计算
@@ -2191,19 +2195,23 @@ export default function DesignPage() {
         unit: '间/晚',
         unitPrice: 400,
         quantity: 0,
+        roomCount: 0,
+        nightCount: 0,
         total: 0,
-        description: '如需住宿，请填写数量',
+        description: '如需住宿，请填写间数和晚数',
         isAutoCalculated: false
       },
       {
         id: 'budget-transport',
         name: '交通费',
         category: '交通费',
-        unit: '辆/天',
+        unit: '辆/次',
         unitPrice: 500,
         quantity: 0,
+        vehicleCount: 0,
+        tripCount: 0,
         total: 0,
-        description: '如需用车，请填写数量',
+        description: '如需用车，请填写辆数和次数',
         isAutoCalculated: false
       }
     ];
@@ -2565,13 +2573,17 @@ export default function DesignPage() {
           if (field === 'unitPrice') {
             if (item.category === '餐饮费' || item.category === '茶歇费') {
               updated.total = (updated.unitPrice || 0) * (updated.peopleCount || 0) * (updated.timesCount || 0);
+            } else if (item.category === '住宿费') {
+              updated.total = (updated.unitPrice || 0) * (updated.roomCount || 0) * (updated.nightCount || 0);
+            } else if (item.category === '交通费') {
+              updated.total = (updated.unitPrice || 0) * (updated.vehicleCount || 0) * (updated.tripCount || 0);
             } else if (item.category !== '管理费' && item.category !== '税费') {
               updated.total = (updated.unitPrice || 0) * (updated.quantity || 0);
             }
           }
-          // 如果修改了数量，重新计算总额（非餐饮费和茶歇费）
+          // 如果修改了数量，重新计算总额（非餐饮费、茶歇费、住宿费、交通费）
           if (field === 'quantity') {
-            if (item.category !== '餐饮费' && item.category !== '茶歇费' && item.category !== '管理费' && item.category !== '税费') {
+            if (item.category !== '餐饮费' && item.category !== '茶歇费' && item.category !== '住宿费' && item.category !== '交通费' && item.category !== '管理费' && item.category !== '税费') {
               updated.total = (updated.unitPrice || 0) * (updated.quantity || 0);
             }
             // 如果手动修改了数量，取消自动计算标记
@@ -2735,6 +2747,174 @@ export default function DesignPage() {
           // 重新计算总额：单价 × 人数 × 次数
           updated.total = (updated.unitPrice || 0) * (updated.peopleCount || 0) * (value || 0);
           updated.quantity = (updated.peopleCount || 0) * (value || 0); // 同步更新 quantity
+          return updated;
+        }
+        return item;
+      });
+
+      // 重新计算管理费和税费
+      const baseTotal = newItems
+        .filter(item => item.id !== 'budget-management' && item.id !== 'budget-tax')
+        .reduce((sum, item) => sum + (item.total || 0), 0);
+
+      const managementItem = newItems.find(item => item.id === 'budget-management');
+      const taxItem = newItems.find(item => item.id === 'budget-tax');
+
+      if (managementItem && taxItem) {
+        const managementRate = managementItem.managementRate || 15;
+        const taxRate = taxItem.taxRate || 3;
+
+        const managementFee = Math.round(baseTotal / (1 - managementRate / 100) * (managementRate / 100));
+        const taxFee = Math.round((baseTotal + managementFee) * (taxRate / 100));
+
+        managementItem.quantity = baseTotal;
+        managementItem.total = managementFee;
+        managementItem.description = `${managementRate}%，基数¥${baseTotal.toLocaleString()}`;
+
+        taxItem.quantity = baseTotal + managementFee;
+        taxItem.total = taxFee;
+        taxItem.description = `${taxRate}%，基数¥${(baseTotal + managementFee).toLocaleString()}`;
+      }
+
+      return newItems;
+    });
+  };
+
+  // 更新住宿费间数
+  const updateBudgetItemRoomCount = (id: string, value: number) => {
+    setBudgetItems(prev => {
+      const newItems = prev.map(item => {
+        if (item.id === id && item.category === '住宿费') {
+          const updated = { ...item, roomCount: value };
+          // 重新计算总额：单价 × 间数 × 晚数
+          updated.total = (updated.unitPrice || 0) * (value || 0) * (updated.nightCount || 0);
+          updated.quantity = (value || 0) * (updated.nightCount || 0); // 同步更新 quantity
+          return updated;
+        }
+        return item;
+      });
+
+      // 重新计算管理费和税费
+      const baseTotal = newItems
+        .filter(item => item.id !== 'budget-management' && item.id !== 'budget-tax')
+        .reduce((sum, item) => sum + (item.total || 0), 0);
+
+      const managementItem = newItems.find(item => item.id === 'budget-management');
+      const taxItem = newItems.find(item => item.id === 'budget-tax');
+
+      if (managementItem && taxItem) {
+        const managementRate = managementItem.managementRate || 15;
+        const taxRate = taxItem.taxRate || 3;
+
+        const managementFee = Math.round(baseTotal / (1 - managementRate / 100) * (managementRate / 100));
+        const taxFee = Math.round((baseTotal + managementFee) * (taxRate / 100));
+
+        managementItem.quantity = baseTotal;
+        managementItem.total = managementFee;
+        managementItem.description = `${managementRate}%，基数¥${baseTotal.toLocaleString()}`;
+
+        taxItem.quantity = baseTotal + managementFee;
+        taxItem.total = taxFee;
+        taxItem.description = `${taxRate}%，基数¥${(baseTotal + managementFee).toLocaleString()}`;
+      }
+
+      return newItems;
+    });
+  };
+
+  // 更新住宿费晚数
+  const updateBudgetItemNightCount = (id: string, value: number) => {
+    setBudgetItems(prev => {
+      const newItems = prev.map(item => {
+        if (item.id === id && item.category === '住宿费') {
+          const updated = { ...item, nightCount: value };
+          // 重新计算总额：单价 × 间数 × 晚数
+          updated.total = (updated.unitPrice || 0) * (updated.roomCount || 0) * (value || 0);
+          updated.quantity = (updated.roomCount || 0) * (value || 0); // 同步更新 quantity
+          return updated;
+        }
+        return item;
+      });
+
+      // 重新计算管理费和税费
+      const baseTotal = newItems
+        .filter(item => item.id !== 'budget-management' && item.id !== 'budget-tax')
+        .reduce((sum, item) => sum + (item.total || 0), 0);
+
+      const managementItem = newItems.find(item => item.id === 'budget-management');
+      const taxItem = newItems.find(item => item.id === 'budget-tax');
+
+      if (managementItem && taxItem) {
+        const managementRate = managementItem.managementRate || 15;
+        const taxRate = taxItem.taxRate || 3;
+
+        const managementFee = Math.round(baseTotal / (1 - managementRate / 100) * (managementRate / 100));
+        const taxFee = Math.round((baseTotal + managementFee) * (taxRate / 100));
+
+        managementItem.quantity = baseTotal;
+        managementItem.total = managementFee;
+        managementItem.description = `${managementRate}%，基数¥${baseTotal.toLocaleString()}`;
+
+        taxItem.quantity = baseTotal + managementFee;
+        taxItem.total = taxFee;
+        taxItem.description = `${taxRate}%，基数¥${(baseTotal + managementFee).toLocaleString()}`;
+      }
+
+      return newItems;
+    });
+  };
+
+  // 更新交通费辆数
+  const updateBudgetItemVehicleCount = (id: string, value: number) => {
+    setBudgetItems(prev => {
+      const newItems = prev.map(item => {
+        if (item.id === id && item.category === '交通费') {
+          const updated = { ...item, vehicleCount: value };
+          // 重新计算总额：单价 × 辆数 × 次数
+          updated.total = (updated.unitPrice || 0) * (value || 0) * (updated.tripCount || 0);
+          updated.quantity = (value || 0) * (updated.tripCount || 0); // 同步更新 quantity
+          return updated;
+        }
+        return item;
+      });
+
+      // 重新计算管理费和税费
+      const baseTotal = newItems
+        .filter(item => item.id !== 'budget-management' && item.id !== 'budget-tax')
+        .reduce((sum, item) => sum + (item.total || 0), 0);
+
+      const managementItem = newItems.find(item => item.id === 'budget-management');
+      const taxItem = newItems.find(item => item.id === 'budget-tax');
+
+      if (managementItem && taxItem) {
+        const managementRate = managementItem.managementRate || 15;
+        const taxRate = taxItem.taxRate || 3;
+
+        const managementFee = Math.round(baseTotal / (1 - managementRate / 100) * (managementRate / 100));
+        const taxFee = Math.round((baseTotal + managementFee) * (taxRate / 100));
+
+        managementItem.quantity = baseTotal;
+        managementItem.total = managementFee;
+        managementItem.description = `${managementRate}%，基数¥${baseTotal.toLocaleString()}`;
+
+        taxItem.quantity = baseTotal + managementFee;
+        taxItem.total = taxFee;
+        taxItem.description = `${taxRate}%，基数¥${(baseTotal + managementFee).toLocaleString()}`;
+      }
+
+      return newItems;
+    });
+  };
+
+  // 更新交通费次数
+  const updateBudgetItemTripCount = (id: string, value: number) => {
+    setBudgetItems(prev => {
+      const newItems = prev.map(item => {
+        if (item.id === id && item.category === '交通费') {
+          const updated = { ...item, tripCount: value };
+          // 重新计算总额：单价 × 辆数 × 次数
+          updated.total = (updated.unitPrice || 0) * (updated.vehicleCount || 0) * (value || 0);
+          updated.quantity = (updated.vehicleCount || 0) * (value || 0); // 同步更新 quantity
           return updated;
         }
         return item;
@@ -3748,6 +3928,50 @@ export default function DesignPage() {
                                       type="number"
                                       value={item.timesCount || 0}
                                       onChange={(e) => updateBudgetItemTimesCount(item.id, parseFloat(e.target.value) || 0)}
+                                      className="w-18 h-8 text-right"
+                                      min="0"
+                                      step="1"
+                                    />
+                                    <span className="text-muted-foreground text-sm whitespace-nowrap">次</span>
+                                  </>
+                                ) : item.category === '住宿费' ? (
+                                  <>
+                                    <Input
+                                      type="number"
+                                      value={item.roomCount || 0}
+                                      onChange={(e) => updateBudgetItemRoomCount(item.id, parseFloat(e.target.value) || 0)}
+                                      className="w-18 h-8 text-right"
+                                      min="0"
+                                      step="1"
+                                    />
+                                    <span className="text-muted-foreground text-sm whitespace-nowrap">间</span>
+                                    <span className="text-muted-foreground">×</span>
+                                    <Input
+                                      type="number"
+                                      value={item.nightCount || 0}
+                                      onChange={(e) => updateBudgetItemNightCount(item.id, parseFloat(e.target.value) || 0)}
+                                      className="w-18 h-8 text-right"
+                                      min="0"
+                                      step="1"
+                                    />
+                                    <span className="text-muted-foreground text-sm whitespace-nowrap">晚</span>
+                                  </>
+                                ) : item.category === '交通费' ? (
+                                  <>
+                                    <Input
+                                      type="number"
+                                      value={item.vehicleCount || 0}
+                                      onChange={(e) => updateBudgetItemVehicleCount(item.id, parseFloat(e.target.value) || 0)}
+                                      className="w-18 h-8 text-right"
+                                      min="0"
+                                      step="1"
+                                    />
+                                    <span className="text-muted-foreground text-sm whitespace-nowrap">辆</span>
+                                    <span className="text-muted-foreground">×</span>
+                                    <Input
+                                      type="number"
+                                      value={item.tripCount || 0}
+                                      onChange={(e) => updateBudgetItemTripCount(item.id, parseFloat(e.target.value) || 0)}
                                       className="w-18 h-8 text-right"
                                       min="0"
                                       step="1"
