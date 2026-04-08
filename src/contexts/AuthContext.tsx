@@ -61,25 +61,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // 防止重复请求
     if (fetchingRef.current) return;
     fetchingRef.current = true;
-    
+
     try {
       const sessionToken = typeof window !== 'undefined' ? localStorage.getItem('session_token') : null;
-      
+
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
-      
+
       if (sessionToken && sessionToken.trim() !== '') {
         headers['Authorization'] = `Bearer ${sessionToken}`;
       }
-      
+
+      // 添加超时控制
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
+
       const res = await fetch('/api/auth/me', {
         credentials: 'include',
         headers,
+        signal: controller.signal,
       });
-      
-      // 如果返回 401，清理本地状态
-      if (res.status === 401) {
+
+      clearTimeout(timeoutId);
+
+      // 如果返回 401 或 404，清理本地状态并设置未登录
+      if (res.status === 401 || res.status === 404) {
         setUser(null);
         setAuthenticated(false);
         if (typeof window !== 'undefined') {
@@ -87,21 +94,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         return;
       }
-      
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
+
       const contentType = res.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
         setUser(null);
         setAuthenticated(false);
         return;
       }
-      
+
       const text = await res.text();
       if (!text || text.trim() === '') {
         setUser(null);
         setAuthenticated(false);
         return;
       }
-      
+
       let data;
       try {
         data = JSON.parse(text);
@@ -111,7 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setAuthenticated(false);
         return;
       }
-      
+
       if (data.authenticated && data.user) {
         setUser(data.user);
         setAuthenticated(true);
