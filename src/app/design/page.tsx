@@ -3873,11 +3873,11 @@ export default function DesignPage() {
                                 <Input
                                   type="number"
                                   value={item.managementRate || 15}
-                                  onChange={(e) => updateManagementRate(parseFloat(e.target.value) || 15)}
+                                  onChange={(e) => updateManagementRate(Math.round(parseFloat(e.target.value)) || 15)}
                                   className="w-16 h-8 text-right"
                                   min="0"
                                   max="100"
-                                  step="0.1"
+                                  step="1"
                                 />
                                 <span className="text-muted-foreground text-sm whitespace-nowrap">%</span>
                                 <span className="text-muted-foreground text-sm ml-2">
@@ -3889,11 +3889,11 @@ export default function DesignPage() {
                                 <Input
                                   type="number"
                                   value={item.taxRate || 3}
-                                  onChange={(e) => updateTaxRate(parseFloat(e.target.value) || 3)}
+                                  onChange={(e) => updateTaxRate(Math.round(parseFloat(e.target.value)) || 3)}
                                   className="w-16 h-8 text-right"
                                   min="0"
                                   max="100"
-                                  step="0.1"
+                                  step="1"
                                 />
                                 <span className="text-muted-foreground text-sm whitespace-nowrap">%</span>
                                 <span className="text-muted-foreground text-sm ml-2">
@@ -3905,10 +3905,10 @@ export default function DesignPage() {
                                 <Input
                                   type="number"
                                   value={item.unitPrice}
-                                  onChange={(e) => updateBudgetItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
+                                  onChange={(e) => updateBudgetItem(item.id, 'unitPrice', Math.round(parseFloat(e.target.value)) || 0)}
                                   className="w-20 h-8 text-right"
                                   min="0"
-                                  step="0.01"
+                                  step="1"
                                 />
                                 <span className="text-muted-foreground text-sm whitespace-nowrap">元</span>
                                 <span className="text-muted-foreground">×</span>
@@ -3917,7 +3917,7 @@ export default function DesignPage() {
                                     <Input
                                       type="number"
                                       value={item.peopleCount || 0}
-                                      onChange={(e) => updateBudgetItemPeopleCount(item.id, parseFloat(e.target.value) || 0)}
+                                      onChange={(e) => updateBudgetItemPeopleCount(item.id, Math.round(parseFloat(e.target.value)) || 0)}
                                       className="w-18 h-8 text-right"
                                       min="0"
                                       step="1"
@@ -3927,7 +3927,7 @@ export default function DesignPage() {
                                     <Input
                                       type="number"
                                       value={item.timesCount || 0}
-                                      onChange={(e) => updateBudgetItemTimesCount(item.id, parseFloat(e.target.value) || 0)}
+                                      onChange={(e) => updateBudgetItemTimesCount(item.id, Math.round(parseFloat(e.target.value)) || 0)}
                                       className="w-18 h-8 text-right"
                                       min="0"
                                       step="1"
@@ -3939,7 +3939,7 @@ export default function DesignPage() {
                                     <Input
                                       type="number"
                                       value={item.roomCount || 0}
-                                      onChange={(e) => updateBudgetItemRoomCount(item.id, parseFloat(e.target.value) || 0)}
+                                      onChange={(e) => updateBudgetItemRoomCount(item.id, Math.round(parseFloat(e.target.value)) || 0)}
                                       className="w-18 h-8 text-right"
                                       min="0"
                                       step="1"
@@ -3949,7 +3949,7 @@ export default function DesignPage() {
                                     <Input
                                       type="number"
                                       value={item.nightCount || 0}
-                                      onChange={(e) => updateBudgetItemNightCount(item.id, parseFloat(e.target.value) || 0)}
+                                      onChange={(e) => updateBudgetItemNightCount(item.id, Math.round(parseFloat(e.target.value)) || 0)}
                                       className="w-18 h-8 text-right"
                                       min="0"
                                       step="1"
@@ -3961,7 +3961,7 @@ export default function DesignPage() {
                                     <Input
                                       type="number"
                                       value={item.vehicleCount || 0}
-                                      onChange={(e) => updateBudgetItemVehicleCount(item.id, parseFloat(e.target.value) || 0)}
+                                      onChange={(e) => updateBudgetItemVehicleCount(item.id, Math.round(parseFloat(e.target.value)) || 0)}
                                       className="w-18 h-8 text-right"
                                       min="0"
                                       step="1"
@@ -3971,7 +3971,7 @@ export default function DesignPage() {
                                     <Input
                                       type="number"
                                       value={item.tripCount || 0}
-                                      onChange={(e) => updateBudgetItemTripCount(item.id, parseFloat(e.target.value) || 0)}
+                                      onChange={(e) => updateBudgetItemTripCount(item.id, Math.round(parseFloat(e.target.value)) || 0)}
                                       className="w-18 h-8 text-right"
                                       min="0"
                                       step="1"
@@ -3983,10 +3983,10 @@ export default function DesignPage() {
                                     <Input
                                       type="number"
                                       value={item.quantity}
-                                      onChange={(e) => updateBudgetItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
+                                      onChange={(e) => updateBudgetItem(item.id, 'quantity', Math.round(parseFloat(e.target.value)) || 0)}
                                       className="w-24 h-8 text-right"
                                       min="0"
-                                      step="0.1"
+                                      step="1"
                                     />
                                     <span className="text-muted-foreground text-sm whitespace-nowrap">{item.unit}</span>
                                   </>
