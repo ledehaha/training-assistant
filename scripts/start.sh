@@ -18,10 +18,16 @@ if [ "${COZE_PROJECT_ENV:-}" = "PROD" ]; then
   export DATA_DIR="/tmp/data"
   export FILE_STORAGE_PATH="/tmp/files"
   export DATABASE_PATH="/tmp/training.db"
+  echo "生产环境模式"
+  echo "DATA_DIR: ${DATA_DIR}"
+  echo "DATABASE_PATH: ${DATABASE_PATH}"
 else
   export DATA_DIR="${PROJECT_DIR}/data"
   export FILE_STORAGE_PATH="${PROJECT_DIR}/data/files"
   export DATABASE_PATH="${PROJECT_DIR}/data/training.db"
+  echo "开发环境模式"
+  echo "DATA_DIR: ${DATA_DIR}"
+  echo "DATABASE_PATH: ${DATABASE_PATH}"
 fi
 
 # 创建数据目录（使用 -p 选项，如果目录已存在则不报错）
@@ -29,7 +35,8 @@ mkdir -p "${DATA_DIR}" "${FILE_STORAGE_PATH}"
 
 # 设置 NODE_ENV
 export NODE_ENV=${COZE_PROJECT_ENV:-development}
+echo "NODE_ENV: ${NODE_ENV}"
 
 # 使用 next start 启动生产服务器
 echo "Starting service on port ${PORT}..."
-NODE_ENV=${NODE_ENV} PORT=${PORT} npx next start -p ${PORT}
+NODE_ENV=${NODE_ENV} PORT=${PORT} DATA_DIR=${DATA_DIR} DATABASE_PATH=${DATABASE_PATH} FILE_STORAGE_PATH=${FILE_STORAGE_PATH} npx next start -p ${PORT}
