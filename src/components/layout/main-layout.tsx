@@ -153,13 +153,18 @@ export default function MainLayout({ children }: MainLayoutProps) {
   const { user, authenticated, loading, logout } = useAuth();
   const { canApproveUser, isAdmin } = usePermission();
 
+  // 调试日志
+  console.log('[MainLayout] Render - pathname:', pathname, 'loading:', loading, 'authenticated:', authenticated, 'isPublicPage:', ['/login', '/register'].includes(pathname));
+
   // 不需要登录的页面
   const publicPages = ['/login', '/register'];
   const isPublicPage = publicPages.includes(pathname);
 
   // 登录状态检查 - 只在状态变化时执行
   useEffect(() => {
+    console.log('[MainLayout] useEffect triggered - loading:', loading, 'authenticated:', authenticated, 'isPublicPage:', isPublicPage);
     if (!loading && !authenticated && !isPublicPage) {
+      console.log('[MainLayout] Redirecting to /login...');
       router.push('/login');
     }
   }, [loading, authenticated, isPublicPage, router]);

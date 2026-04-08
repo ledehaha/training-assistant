@@ -59,11 +59,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // 获取用户信息
   const fetchUser = useCallback(async () => {
     // 防止重复请求
-    if (fetchingRef.current) return;
+    if (fetchingRef.current) {
+      console.log('[AuthProvider] Fetch already in progress, skipping');
+      return;
+    }
     fetchingRef.current = true;
+    console.log('[AuthProvider] Starting fetchUser...');
+
+    // 只在客户端执行
+    if (typeof window === 'undefined') {
+      console.log('[AuthProvider] SSR mode, skipping fetch');
+      setLoading(false);
+      fetchingRef.current = false;
+      return;
+    }
 
     try {
-      const sessionToken = typeof window !== 'undefined' ? localStorage.getItem('session_token') : null;
+      console.log('[AuthProvider] Fetching user from localStorage...');
+      const sessionToken = localStorage.getItem('session_token');
+      console.log('[AuthProvider] Session token:', sessionToken ? 'exists' : 'none');
 
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -77,6 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
 
+      console.log('[AuthProvider] Calling /api/auth/me...');
       const res = await fetch('/api/auth/me', {
         credentials: 'include',
         headers,
@@ -84,14 +99,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       clearTimeout(timeoutId);
+      console.log('[AuthProvider] Response received:', res.status, res.statusText);
 
       // 如果返回 401 或 404，清理本地状态并设置未登录
       if (res.status === 401 || res.status === 404) {
+        console.log('[AuthProvider] User not authenticated (401/404)');
         setUser(null);
         setAuthenticated(false);
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('session_token');
-        }
+        localStorage.removeItem('session_token');
         return;
       }
 
@@ -101,13 +116,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const contentType = res.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
+        console.log('[AuthProvider] Invalid content type:', contentType);
         setUser(null);
         setAuthenticated(false);
         return;
       }
 
       const text = await res.text();
+      console.log('[AuthProvider] Response text length:', text.length);
+
       if (!text || text.trim() === '') {
+        console.log('[AuthProvider] Empty response');
         setUser(null);
         setAuthenticated(false);
         return;
@@ -123,22 +142,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      console.log('[AuthProvider] Parsed data:', data.authenticated ? 'authenticated' : 'not authenticated');
+
       if (data.authenticated && data.user) {
+        console.log('[AuthProvider] Setting authenticated user:', data.user.username);
         setUser(data.user);
         setAuthenticated(true);
         lastActivityRef.current = Date.now();
       } else {
+        console.log('[AuthProvider] User not authenticated in response');
         setUser(null);
         setAuthenticated(false);
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('session_token');
-        }
+        localStorage.removeItem('session_token');
       }
     } catch (error) {
-      console.error('[AuthProvider] Fetch user error:', error);
+      const errorName = error instanceof Error ? error.name : 'Unknown';
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('[AuthProvider] Fetch user error:', errorName, errorMessage);
       setUser(null);
       setAuthenticated(false);
     } finally {
+      console.log('[AuthProvider] Setting loading to false');
       setLoading(false);
       fetchingRef.current = false;
     }
