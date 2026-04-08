@@ -33,6 +33,15 @@ fi
 # 创建数据目录（使用 -p 选项，如果目录已存在则不报错）
 mkdir -p "${DATA_DIR}" "${FILE_STORAGE_PATH}"
 
+# 生产环境：复制初始数据库文件（如果不存在）
+if [ "${COZE_PROJECT_ENV:-}" = "PROD" ]; then
+  if [ ! -f "${DATABASE_PATH}" ] && [ -f "${PROJECT_DIR}/data/training.db" ]; then
+    echo "复制初始数据库文件到生产环境..."
+    cp "${PROJECT_DIR}/data/training.db" "${DATABASE_PATH}"
+    echo "数据库文件复制完成"
+  fi
+fi
+
 # 设置 NODE_ENV
 export NODE_ENV=${COZE_PROJECT_ENV:-development}
 echo "NODE_ENV: ${NODE_ENV}"
