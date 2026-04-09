@@ -141,6 +141,7 @@ interface BudgetItem {
   description?: string; // 说明
   isAutoCalculated: boolean; // 是否自动计算
   cannotDelete?: boolean; // 是否不可删除（管理费和税费）
+  isReadOnly?: boolean; // 是否只读（无输入框）
   managementRate?: number; // 管理费比例（仅管理费使用）
   taxRate?: number; // 税费比例（仅税费使用）
 }
@@ -2096,10 +2097,24 @@ export default function DesignPage() {
         unitPrice: 500,
         quantity: teacherHoursByTitle.other,
         total: teacherHoursByTitle.other * 500,
-        description: teacherHoursByTitle.other > 0 
-          ? `副教授及以下授课，共${teacherHoursByTitle.other}课时` 
+        description: teacherHoursByTitle.other > 0
+          ? `副教授及以下授课，共${teacherHoursByTitle.other}课时`
           : '暂无副教授及以下授课',
         isAutoCalculated: true
+      },
+      // 预估师资费（税费）- 自动计算
+      {
+        id: 'budget-teacher-tax',
+        name: '预估师资费（税费）',
+        category: '师资费',
+        unit: '项',
+        unitPrice: 0,
+        quantity: 0,
+        total: Math.round((teacherHoursByTitle.academician * 1500 + teacherHoursByTitle.professor * 1000 + teacherHoursByTitle.other * 500) / 0.8 * 0.2),
+        description: '预估师资费税费（不含税费用/0.8*0.2）',
+        isAutoCalculated: true,
+        cannotDelete: true,
+        isReadOnly: true // 只读，无输入框
       },
       // 场地费 - 按场地分组
       ...Object.entries(venueHoursByLocation).map(([location, hours], index) => ({
@@ -2599,6 +2614,21 @@ export default function DesignPage() {
       // 如果修改了非管理费、非税费的项目，需要重新计算管理费和税费
       const modifiedItem = prev.find(item => item.id === id);
       if (modifiedItem && modifiedItem.category !== '管理费' && modifiedItem.category !== '税费') {
+        // 如果修改的是师资费（除了预估师资费税费），需要重新计算预估师资费税费
+        if (modifiedItem.category === '师资费' && modifiedItem.id !== 'budget-teacher-tax') {
+          // 计算三个师资费之和
+          const academicianTotal = newItems.find(item => item.id === 'budget-teacher-academician')?.total || 0;
+          const professorTotal = newItems.find(item => item.id === 'budget-teacher-professor')?.total || 0;
+          const otherTotal = newItems.find(item => item.id === 'budget-teacher-other')?.total || 0;
+          const teacherTaxTotal = Math.round((academicianTotal + professorTotal + otherTotal) / 0.8 * 0.2);
+
+          // 更新预估师资费税费
+          const teacherTaxItem = newItems.find(item => item.id === 'budget-teacher-tax');
+          if (teacherTaxItem) {
+            teacherTaxItem.total = teacherTaxTotal;
+          }
+        }
+
         // 计算基础费用（排除管理费和税费）
         const baseTotal = newItems
           .filter(item => item.id !== 'budget-management' && item.id !== 'budget-tax')
@@ -3866,9 +3896,11 @@ export default function DesignPage() {
                             <span className="font-medium">{item.name}</span>
                           </div>
 
-                          {/* 第二列：单价、人数和次数（餐饮费和茶歇费）或单价和数量（其他）或百分比（管理费和税费） */}
+                          {/* 第二列：单价、人数和次数（餐饮费和茶歇费）或单价和数量（其他）或百分比（管理费和税费）或只读（预估师资费税费） */}
                           <div className="col-span-6 flex items-center gap-1 flex-wrap">
-                            {item.category === '管理费' ? (
+                            {item.isReadOnly ? (
+                              <span className="text-muted-foreground text-sm whitespace-nowrap">自动计算</span>
+                            ) : item.category === '管理费' ? (
                               <>
                                 <Input
                                   type="number"
