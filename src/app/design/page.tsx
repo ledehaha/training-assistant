@@ -34,7 +34,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Loader2, Sparkles, Save, ArrowRight, User, MapPin, BookOpen, DollarSign, X, FolderOpen, Plus, Clock, Check, CheckCircle, AlertCircle, Wand2, RefreshCw, Info } from 'lucide-react';
+import { Loader2, Sparkles, Save, ArrowRight, User, MapPin, BookOpen, DollarSign, X, FolderOpen, Plus, Clock, Check, CheckCircle, AlertCircle, Wand2, RefreshCw, Info, Download, FileText } from 'lucide-react';
 import ApiKeyCheckDialog, { checkApiKeyConfigured } from '@/components/api-key-check-dialog';
 import {
   Tooltip,
@@ -3108,15 +3108,15 @@ export default function DesignPage() {
   const handleUpdateOriginalProject = async () => {
     const currentFormData = formDataRef.current;
     const currentProjectId = projectIdRef.current;
-    
+
     // 更新原始项目名称
     setOriginalProjectName(currentFormData.name || '');
-    
+
     setShowSaveAsNewDialog(false);
-    
+
     // 执行保存
     await performSave();
-    
+
     // 如果之前是点击"下一步"，继续执行
     if (pendingAction === 'next') {
       const currentCourses = coursesRef.current;
@@ -3128,8 +3128,76 @@ export default function DesignPage() {
         handleGenerateScheme();
       }
     }
-    
+
     setPendingAction(null);
+  };
+
+  // 处理生成文件
+  const handleGenerateDocument = async (fileType: 'quotation' | 'cost-calculation' | 'application') => {
+    try {
+      // 先保存当前数据
+      if (formData.name?.trim()) {
+        await performSave();
+      }
+
+      // 准备项目数据
+      const projectData = {
+        name: formData.name,
+        trainingTarget: formData.trainingTarget,
+        targetAudience: formData.targetAudience,
+        participantCount: formData.participantCount,
+        trainingDays: formData.trainingDays,
+        trainingPeriod: formData.trainingPeriod,
+        budgetMin: formData.budgetMin,
+        budgetMax: formData.budgetMax,
+        location: formData.location,
+        specialRequirements: formData.specialRequirements,
+        budgetItems: budgetItems,
+        totalBudget,
+      };
+
+      // 调用 API 生成文件
+      const res = await fetch('/api/generate-documents', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          projectData,
+          fileType,
+        }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || '生成文件失败');
+      }
+
+      // 获取文件 blob
+      const blob = await res.blob();
+
+      // 创建下载链接
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+
+      // 设置文件名
+      const fileName = `${formData.name}-${fileType === 'quotation' ? '报价表' : fileType === 'cost-calculation' ? '成本测算表' : '项目申报表'}.${fileType === 'application' ? 'docx' : 'xlsx'}`;
+      a.download = fileName;
+
+      // 触发下载
+      document.body.appendChild(a);
+      a.click();
+
+      // 清理
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      showToast('success', '文件已下载');
+    } catch (error) {
+      console.error('生成文件失败:', error);
+      showToast('error', '生成文件失败：' + (error as Error).message);
+    }
   };
 
   // 更新单个表单字段（优化：使用函数式更新）
@@ -4101,6 +4169,35 @@ export default function DesignPage() {
                     <p><strong>删除限制：</strong>只能删除手动添加的费用项，自动计算的项目不能删除。</p>
                   </div>
                 </div>
+
+                {/* 下一步按钮 */}
+                {courses.length > 0 && (
+                  <div className="flex justify-end pt-4 border-t mt-4 gap-2">
+                    <Button
+                      onClick={() => handleGenerateDocument('quotation')}
+                      className="gap-2"
+                      variant="outline"
+                    >
+                      <Download className="h-4 w-4" />
+                      下载报价表
+                    </Button>
+                    <Button
+                      onClick={() => handleGenerateDocument('cost-calculation')}
+                      className="gap-2"
+                      variant="outline"
+                    >
+                      <Download className="h-4 w-4" />
+                      下载成本测算表
+                    </Button>
+                    <Button
+                      onClick={() => handleGenerateDocument('application')}
+                      className="gap-2"
+                    >
+                      <FileText className="h-4 w-4" />
+                      下载项目申报表
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
