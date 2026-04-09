@@ -337,29 +337,61 @@ export async function generateProjectApplicationWord(projectData: ProjectData): 
   let seqNo = 1;
   Object.entries(categoryGroups).forEach(([category, items]) => {
     items.forEach(item => {
-      table.root.push(new TableRow({
+      const row = new TableRow({
         children: [
-          new TableCell({ children: [new Paragraph(seqNo.toString())], width: { size: 10, type: WidthType.PERCENTAGE } }),
-          new TableCell({ children: [new Paragraph(category)], width: { size: 20, type: WidthType.PERCENTAGE } }),
-          new TableCell({ children: [new Paragraph(item.name)], width: { size: 30, type: WidthType.PERCENTAGE } }),
-          new TableCell({ children: [new Paragraph('¥' + item.total.toLocaleString())], width: { size: 20, type: WidthType.PERCENTAGE } }),
-          new TableCell({ children: [new Paragraph(item.description || '')], width: { size: 20, type: WidthType.PERCENTAGE } }),
+          new TableCell({
+            children: [new Paragraph(seqNo.toString())],
+            width: { size: 10, type: WidthType.PERCENTAGE }
+          }),
+          new TableCell({
+            children: [new Paragraph(category)],
+            width: { size: 20, type: WidthType.PERCENTAGE }
+          }),
+          new TableCell({
+            children: [new Paragraph(item.name)],
+            width: { size: 30, type: WidthType.PERCENTAGE }
+          }),
+          new TableCell({
+            children: [new Paragraph('¥' + item.total.toLocaleString())],
+            width: { size: 20, type: WidthType.PERCENTAGE }
+          }),
+          new TableCell({
+            children: [new Paragraph(item.description || '')],
+            width: { size: 20, type: WidthType.PERCENTAGE }
+          }),
         ],
-      }));
+      });
+      table.root.push(row);
       seqNo++;
     });
   });
 
   // 添加总计行
-  table.root.push(new TableRow({
+  const totalRow = new TableRow({
     children: [
-      new TableCell({ children: [new Paragraph('')], width: { size: 10, type: WidthType.PERCENTAGE } }),
-      new TableCell({ children: [new Paragraph('')], width: { size: 20, type: WidthType.PERCENTAGE } }),
-      new TableCell({ children: [new Paragraph({ text: '费用总计', bold: true })], width: { size: 30, type: WidthType.PERCENTAGE } }),
-      new TableCell({ children: [new Paragraph({ text: '¥' + projectData.totalBudget.toLocaleString(), bold: true })], width: { size: 20, type: WidthType.PERCENTAGE } }),
-      new TableCell({ children: [new Paragraph('人均：¥' + Math.round(projectData.totalBudget / projectData.participantCount).toLocaleString())], width: { size: 20, type: WidthType.PERCENTAGE } }),
+      new TableCell({
+        children: [new Paragraph('')],
+        width: { size: 10, type: WidthType.PERCENTAGE }
+      }),
+      new TableCell({
+        children: [new Paragraph('')],
+        width: { size: 20, type: WidthType.PERCENTAGE }
+      }),
+      new TableCell({
+        children: [new Paragraph({ text: '费用总计', bold: true })],
+        width: { size: 30, type: WidthType.PERCENTAGE }
+      }),
+      new TableCell({
+        children: [new Paragraph({ text: '¥' + projectData.totalBudget.toLocaleString(), bold: true })],
+        width: { size: 20, type: WidthType.PERCENTAGE }
+      }),
+      new TableCell({
+        children: [new Paragraph('人均：¥' + Math.round(projectData.totalBudget / projectData.participantCount).toLocaleString())],
+        width: { size: 20, type: WidthType.PERCENTAGE }
+      }),
     ],
-  }));
+  });
+  table.root.push(totalRow);
 
   // 生成 Word 文件
   const buffer = await Packer.toBuffer(doc);
