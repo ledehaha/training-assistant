@@ -340,10 +340,10 @@ export async function generateProjectApplicationWord(projectData: ProjectData): 
       table.root.push(new TableRow({
         children: [
           new TableCell({ children: [new Paragraph(seqNo.toString())], width: { size: 10, type: WidthType.PERCENTAGE } }),
-          new TableCell({ children: [new Paragraph(category)] }, width: { size: 20, type: WidthType.PERCENTAGE }),
-          new TableCell({ children: [new Paragraph(item.name)] }, width: { size: 30, type: WidthType.PERCENTAGE }),
-          new TableCell({ children: [new Paragraph('¥' + item.total.toLocaleString())] }, width: { size: 20, type: WidthType.PERCENTAGE }),
-          new TableCell({ children: [new Paragraph(item.description || '')] }, width: { size: 20, type: WidthType.PERCENTAGE }),
+          new TableCell({ children: [new Paragraph(category)], width: { size: 20, type: WidthType.PERCENTAGE } }),
+          new TableCell({ children: [new Paragraph(item.name)], width: { size: 30, type: WidthType.PERCENTAGE } }),
+          new TableCell({ children: [new Paragraph('¥' + item.total.toLocaleString())], width: { size: 20, type: WidthType.PERCENTAGE } }),
+          new TableCell({ children: [new Paragraph(item.description || '')], width: { size: 20, type: WidthType.PERCENTAGE } }),
         ],
       }));
       seqNo++;
@@ -355,9 +355,9 @@ export async function generateProjectApplicationWord(projectData: ProjectData): 
     children: [
       new TableCell({ children: [new Paragraph('')], width: { size: 10, type: WidthType.PERCENTAGE } }),
       new TableCell({ children: [new Paragraph('')], width: { size: 20, type: WidthType.PERCENTAGE } }),
-      new TableCell({ children: [new Paragraph({ text: '费用总计', bold: true })] }, width: { size: 30, type: WidthType.PERCENTAGE }),
-      new TableCell({ children: [new Paragraph({ text: '¥' + projectData.totalBudget.toLocaleString(), bold: true })] }, width: { size: 20, type: WidthType.PERCENTAGE }),
-      new TableCell({ children: [new Paragraph('人均：¥' + Math.round(projectData.totalBudget / projectData.participantCount).toLocaleString())] }, width: { size: 20, type: WidthType.PERCENTAGE }),
+      new TableCell({ children: [new Paragraph({ text: '费用总计', bold: true })], width: { size: 30, type: WidthType.PERCENTAGE } }),
+      new TableCell({ children: [new Paragraph({ text: '¥' + projectData.totalBudget.toLocaleString(), bold: true })], width: { size: 20, type: WidthType.PERCENTAGE } }),
+      new TableCell({ children: [new Paragraph('人均：¥' + Math.round(projectData.totalBudget / projectData.participantCount).toLocaleString())], width: { size: 20, type: WidthType.PERCENTAGE } }),
     ],
   }));
 
